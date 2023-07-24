@@ -5,7 +5,7 @@ import nox
 
 nox.options.sessions = [
     "build-docs",
-    "unit-tests"
+    "unit-tests-versions"
 ]
 
 @nox.session(name="build-docs")
@@ -32,7 +32,7 @@ def docs_server(session: nox.Session):
 
 
 @nox.session(name="publish-package")
-def publish_package(session: nox.Session):
+def publish(session: nox.Session):
     """Build a new src and wheel and publish to PYPI
     """
     dev_venv_setup(session=session)
@@ -44,29 +44,28 @@ def publish_package(session: nox.Session):
     session.run("twine", "upload", "dist/*", "--repository", "authzee")
 
 
-@nox.session(name="unit-tests-curr-python")
-def unit_tests_current_python(session: nox.Session):
+@nox.session(
+    name="unit-tests",
+    python=False
+)
+def unit_tests(session: nox.Session):
     """Run tests with current python version and generate html coverage report.
     """
-    if "--no-venv" not in sys.argv:
-        dev_venv_setup(session=session)
-
     session.run("coverage", "erase")
     session.run("pytest", "-vvv", "--cov=src/authzee", "--cov-report", "html", "tests/unit")
 
 
 @nox.session(
-    name="unit-tests",
+    name="unit-tests-versions",
     python=[
-        "3.7",
         "3.8",
         "3.9",
         "3.10",
         "3.11"
     ]
 )
-def unit_tests(session: nox.Session):
-    """Run tests with all supported python version and generate missing coverage report in terminal.
+def unit_tests_versions(session: nox.Session):
+    """Run tests with all specified python version and generate missing coverage report in terminal.
     """
     dev_venv_setup(session=session)
     session.run("coverage", "erase")
