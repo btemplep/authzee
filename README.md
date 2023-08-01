@@ -2,14 +2,14 @@
 
 Documentation(Link TBD)
 
-Authzee aims to offer a simple, but highly expressive grant and revoke authorization framework.
+Authzee aims to offer a simple, but highly expressive grant and revoke authorization framework while maintaining the ability to scale.
 
 Define your own authorization resource and identity models with pydantic.
 Create grants by using an extended JMESPath specification to query input resources and identities. 
 
 > **NOTE** - It was originally developed with a focus on authorizing around existing infrastructure 
 like AD users, AD roles, AWS roles etc. 
-It is also adaptable to a user registration style system but may not scale nearly as well as other systems 
+It is also adaptable to a user registration style system but may not fit as well as other options 
 like [authzed](https://authzed.com/).
 
 
@@ -52,7 +52,7 @@ Extra dependencies:
 Let's start with a simple example.  An authorization request where an entity needs to perform an action on a resource, 
 and authzee should tell us if it is allowed to or not.
 
-> **NOTE** - The tutorial here covers a good amount overall, but for more details please see the Documentation(Link TBD).
+> **NOTE** - The tutorial here covers a basic setup, but for more details please see the Documentation(Link TBD).
 
 You can go straight to the [full code example](#full-tutorial-example), or follow along with the tutorial to get all of the definitions and smaller examples.
 
@@ -733,8 +733,6 @@ if __name__ == "__main__":
 ```
 
 ### Definitions
-
-A list of definitions
 
 - Authorization Request (Request) - A request to see if a the calling entity is authorized to perform a specific resource action on a resource. 
 
