@@ -1,7 +1,7 @@
 
 import copy
 import json
-from typing import Any, AsyncIterable, Dict, Iterable, List, Optional, Set, Type, Union
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional, Set, Type, Union
 
 import jmespath
 import jmespath.exceptions
@@ -13,7 +13,6 @@ from authzee import exceptions
 from authzee.compute import general as gc
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
-from authzee.grant_iter import GrantIter
 from authzee.grants_page import GrantsPage
 from authzee.resource_authz import ResourceAuthz
 from authzee.resource_action import ResourceAction
@@ -536,7 +535,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
-    ) -> Iterable[Grant]:
+    ) -> Generator[Grant]:
         """List Grants.
 
         Example:
@@ -562,8 +561,8 @@ class Authzee:
 
         Returns
         -------
-        Iterable[Grant]
-            An iterable for grants.
+        Generator[Grant]
+            A generator for grants that automatically handles pagination.
         
         Raises
         ------
@@ -576,14 +575,41 @@ class Authzee:
             resource_action=resource_action
         )
 
-        return GrantIter(
-            next_page_callable=self._storage_backend.get_grants_page,
-            page_size=page_size,
-            next_page_reference=None,
+        return self._list_grants(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action
+            resource_action=resource_action,
+            page_size=page_size
         )
+
+
+    def _list_grants(
+        self,
+        effect: GrantEffect,
+        resource_type: Optional[Type[BaseModel]],
+        resource_action: Optional[ResourceAction],
+        page_size: Optional[int]
+    ) -> Generator[Grant]:
+        did_once = False
+        next_page_ref = None
+        grants_page = None
+        while (
+            did_once is not True
+            or next_page_ref is not None
+        ):
+            did_once = True
+            raw_grants = self._storage_backend.get_raw_grants_page(
+                effect=effect,
+                resource_type=resource_type,
+                resource_action=resource_action,
+                page_size=page_size,
+                next_page_reference=next_page_ref
+            )
+            grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants)
+            next_page_ref = grants_page.next_page_reference
+            
+            for grant in grants_page.grants:
+                yield grant
 
 
     def list_grants_async(
@@ -592,7 +618,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
-    ) -> AsyncIterable[Grant]:
+    ) -> AsyncGenerator[Grant]:
         """List Grants.
 
         **NOTE** - This is not a coroutine but returns an async iterator.
@@ -620,8 +646,8 @@ class Authzee:
 
         Returns
         -------
-        AsyncIterable[Grant]
-            Async iterable for grants.
+        AsyncGenerator[Grant]
+            Async generator for grants that automatically handles pagination.
 
         Raises
         ------
@@ -643,14 +669,41 @@ class Authzee:
             resource_action=resource_action
         )
 
-        return GrantIter(
-            next_page_callable=self._storage_backend.get_grants_page_async,
-            page_size=page_size,
-            next_page_reference=None,
+        return self._list_grants_async(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action
+            resource_action=resource_action,
+            page_size=page_size
         )
+    
+
+    async def _list_grants_async(
+        self,
+        effect: GrantEffect,
+        resource_type: Optional[Type[BaseModel]] = None,
+        resource_action: Optional[ResourceAction] = None,
+        page_size: Optional[int] = None
+    ) -> AsyncGenerator[Grant]:
+        did_once = False
+        next_page_ref = None
+        grants_page = None
+        while (
+            did_once is not True
+            or next_page_ref is not None
+        ):
+            did_once = True
+            raw_grants = await self._storage_backend.get_raw_grants_page_async(
+                effect=effect,
+                resource_type=resource_type,
+                resource_action=resource_action,
+                page_size=page_size,
+                next_page_reference=next_page_ref
+            )
+            grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants)
+            next_page_ref = grants_page.next_page_reference
+            
+            for grant in grants_page.grants:
+                yield grant
 
 
     def get_grants_page(
@@ -782,7 +835,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
-    ) -> Iterable[Grant]:
+    ) -> Generator[Grant]:
         """List matching grants.
 
         Parameters
@@ -805,8 +858,8 @@ class Authzee:
 
         Returns
         -------
-        Iterable[Grant]
-            Iterable for matching Grants.
+        Generator[Grant]
+            Generator for matching grants that automatically handles pagination.
         
         Raises
         ------
@@ -829,15 +882,43 @@ class Authzee:
             identities=identities
         )
 
-        return GrantIter(
-            next_page_callable=self._compute_backend.get_matching_grants_page,
-            page_size=page_size,
-            next_page_reference=None,
+        return self._list_matching_grants(
             effect=effect,
             resource_type=type(resource),
             resource_action=resource_action,
-            jmespath_data=jmespath_data
+            jmespath_data=jmespath_data,
+            page_size=page_size
         )
+    
+
+    def _list_matching_grants(
+        self,
+        effect: GrantEffect,
+        resource: BaseModel,
+        resource_action: ResourceAction,
+        jmespath_data: Dict[str, Any],
+        page_size: Optional[int]
+    ) -> Generator[Grant]:
+        did_once = False
+        next_page_ref = None
+        grants_page = None
+        while (
+            did_once is not True
+            or next_page_ref is not None
+        ):
+            did_once = True
+            grants_page = self._compute_backend.get_matching_grants_page(
+                effect=effect,
+                resource_type=type(resource),
+                resource_action=resource_action,
+                jmespath_data=jmespath_data,
+                page_size=page_size,
+                next_page_reference=next_page_ref
+            )
+            next_page_ref = grants_page.next_page_reference
+            
+            for grant in grants_page.grants:
+                yield grant
 
 
     def list_matching_grants_async(
@@ -849,7 +930,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
-    ) -> AsyncIterable[Grant]:
+    ) -> AsyncGenerator[Grant]:
         """List matching grants.
 
         **NOTE** - This is not a coroutine but returns an async iterator.
@@ -875,8 +956,8 @@ class Authzee:
 
         Returns
         -------
-        AsyncIterable[Grant]
-            Async Iterable for matching Grants.
+        AsyncGenerator[Grant]
+            Async generator for matching grants that automatically handles pagination.
         
         Raises
         ------
@@ -908,15 +989,43 @@ class Authzee:
             identities=identities
         )
 
-        return GrantIter(
-            next_page_callable=self._compute_backend.get_matching_grants_page_async,
-            page_size=page_size,
-            next_page_reference=None,
+        return self._list_matching_grants_async(
             effect=effect,
             resource_type=type(resource),
             resource_action=resource_action,
-            jmespath_data=jmespath_data
+            jmespath_data=jmespath_data,
+            page_size=page_size
         )
+
+
+    async def _list_matching_grants_async(
+        self,
+        effect: GrantEffect,
+        resource_type: Type[BaseModel],
+        resource_action: ResourceAction,
+        jmespath_data: Dict[str, Any],
+        page_size: Optional[int]
+    ) -> AsyncGenerator[Grant]:
+        did_once = False
+        next_page_ref = None
+        grants_page = None
+        while (
+            did_once is not True
+            or next_page_ref is not None
+        ):
+            did_once = True
+            grants_page = await self._compute_backend.get_matching_grants_page_async(
+                effect=effect,
+                resource_type=resource_type,
+                resource_action=resource_action,
+                jmespath_data=jmespath_data,
+                page_size=page_size,
+                next_page_reference=next_page_ref
+            )
+            next_page_ref = grants_page.next_page_reference
+            
+            for grant in grants_page.grants:
+                yield grant
 
 
     def get_matching_grants_page(

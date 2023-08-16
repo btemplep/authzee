@@ -13,6 +13,7 @@
         - another method to convert `RawGrantsPage` into `GrantsPage`
         - next page ref should always be stored as a string.  This way it's easily passed around. 
 
+- [x] Change grant iterators to generators
 
 - [ ] Speed up Multiprocess backend
     - avoid serializing all grants and passing to process
