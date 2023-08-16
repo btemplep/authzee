@@ -1,6 +1,6 @@
 
 import copy
-from typing import List, Optional, Set, Type, Union
+from typing import Any, List, Optional, Set, Type, Union
 import uuid
 
 from pydantic import BaseModel
@@ -9,6 +9,7 @@ from authzee import exceptions
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
 
@@ -24,7 +25,8 @@ class StorageBackend:
         - ``teardown`` - Remove resources created from ``setup()``.
         - ``add_grant`` - Add a grant to storage.
         - ``delete_grant`` - Delete a grant from storage.
-        - ``get_grants_page`` - Retrieve a page of grants from storage. 
+        - ``get_raw_grants_page`` - Retrieve a page of raw grants from storage. 
+        - ``normalize_raw_grants_page`` - Convert the raw storage grants to a list of ``Grant`` models.
     
     Optionally ``async`` methods may also be created for calls to storage. 
 
@@ -178,20 +180,22 @@ class StorageBackend:
             Sub-classes *may* implement this method if ``async`` is supported.
         """
         raise exceptions.MethodNotImplementedError()
+        
 
-
-    def get_grants_page(
+    def get_raw_grants_page(
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
-    ) -> GrantsPage:
-        """Retrieve a page of grants matching the filters.
+        next_page_reference: Optional[str] = None
+    ) -> RawGrantsPage:
+        """Retrieve a page of raw grants matching the filters.
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+
+        Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -209,14 +213,14 @@ class StorageBackend:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[BaseModel], optional
-            The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+        next_page_reference : Optional[str], optional
+            The reference to the next page that is returned in ``RawGrantsPage``.
+            By default this will return the first page.
 
         Returns
         -------
-        GrantsPage
-            The page of grants.
+        RawGrantsPage
+            The page of raw grants.
 
         Raises
         ------
@@ -226,18 +230,20 @@ class StorageBackend:
         raise exceptions.MethodNotImplementedError()
     
 
-    async def get_grants_page_async(
+    async def get_raw_grants_page_async(
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
-    ) -> GrantsPage:
-        """Retrieve a page of grants matching the filters.
+        next_page_reference: Optional[str] = None
+    ) -> RawGrantsPage:
+        """Retrieve a page of raw grants matching the filters.
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+
+        Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -255,19 +261,44 @@ class StorageBackend:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[BaseModel], optional
-            The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+        next_page_reference : Optional[str], optional
+            The reference to the next page that is returned in ``RawGrantsPage``.
+            By default this will return the first page.
 
         Returns
         -------
-        GrantsPage
-            The page of grants.
+        RawGrantsPage
+            The page of raw grants.
+
 
         Raises
         ------
         authzee.exceptions.MethodNotImplementedError
             Sub-classes *may* implement this method if ``async`` is supported.
+        """
+        raise exceptions.MethodNotImplementedError()
+    
+
+    def normalize_raw_grants_page(
+        self,
+        raw_grants_page: RawGrantsPage
+    ) -> GrantsPage:
+        """Convert a ``RawGrantsPage`` to a ``GrantsPage``.
+
+        Parameters
+        ----------
+        raw_grants_page : RawGrantsPage
+            Raw grants page to convert.
+
+        Returns
+        -------
+        GrantsPage
+            Normalized grants page.
+        
+        Raises
+        ------
+        authzee.exceptions.MethodNotImplementedError
+            Sub-classes must implement this method.
         """
         raise exceptions.MethodNotImplementedError()
 

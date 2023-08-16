@@ -24,7 +24,7 @@ from authzee.storage.storage_backend import StorageBackend
 class MultiprocessCompute(ComputeBackend):
 
     async_enabled: bool = True
-    multi_process_enabled: bool = False
+    multi_process_enabled: bool = True
 
 
     def __init__(
@@ -73,7 +73,8 @@ class MultiprocessCompute(ComputeBackend):
             initializer=_executor_init,
             initargs=(self._jmespath_options,)
         )
-    
+
+
     def shutdown(self) -> None:
         """Early clean up of compute backend resources.
 
@@ -451,7 +452,7 @@ class MultiprocessCompute(ComputeBackend):
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -476,9 +477,9 @@ class MultiprocessCompute(ComputeBackend):
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -505,7 +506,7 @@ class MultiprocessCompute(ComputeBackend):
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -530,9 +531,9 @@ class MultiprocessCompute(ComputeBackend):
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------

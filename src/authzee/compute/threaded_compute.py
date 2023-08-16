@@ -15,6 +15,7 @@ from authzee.compute import general as gc
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
 from authzee.storage.storage_backend import StorageBackend 
@@ -160,13 +161,14 @@ class ThreadedCompute(ComputeBackend):
         deny_match_event = threading.Event()
         deny_futures: List[asyncio.Future] = []
         next_page_task = None
-        grants_page = await self._storage_backend.get_grants_page_async(
+        raw_grants_page = await self._storage_backend.get_raw_grants_page_async(
             effect=GrantEffect.DENY,
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
             next_page_reference=next_page_ref
         )
+        grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
         while (
             done_pagination is False
             and deny_match_event.is_set() is False
@@ -176,7 +178,7 @@ class ThreadedCompute(ComputeBackend):
                 done_pagination = True
             else:
                 next_page_task = asyncio.Task(
-                    self._storage_backend.get_grants_page_async(
+                    self._storage_backend.get_raw_grants_page_async(
                         effect=GrantEffect.DENY,
                         resource_type=resource_type,
                         resource_action=resource_action,
@@ -196,20 +198,22 @@ class ThreadedCompute(ComputeBackend):
                 )
             )
             if next_page_ref is not None:
-                grants_page = await next_page_task
+                raw_grants_page = await next_page_task
+                grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
 
         done_pagination = False
         next_page_ref = None
         allow_futures = []
         allow_match_event = threading.Event()
         next_page_task = None
-        grants_page = await self._storage_backend.get_grants_page_async(
+        raw_grants_page = await self._storage_backend.get_raw_grants_page_async(
             effect=GrantEffect.ALLOW,
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
             next_page_reference=next_page_ref
         )
+        grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
         while (
             done_pagination is False
             and allow_match_event.is_set() is False
@@ -220,7 +224,7 @@ class ThreadedCompute(ComputeBackend):
                 done_pagination = True
             else:
                 next_page_task = asyncio.Task(
-                    self._storage_backend.get_grants_page_async(
+                    self._storage_backend.get_raw_grants_page_async(
                         effect=GrantEffect.ALLOW,
                         resource_type=resource_type,
                         resource_action=resource_action,
@@ -240,8 +244,8 @@ class ThreadedCompute(ComputeBackend):
                 )
             )
             if next_page_ref is not None:
-                grants_page = await next_page_task
-
+                raw_grants_page = await next_page_task
+                grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
         
         if deny_match_event.is_set() is True:
             cancel_event.set()
@@ -447,7 +451,7 @@ class ThreadedCompute(ComputeBackend):
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -472,9 +476,9 @@ class ThreadedCompute(ComputeBackend):
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -501,7 +505,7 @@ class ThreadedCompute(ComputeBackend):
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -526,9 +530,9 @@ class ThreadedCompute(ComputeBackend):
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------

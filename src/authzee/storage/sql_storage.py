@@ -1,17 +1,17 @@
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Set, Type, Union
 
 from pydantic import BaseModel
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
 
-
 from authzee import exceptions
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
 from authzee.storage.sql_storage_models import AllowGrantDB, Base, DenyGrantDB, ResourceActionDB, ResourceTypeDB
@@ -177,7 +177,7 @@ class SQLStorage(StorageBackend):
 
             session.add(db_grant)
             await session.commit()
-            grant.page_id = db_grant.page_id
+            grant.storage_id = db_grant.storage_id
         
         return grant
 
@@ -233,18 +233,20 @@ class SQLStorage(StorageBackend):
             await session.commit()
 
 
-    def get_grants_page(
+    def get_raw_grants_page(
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[SQLNextPageRef] = None
-    ) -> GrantsPage:
-        """Retrieve a page of grants matching the filters.
+        next_page_reference: Optional[str] = None
+    ) -> RawGrantsPage:
+        """Retrieve a page of raw grants matching the filters.
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+
+        Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -262,14 +264,14 @@ class SQLStorage(StorageBackend):
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[SQLNextPageRef], optional
-            The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+        next_page_reference : Optional[str], optional
+            The reference to the next page that is returned in ``RawGrantsPage``.
+            By default this will return the first page.
 
         Returns
         -------
-        GrantsPage
-            The page of grants.
+        RawGrantsPage
+            The page of raw grants.
         """
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(
@@ -283,18 +285,20 @@ class SQLStorage(StorageBackend):
         )
     
 
-    async def get_grants_page_async(
+    async def get_raw_grants_page_async(
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[SQLNextPageRef] = None
-    ) -> GrantsPage:
-        """Retrieve a page of grants matching the filters.
+        next_page_reference: Optional[str] = None
+    ) -> RawGrantsPage:
+        """Retrieve a page of raw grants matching the filters.
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+
+        Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -312,16 +316,18 @@ class SQLStorage(StorageBackend):
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[SQLNextPageRef], optional
-            The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+        next_page_reference : Optional[str], optional
+            The reference to the next page that is returned in ``RawGrantsPage``.
+            By default this will return the first page.
 
         Returns
         -------
-        GrantsPage
-            The page of grants.
+        RawGrantsPage
+            The page of raw grants.
         """
+        import time
         page_size = self._real_page_size(page_size=page_size)
+        start = time.time()
         async with self._async_sessionmaker() as session:
             if effect is GrantEffect.ALLOW:
                 grant_table = AllowGrantDB
@@ -343,8 +349,9 @@ class SQLStorage(StorageBackend):
                 )
 
             if next_page_reference is not None:
+                sql_next_page = SQLNextPageRef(**json.loads(next_page_reference))
                 filters.append(
-                    grant_table.page_id > next_page_reference.next_token
+                    grant_table.storage_id > sql_next_page.next_token
                 )
             
             query = query.where(*filters)
@@ -353,31 +360,51 @@ class SQLStorage(StorageBackend):
             result = await session.execute(query)
             db_grants = result.scalars().unique().all()
             next_page_ref = None
-            if page_size is not None:
-                if len(db_grants) >= page_size:
-                    next_page_ref = SQLNextPageRef(next_token=db_grants[-1].page_id)
-            
-            grants = []
-            for db_grant in db_grants:
-                grants.append(
-                    Grant(
-                        name=db_grant.name,
-                        description=db_grant.description,
-                        resource_type=self._resource_type_lookup[db_grant.resource_type],
-                        resource_actions={
-                            self._resource_action_lookup[action.resource_action] for action in db_grant.resource_actions
-                        },
-                        jmespath_expression=db_grant.jmespath_expression,
-                        result_match=json.loads(db_grant.result_match),
-                        page_id=db_grant.page_id,
-                        uuid=db_grant.uuid
-                    )
-                )
-            
-        return GrantsPage(
-            grants=grants,
+            if len(db_grants) >= page_size:
+                next_page_ref = SQLNextPageRef(next_token=db_grants[-1].storage_id).model_dump_json()
+
+        return RawGrantsPage(
+            raw_grants=db_grants,
             next_page_reference=next_page_ref
         )
 
 
+    def normalize_raw_grants_page(
+        self,
+        raw_grants_page: RawGrantsPage
+    ) -> GrantsPage:
+        """Convert a ``RawGrantsPage`` to a ``GrantsPage``.
+
+        Parameters
+        ----------
+        raw_grants_page : RawGrantsPage
+            Raw grants page to convert.
+
+        Returns
+        -------
+        GrantsPage
+            Normalized grants page.
+        """
+        grants = []
+        db_grants: List[Union[AllowGrantDB, DenyGrantDB]] = raw_grants_page.raw_grants
+        for db_grant in db_grants:
+            grants.append(
+                Grant(
+                    name=db_grant.name,
+                    description=db_grant.description,
+                    resource_type=self._resource_type_lookup[db_grant.resource_type],
+                    resource_actions={
+                        self._resource_action_lookup[action.resource_action] for action in db_grant.resource_actions
+                    },
+                    jmespath_expression=db_grant.jmespath_expression,
+                    result_match=json.loads(db_grant.result_match),
+                    storage_id=db_grant.storage_id,
+                    uuid=db_grant.uuid
+                )
+            )
+
+        return GrantsPage(
+            grants=grants,
+            next_page_reference=raw_grants_page.next_page_reference
+        )
 

@@ -14,7 +14,7 @@ class GrantIter:
         self, 
         next_page_callable: Callable[..., GrantsPage],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None,
+        next_page_reference: Optional[str] = None,
         **next_page_kwargs: Any
     ):
         self._next_page_callable = next_page_callable

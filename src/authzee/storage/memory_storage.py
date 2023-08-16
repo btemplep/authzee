@@ -1,6 +1,6 @@
 
 import copy
-from typing import Dict, Iterator, List, Optional, Set, Type
+from typing import Dict, List, Optional, Set, Type
 
 from pydantic import BaseModel
 
@@ -8,6 +8,7 @@ from authzee import exceptions
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
 from authzee.storage.storage_backend import StorageBackend
@@ -63,15 +64,15 @@ class MemoryStorage(StorageBackend):
 
         raise exceptions.GrantDoesNotExistError("{} Grant with UUID '{}' does not exist.".format(effect.value, uuid))
 
-    
-    def get_grants_page(
+
+    def get_raw_grants_page(
         self, 
         effect: GrantEffect, 
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
-    ) -> GrantsPage:
+        next_page_reference: Optional[str] = None
+    ) -> RawGrantsPage:
         if effect == GrantEffect.ALLOW:
             grants: List[Grant] = copy.deepcopy(list(self._allow_grants_lookup.values()))
         elif effect == GrantEffect.DENY:
@@ -83,8 +84,18 @@ class MemoryStorage(StorageBackend):
         if resource_action is not None:
             grants = [grant for grant in grants if resource_action in grant.resource_actions]
         
-        return GrantsPage(
-            grants=grants,
+        return RawGrantsPage(
+            raw_grants=grants,
             next_page_reference=None
+        )
+    
+
+    def normalize_raw_grants_page(
+        self,
+        raw_grants_page: RawGrantsPage
+    ) -> GrantsPage:
+        return GrantsPage(
+            grants=raw_grants_page.raw_grants,
+            next_page_reference=raw_grants_page.next_page_reference
         )
 

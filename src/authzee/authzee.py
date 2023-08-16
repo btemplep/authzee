@@ -659,7 +659,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of grants matching the filters.
 
@@ -682,9 +682,9 @@ class Authzee:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -701,14 +701,15 @@ class Authzee:
             resource_type=resource_type,
             resource_action=resource_action
         )
-
-        return self._storage_backend.get_grants_page(
+        raw_grants_page = self._storage_backend.get_raw_grants_page(
             effect=effect,
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
             next_page_reference=next_page_reference
         )
+
+        return self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
 
 
     async def get_grants_page_async(
@@ -717,7 +718,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of grants matching the filters.
 
@@ -740,9 +741,9 @@ class Authzee:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -761,14 +762,15 @@ class Authzee:
             resource_type=resource_type,
             resource_action=resource_action
         )
-
-        return await self._storage_backend.get_grants_page_async(
+        raw_grants_page = await self._storage_backend.get_raw_grants_page_async(
             effect=effect,
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
             next_page_reference=next_page_reference
         )
+
+        return self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
 
 
     def list_matching_grants(
@@ -926,7 +928,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -951,9 +953,9 @@ class Authzee:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -1000,7 +1002,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -1025,9 +1027,9 @@ class Authzee:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
