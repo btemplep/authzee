@@ -18,6 +18,7 @@
 - [ ] Speed up Multiprocess backend
     - avoid serializing all grants and passing to process
     - Should be able to tell subprocess page data and wait for new page data while the process goes
+    - Use ThreadPoolExecutor to make Pipe().recv() async
     - NEED TO CHECK if multiprocess.Event().is_set() takes a long time.
         - Is it okay to check for each grant
         - or should it just be every grant page
