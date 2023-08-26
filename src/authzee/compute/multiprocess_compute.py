@@ -1,10 +1,12 @@
 
 import asyncio
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import multiprocessing as mp
+from multiprocessing.connection import Connection
 from multiprocessing.context import BaseContext
+from multiprocessing import Event
 import os
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, Union
 
 import jmespath
 from loguru import logger
@@ -73,6 +75,8 @@ class MultiprocessCompute(ComputeBackend):
             initializer=_executor_init,
             initargs=(self._jmespath_options,)
         )
+        # Thread pool for converting pipe actions to async
+        self._thread_pool = ThreadPoolExecutor(max_workers=1)
 
 
     def shutdown(self) -> None:
@@ -123,7 +127,7 @@ class MultiprocessCompute(ComputeBackend):
                 jmespath_data=jmespath_data,
                 page_size=page_size
             )
-        ) 
+        )
 
 
     async def authorize_async(
@@ -159,93 +163,57 @@ class MultiprocessCompute(ComputeBackend):
             ``True`` if allowed, ``False`` if denied.
         """ 
         loop = asyncio.get_running_loop()
-        cancel_event = self._mp_manager.Event()
-        done_pagination = False
-        next_page_ref = None
-        deny_match_event = self._mp_manager.Event()
         deny_futures: List[asyncio.Future] = []
-        next_page_task = None
-        grants_page = await self._storage_backend.get_grants_page_async(
-            effect=GrantEffect.DENY,
-            resource_type=resource_type,
-            resource_action=resource_action,
-            page_size=page_size,
-            next_page_reference=next_page_ref
-        )
+        next_page_ref = None
+        did_once = False
+        cancel_event = self._mp_manager.Event()
+        # For deny we only need one to use cancel signal to show when tasks should be shutdown 
+        # create a pipe for each process and use it to get the next page token when ready.
+        # Then close the pipe
         while (
-            done_pagination is False
-            and deny_match_event.is_set() is False
+            (
+                did_once is not True
+                or next_page_ref is not None
+            )
+            and cancel_event.is_set() is False
         ):
-            next_page_ref = grants_page.next_page_reference
-            if next_page_ref is None:
-                done_pagination = True
-            else:
-                next_page_task = asyncio.Task(
-                    self._storage_backend.get_grants_page_async(
-                        effect=GrantEffect.DENY,
-                        resource_type=resource_type,
-                        resource_action=resource_action,
-                        page_size=page_size,
-                        next_page_reference=next_page_ref
-                    )
-                )
-
+            did_once = True
             deny_futures.append(
                 loop.run_in_executor(
                     self._process_pool,
-                    _executor_authorize,
-                    grants_page, 
-                    jmespath_data,
-                    deny_match_event,
-                    cancel_event
+
                 )
             )
-            if next_page_ref is not None:
-                grants_page = await next_page_task
-
-        done_pagination = False
-        next_page_ref = None
-        allow_futures = []
+            # send worker, add to deny_futures
+            # wait for next_page_ready event
+            # pull data for next page
+            # unset next_page_ready event
+ 
+        
+        # Check for cancel or deny match
+        # if they exist then cleanup and return
+        
         allow_match_event = self._mp_manager.Event()
-        next_page_task = None
-        grants_page = await self._storage_backend.get_grants_page_async(
-            effect=GrantEffect.ALLOW,
-            resource_type=resource_type,
-            resource_action=resource_action,
-            page_size=page_size,
-            next_page_reference=next_page_ref
-        )
+        next_page_ref = None
+        did_once = False
+        allow_futures: List[asyncio.Future] = []
         while (
-            done_pagination is False
-            and allow_match_event.is_set() is False
-            and deny_match_event.is_set() is False
-        ):
-            next_page_ref = grants_page.next_page_reference
-            if next_page_ref is None:
-                done_pagination = True
-            else:
-                next_page_task = asyncio.Task(
-                    self._storage_backend.get_grants_page_async(
-                        effect=GrantEffect.ALLOW,
-                        resource_type=resource_type,
-                        resource_action=resource_action,
-                        page_size=page_size,
-                        next_page_reference=next_page_ref
-                    )
-                )
-
-            allow_futures.append(
-                loop.run_in_executor(
-                    self._process_pool,
-                    _executor_authorize,
-                    grants_page, 
-                    jmespath_data,
-                    allow_match_event,
-                    cancel_event
-                )
+            (
+                did_once is not True
+                or next_page_ref is not None
             )
-            if next_page_ref is not None:
-                grants_page = await next_page_task
+            and cancel_event.is_set() is False
+            and deny_match_event.is_set() is False
+            and allow_match_event.is_set() is False
+        ):
+            did_once = True
+            # send worker, add to deny_futures
+            # wait for next_page_ready event
+            # pull data for next page
+            # unset next_page_ready event
+            next_page_ready.clear()        
+
+        
 
         
         if deny_match_event.is_set() is True:
@@ -606,25 +574,123 @@ class MultiprocessCompute(ComputeBackend):
         await asyncio.gather(*gather_futures)
 
  
-def _executor_init(jmespath_options: jmespath.Options) -> None:
+def _executor_init(
+    storage_type: Type[StorageBackend],
+    storage_kwargs: Dict[str, Any],
+    jmespath_options: jmespath.Options
+) -> None:
     global authzee_jmespath_options
     authzee_jmespath_options = jmespath_options
+    global authzee_storage
+    authzee_storage = storage_type(**storage_kwargs)
 
 
-def _executor_authorize(
-    grants_page: GrantsPage, 
-    jmespath_data: Dict[str, Any], 
-    match_event: mp.Event,
+def _executor_grant_page_matches_deny(
+    effect: GrantEffect,
+    resource_type: Type[BaseModel],
+    resource_action: ResourceAction,
+    page_size: int,
+    next_page_reference: Union[str, None],
+    jmespath_data: Dict[str, Any],
+    pipe: Connection,
     cancel_event: mp.Event
 ) -> bool:
     global authzee_jmespath_options
-    return gc.authorize_grants(
-        grants_page=grants_page,
-        jmespath_data=jmespath_data,
-        jmespath_options=authzee_jmespath_options,
-        match_event=match_event,
-        cancel_event=cancel_event
+    global authzee_storage
+    raw_grants = authzee_storage.get_raw_grants_page(
+        effect=effect,
+        resource_type=resource_type,
+        resource_action=resource_action,
+        page_size=page_size,
+        next_page_reference=next_page_reference
     )
+    pipe.send(
+        {
+            "type": "next_page_ref",
+            "data": raw_grants.next_page_reference
+        }
+    )
+    if cancel_event.is_set() is True:
+        return False
+
+    grants_page = authzee_storage.normalize_raw_grants_page(
+        raw_grants_page=raw_grants
+    )
+    if cancel_event.is_set() is True:
+        return False
+    
+    for grant in grants_page.grants:
+        if gc.grant_matches(
+            grant=grant,
+            jmespath_data=jmespath_data,
+            jmespath_options=authzee_jmespath_options
+        ):
+            cancel_event.set()
+            return True
+
+        if cancel_event.is_set() is True:
+            return False
+
+    return False
+
+
+def _executor_grant_page_matches_allow(
+    effect: GrantEffect,
+    resource_type: Type[BaseModel],
+    resource_action: ResourceAction,
+    page_size: int,
+    next_page_reference: Union[str, None],
+    jmespath_data: Dict[str, Any],
+    pipe: Connection,
+    cancel_event: mp.Event,
+    allow_match_event: mp.Event
+) -> bool:
+    global authzee_jmespath_options
+    global authzee_storage
+    raw_grants = authzee_storage.get_raw_grants_page(
+        effect=effect,
+        resource_type=resource_type,
+        resource_action=resource_action,
+        page_size=page_size,
+        next_page_reference=next_page_reference
+    )
+    pipe.send(
+        {
+            "type": "next_page_ref",
+            "data": raw_grants.next_page_reference
+        }
+    )
+    if (
+        cancel_event.is_set() is True
+        or allow_match_event.is_set() is True
+    ):
+        return False
+
+    grants_page = authzee_storage.normalize_raw_grants_page(
+        raw_grants_page=raw_grants
+    )
+    if (
+        cancel_event.is_set() is True
+        or allow_match_event.is_set() is True
+    ):
+        return False
+    
+    for grant in grants_page.grants:
+        if gc.grant_matches(
+            grant=grant,
+            jmespath_data=jmespath_data,
+            jmespath_options=authzee_jmespath_options
+        ):
+            allow_match_event.set()
+            return True
+
+        if (
+            cancel_event.is_set() is True
+            or allow_match_event.is_set() is True
+        ):
+            return False
+
+    return False
 
 
 def _executor_authorize_many(

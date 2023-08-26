@@ -1,6 +1,4 @@
 
-import multiprocessing
-import threading
 from typing import Any, Dict, List, Union
 
 import jmespath
@@ -32,39 +30,6 @@ def grant_matches(
     logger.debug("JMESPath result == result_match: {}".format(result == grant.result_match))
 
     return result == grant.result_match
-
-
-def authorize_grants(
-    grants_page: GrantsPage, 
-    jmespath_data: Dict[str, Any], 
-    jmespath_options: jmespath.Options,
-    match_event: Union[
-        threading.Event,
-        multiprocessing.Event
-    ],
-    cancel_event: Union[
-        threading.Event,
-        multiprocessing.Event
-    ]
-) -> bool:
-    for grant in grants_page.grants:
-        if (
-            match_event.is_set() is True
-            or cancel_event.is_set() is True
-        ):
-            return False
-
-        grant_match = grant_matches(
-            grant=grant,
-            jmespath_data=jmespath_data,
-            jmespath_options=jmespath_options
-        )
-        if grant_match is True:
-            match_event.set()
-
-            return True
-
-    return False
 
 
 def authorize_many_grants(

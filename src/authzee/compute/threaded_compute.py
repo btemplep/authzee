@@ -623,13 +623,40 @@ def _executor_authorize(
     thread_var_name = "authzee_jmespath_options_t_{}".format(
         threading.get_ident()
     )
-    return gc.authorize_grants(
+    return _authorize_grants(
         grants_page=grants_page,
         jmespath_data=jmespath_data,
         jmespath_options=globals()[thread_var_name],
         match_event=match_event,
         cancel_event=cancel_event
     )
+
+
+def _authorize_grants(
+    grants_page: GrantsPage, 
+    jmespath_data: Dict[str, Any], 
+    jmespath_options: jmespath.Options,
+    match_event: threading.Event,
+    cancel_event: threading.Event
+) -> bool:
+    for grant in grants_page.grants:
+        if (
+            match_event.is_set() is True
+            or cancel_event.is_set() is True
+        ):
+            return False
+
+        grant_match = gc.grant_matches(
+            grant=grant,
+            jmespath_data=jmespath_data,
+            jmespath_options=jmespath_options
+        )
+        if grant_match is True:
+            match_event.set()
+
+            return True
+
+    return False
 
 
 def _executor_authorize_many(

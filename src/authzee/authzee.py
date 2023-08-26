@@ -535,7 +535,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
-    ) -> Generator[Grant]:
+    ) -> Generator[Grant, None, None]:
         """List Grants.
 
         Example:
@@ -561,7 +561,7 @@ class Authzee:
 
         Returns
         -------
-        Generator[Grant]
+        Generator[Grant, None, None]
             A generator for grants that automatically handles pagination.
         
         Raises
@@ -589,7 +589,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]],
         resource_action: Optional[ResourceAction],
         page_size: Optional[int]
-    ) -> Generator[Grant]:
+    ) -> Generator[Grant, None, None]:
         did_once = False
         next_page_ref = None
         grants_page = None
@@ -618,7 +618,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
-    ) -> AsyncGenerator[Grant]:
+    ) -> AsyncGenerator[Grant, None]:
         """List Grants.
 
         **NOTE** - This is not a coroutine but returns an async iterator.
@@ -646,7 +646,7 @@ class Authzee:
 
         Returns
         -------
-        AsyncGenerator[Grant]
+        AsyncGenerator[Grant, None]
             Async generator for grants that automatically handles pagination.
 
         Raises
@@ -683,7 +683,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
-    ) -> AsyncGenerator[Grant]:
+    ) -> AsyncGenerator[Grant, None]:
         did_once = False
         next_page_ref = None
         grants_page = None
@@ -835,7 +835,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
-    ) -> Generator[Grant]:
+    ) -> Generator[Grant, None, None]:
         """List matching grants.
 
         Parameters
@@ -858,7 +858,7 @@ class Authzee:
 
         Returns
         -------
-        Generator[Grant]
+        Generator[Grant, None, None]
             Generator for matching grants that automatically handles pagination.
         
         Raises
@@ -898,7 +898,7 @@ class Authzee:
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int]
-    ) -> Generator[Grant]:
+    ) -> Generator[Grant, None, None]:
         did_once = False
         next_page_ref = None
         grants_page = None
@@ -930,7 +930,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
-    ) -> AsyncGenerator[Grant]:
+    ) -> AsyncGenerator[Grant, None]:
         """List matching grants.
 
         **NOTE** - This is not a coroutine but returns an async iterator.
@@ -956,7 +956,7 @@ class Authzee:
 
         Returns
         -------
-        AsyncGenerator[Grant]
+        AsyncGenerator[Grant, None]
             Async generator for matching grants that automatically handles pagination.
         
         Raises
@@ -1005,7 +1005,7 @@ class Authzee:
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int]
-    ) -> AsyncGenerator[Grant]:
+    ) -> AsyncGenerator[Grant, None]:
         did_once = False
         next_page_ref = None
         grants_page = None
