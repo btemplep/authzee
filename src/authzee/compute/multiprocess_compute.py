@@ -264,7 +264,6 @@ class MultiprocessCompute(ComputeBackend):
         
         # Check for allow match
         if allow_match_event.is_set() is True:
-            cancel_event.set()
             await self._cleanup_futures(allow_futures)
             cancel_event.unlink()
             allow_match_event.unlink()
@@ -635,7 +634,7 @@ def _executor_grant_page_matches_deny(
             grant=grant,
             jmespath_data=jmespath_data,
             jmespath_options=authzee_jmespath_options
-        ):
+        ) is True:
             cancel_event.set()
             return True
 
@@ -675,18 +674,12 @@ def _executor_grant_page_matches_allow(
     grants_page = authzee_storage.normalize_raw_grants_page(
         raw_grants_page=raw_grants
     )
-    if (
-        cancel_event.is_set() is True
-        or allow_match_event.is_set() is True
-    ):
-        return False
-    
     for grant in grants_page.grants:
         if gc.grant_matches(
             grant=grant,
             jmespath_data=jmespath_data,
             jmespath_options=authzee_jmespath_options
-        ):
+        ) is True:
             allow_match_event.set()
             return True
 
