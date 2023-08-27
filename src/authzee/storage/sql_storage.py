@@ -24,6 +24,17 @@ class SQLNextPageRef(BaseModel):
 
 
 class SQLStorage(StorageBackend):
+    """Store Grants in SQL RDBMS. 
+
+    Parameters
+    ----------
+    sqlalchemy_async_engine_kwargs : Dict[str, Any]
+        SQLAlchemy Async Engine keyword args. 
+        https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#sqlalchemy.ext.asyncio.create_async_engine
+
+    default_page_size : int, default: 1000
+        The default page size when for calls when page size is not specified.
+    """
 
     async_enabled: bool = True
     process_safe: bool = True
@@ -89,6 +100,10 @@ class SQLStorage(StorageBackend):
     
 
     def shutdown(self) -> None:
+        """Early clean up of storage backend resources.
+
+        Disposes of SQLAlchemy engine.
+        """
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self._engine.dispose())
     
@@ -275,7 +290,7 @@ class SQLStorage(StorageBackend):
         """
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(
-            self.get_grants_page_async(
+            self.get_raw_grants_page_async(
                 effect=effect,
                 resource_type=resource_type,
                 resource_action=resource_action,
@@ -398,7 +413,7 @@ class SQLStorage(StorageBackend):
                     },
                     jmespath_expression=db_grant.jmespath_expression,
                     result_match=json.loads(db_grant.result_match),
-                    storage_id=db_grant.storage_id,
+                    storage_id=str(db_grant.storage_id),
                     uuid=db_grant.uuid
                 )
             )
@@ -406,5 +421,14 @@ class SQLStorage(StorageBackend):
         return GrantsPage(
             grants=grants,
             next_page_reference=raw_grants_page.next_page_reference
+        )
+    
+
+    async def normalize_raw_grants_page_async(
+        self,
+        raw_grants_page: RawGrantsPage
+    ) -> GrantsPage:
+        return self.normalize_raw_grants_page(
+            raw_grants_page=raw_grants_page
         )
 

@@ -33,6 +33,7 @@ class StorageBackend:
         - ``add_grant_async``
         - ``delete_grant_async``
         - ``get_grants_page_async``
+        - ``normalize_raw_grants_page_async`` - Convert the raw storage grants to a list of ``Grant`` models.
 
     The sub-class must also set the class vars:
 
@@ -280,6 +281,30 @@ class StorageBackend:
     
 
     def normalize_raw_grants_page(
+        self,
+        raw_grants_page: RawGrantsPage
+    ) -> GrantsPage:
+        """Convert a ``RawGrantsPage`` to a ``GrantsPage``.
+
+        Parameters
+        ----------
+        raw_grants_page : RawGrantsPage
+            Raw grants page to convert.
+
+        Returns
+        -------
+        GrantsPage
+            Normalized grants page.
+        
+        Raises
+        ------
+        authzee.exceptions.MethodNotImplementedError
+            Sub-classes must implement this method.
+        """
+        raise exceptions.MethodNotImplementedError()
+
+
+    async def normalize_raw_grants_page_async(
         self,
         raw_grants_page: RawGrantsPage
     ) -> GrantsPage:

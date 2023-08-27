@@ -699,7 +699,7 @@ class Authzee:
                 page_size=page_size,
                 next_page_reference=next_page_ref
             )
-            grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants)
+            grants_page = await self._storage_backend.normalize_raw_grants_page_async(raw_grants_page=raw_grants)
             next_page_ref = grants_page.next_page_reference
             
             for grant in grants_page.grants:
@@ -823,7 +823,7 @@ class Authzee:
             next_page_reference=next_page_reference
         )
 
-        return self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
+        return await self._storage_backend.normalize_raw_grants_page_async(raw_grants_page=raw_grants_page)
 
 
     def list_matching_grants(
@@ -894,7 +894,7 @@ class Authzee:
     def _list_matching_grants(
         self,
         effect: GrantEffect,
-        resource: BaseModel,
+        resource_type: Type[BaseModel],
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int]
@@ -909,7 +909,7 @@ class Authzee:
             did_once = True
             grants_page = self._compute_backend.get_matching_grants_page(
                 effect=effect,
-                resource_type=type(resource),
+                resource_type=resource_type,
                 resource_action=resource_action,
                 jmespath_data=jmespath_data,
                 page_size=page_size,
