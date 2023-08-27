@@ -22,13 +22,6 @@ from authzee.storage.storage_backend import StorageBackend
 class Authzee:
     """Authzee app for managing grants and verifying authorization.
 
-    Example:
-
-    .. code-block:: python
-
-        from authzee import Authzee
-
-
     Parameters
     ----------
     compute_backend : ComputeBackend
@@ -44,9 +37,15 @@ class Authzee:
     jmespath_options : Optional[jmespath.Options], optional
         Custom JMESPath options to use for grant computations.
         See `python jmespath Options <https://github.com/jmespath/jmespath.py#options>`_ for more information.
-        By default, custom functions are used from ``authzee.jmespath_custom_functions.CustomFunctions``.
-    """
+        By default, custom functions are used from ``authzee.jmespath_custom_functions.CustomFunctions`` .
+    
+    Examples
+    --------
+    .. code-block:: python
 
+        from authzee import Authzee
+
+    """
 
     def __init__(
         self, 
@@ -97,6 +96,13 @@ class Authzee:
         ------
         exceptions.InitializationError
             An error occurred while initializing the app.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         for authz in self._authzs:
             for p_authz_name in authz.parent_authz_names:
@@ -147,6 +153,13 @@ class Authzee:
 
         If for some reason you don't want the authzee app to last the life of the program,
         you can clean up the heavier resources with this function. 
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._storage_backend.shutdown()
         self._compute_backend.shutdown()
@@ -156,6 +169,13 @@ class Authzee:
         """One time setup for authzee app with the current configuration. 
 
         This method only has to be run once.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._storage_backend.setup()
         self._compute_backend.setup()
@@ -165,6 +185,13 @@ class Authzee:
         """Tear down resources create for one time setup by ``setup()``.
 
         This may delete all storage for grants etc. 
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._storage_backend.teardown()
         self._compute_backend.teardown()
@@ -183,6 +210,13 @@ class Authzee:
         ------
         authzee.exceptions.IdentityRegistrationError
             Error when trying to register the Identity model type.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         if identity_type in self._identity_types:
             raise exceptions.IdentityRegistrationError(
@@ -210,6 +244,13 @@ class Authzee:
         ------
         authzee.exceptions.ResourceAuthzRegistrationError
             Error when registering a ``ResourceAuthz``.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         resource_authz_inst = resource_authz_type()
         if resource_authz_type in self._authz_types:
@@ -300,6 +341,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_auth_args(
             resource=resource,
@@ -364,6 +412,13 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         if self._compute_backend.async_enabled != True:
             raise exceptions.AsyncNotAvailableError(
@@ -434,6 +489,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_auth_many_args(
             resources=resources,
@@ -498,6 +560,13 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         if self._compute_backend.async_enabled != True:
             raise exceptions.AsyncNotAvailableError(
@@ -538,13 +607,6 @@ class Authzee:
     ) -> Generator[Grant, None, None]:
         """List Grants.
 
-        Example:
-
-        .. code-block:: python
-
-            for grant in authzee_app.list_grants():
-                print(grant.name)
-
         Parameters
         ----------
         effect : GrantEffect
@@ -568,6 +630,14 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            for grant in authzee_app.list_grants():
+                print(grant.name)
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
@@ -623,13 +693,6 @@ class Authzee:
 
         **NOTE** - This is not a coroutine but returns an async iterator.
 
-        Example:
-
-        .. code-block:: python
-
-            async for grant in authzee_app.list_grants_async():
-                print(grant.name)
-
         Parameters
         ----------
         effect : GrantEffect
@@ -655,6 +718,13 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            async for grant in authzee_app.list_grants_async():
+                print(grant.name)
         """
         if self._storage_backend.async_enabled != True:
             raise exceptions.AsyncNotAvailableError(
@@ -748,6 +818,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
@@ -809,6 +886,13 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
@@ -865,6 +949,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
@@ -965,6 +1056,13 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         if self._compute_backend.async_enabled != True:
             raise exceptions.AsyncNotAvailableError(
@@ -1075,6 +1173,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
@@ -1151,6 +1256,13 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         if self._compute_backend.async_enabled != True:
             raise exceptions.AsyncNotAvailableError(
@@ -1206,6 +1318,13 @@ class Authzee:
             Grants that are being added should not have a UUID.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_grant(grant=grant)
@@ -1236,6 +1355,13 @@ class Authzee:
             Grants that are being added should not have a UUID.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         if self._compute_backend.async_enabled != True:
             raise exceptions.AsyncNotAvailableError(
@@ -1266,6 +1392,13 @@ class Authzee:
             The given grant does not exist.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._storage_backend.delete_grant(effect=effect, uuid=uuid)
@@ -1287,6 +1420,13 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         if self._compute_backend.async_enabled != True:
             raise exceptions.AsyncNotAvailableError(
@@ -1334,6 +1474,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant(grant=grant)
         self._verify_auth_args(
@@ -1715,4 +1862,4 @@ class Authzee:
         """
         if type(effect) != GrantEffect:
             raise exceptions.InputVerificationError("Must use a GrantEffect, but '{}' was given.".format(effect)) 
-    
+

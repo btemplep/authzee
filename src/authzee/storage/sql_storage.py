@@ -340,9 +340,7 @@ class SQLStorage(StorageBackend):
         RawGrantsPage
             The page of raw grants.
         """
-        import time
         page_size = self._real_page_size(page_size=page_size)
-        start = time.time()
         async with self._async_sessionmaker() as session:
             if effect is GrantEffect.ALLOW:
                 grant_table = AllowGrantDB

@@ -26,6 +26,26 @@ from authzee.storage.storage_backend import StorageBackend
 
 
 class MultiprocessCompute(ComputeBackend):
+    """Local multiprocessing compute backend.
+
+    Uses a pool of processes for compute.
+    Made with the "spawn" context. 
+
+
+
+    Parameters
+    ----------
+    max_workers : Optional[int], optional
+        The max number of work processes.
+        By default it will be the number of processor cores on the system.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from authzee import Authzee
+
+    """
 
     async_enabled: bool = True
     multi_process_enabled: bool = True
@@ -33,13 +53,11 @@ class MultiprocessCompute(ComputeBackend):
 
     def __init__(
             self,
-            max_workers: Optional[int] = None,
-            mp_context: Optional[BaseContext] = None
+            max_workers: Optional[int] = None
         ):
         self._max_workers = max_workers
         if self._max_workers is None:
             self._max_workers = len(os.sched_getaffinity(0))
-        self._mp_context = mp_context
 
 
     def initialize(
@@ -72,7 +90,7 @@ class MultiprocessCompute(ComputeBackend):
         )
         self._process_pool = ProcessPoolExecutor(
             max_workers=self._max_workers, 
-            mp_context=self._mp_context,
+            mp_context=mp.get_context("spawn"), # must use spawn, it's also the most compatible
             initializer=partial(
                 _executor_init,
                 storage_type=type(self._storage_backend),

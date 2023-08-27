@@ -35,7 +35,7 @@ class ComputeBackend:
     The sub-class must also set the class vars:
 
         - ``async_enabled`` - The class has all ``async`` methods available.
-        - ``multi_process_enabled`` - The compute backend uses multiple processes.
+        - ``multi_process_enabled`` - The compute backend uses compute resources that are external to the main process.
 
     No error checking should be needed for validation of resources, resource_types etc. That should all be handled by ``Authzee``.
     """
