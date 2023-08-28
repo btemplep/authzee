@@ -1,11 +1,12 @@
 
 
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Set, Type
 
 import jmespath
 from pydantic import BaseModel
 
 from authzee import exceptions
+from authzee.backend_locality import BackendLocality
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
 from authzee.resource_action import ResourceAction
@@ -41,7 +42,8 @@ class ComputeBackend:
     """
 
     async_enabled: bool = False
-    multi_process_enabled: bool = False
+    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
+    storage_locality_compatibility: Set[BackendLocality] = {}
 
 
     def initialize(

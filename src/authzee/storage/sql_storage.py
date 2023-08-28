@@ -8,13 +8,20 @@ from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
 
 from authzee import exceptions
+from authzee.backend_locality import BackendLocality
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
 from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
-from authzee.storage.sql_storage_models import AllowGrantDB, Base, DenyGrantDB, ResourceActionDB, ResourceTypeDB
+from authzee.storage.sql_storage_models import (
+    AllowGrantDB, 
+    Base, 
+    DenyGrantDB, 
+    ResourceActionDB, 
+    ResourceTypeDB
+)
 from authzee.storage.storage_backend import StorageBackend
 
 
@@ -37,7 +44,12 @@ class SQLStorage(StorageBackend):
     """
 
     async_enabled: bool = True
-    process_safe: bool = True
+    backend_locality: BackendLocality = BackendLocality.NETWORK
+    compute_locality_compatibility: Set[BackendLocality] = {
+        BackendLocality.MAIN_PROCESS,
+        BackendLocality.NETWORK,
+        BackendLocality.SYSTEM
+    }
 
 
     def __init__(

@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Set, Type
 from pydantic import BaseModel
 
 from authzee import exceptions
+from authzee.backend_locality import BackendLocality
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
@@ -18,7 +19,12 @@ class MemoryStorage(StorageBackend):
 
 
     async_enabled: bool = False
-    process_safe: bool = False
+    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
+    compute_locality_compatibility: Set[BackendLocality] = {
+        BackendLocality.MAIN_PROCESS,
+        BackendLocality.NETWORK,
+        BackendLocality.SYSTEM
+    }
 
 
     def __init__(self):

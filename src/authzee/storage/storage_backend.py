@@ -1,11 +1,12 @@
 
 import copy
-from typing import Any, List, Optional, Set, Type, Union
+from typing import List, Optional, Set, Type, Union
 import uuid
 
 from pydantic import BaseModel
 
 from authzee import exceptions
+from authzee.backend_locality import BackendLocality
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
@@ -48,7 +49,8 @@ class StorageBackend:
     """
 
     async_enabled: bool = False
-    process_safe: bool = False
+    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
+    storage_locality_compatibility: Set[BackendLocality] = {}
 
 
     def __init__(self, *, default_page_size: int, **kwargs):

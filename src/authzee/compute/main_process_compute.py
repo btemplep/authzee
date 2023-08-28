@@ -1,22 +1,26 @@
 
-from typing import Any, Dict, List, Optional, Type
-import jmespath
+from typing import Any, Dict, List, Optional, Set, Type
 
 from pydantic import BaseModel
 
+from authzee.backend_locality import BackendLocality
 from authzee.compute.compute_backend import ComputeBackend
 from authzee.compute import general as gc
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
 from authzee.resource_action import ResourceAction
-from authzee.resource_authz import ResourceAuthz
-from authzee.storage.storage_backend import StorageBackend
+
 
 
 class MainProcessCompute(ComputeBackend):
 
     async_enabled: bool = False
-    multi_process_enabled: bool = False
+    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
+    storage_locality_compatibility: Set[BackendLocality] = {
+        BackendLocality.MAIN_PROCESS,
+        BackendLocality.NETWORK,
+        BackendLocality.SYSTEM
+    }
 
 
     def __init__(self):

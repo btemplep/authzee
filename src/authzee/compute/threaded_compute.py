@@ -5,14 +5,15 @@ from copy import deepcopy
 from functools import partial
 import os
 import threading
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Set, Type
 
 import jmespath
 from loguru import logger
 from pydantic import BaseModel
 
-from authzee.compute.compute_backend import ComputeBackend
+from authzee.backend_locality import BackendLocality
 from authzee.compute import general as gc
+from authzee.compute.compute_backend import ComputeBackend
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
@@ -25,7 +26,12 @@ from authzee.storage.storage_backend import StorageBackend
 class ThreadedCompute(ComputeBackend):
 
     async_enabled: bool = True
-    multi_process_enabled: bool = False
+    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
+    storage_locality_compatibility: Set[BackendLocality] = {
+        BackendLocality.MAIN_PROCESS,
+        BackendLocality.NETWORK,
+        BackendLocality.SYSTEM
+    }
 
 
     def __init__(self, max_workers: Optional[int] = None):

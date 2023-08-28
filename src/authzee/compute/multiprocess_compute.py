@@ -4,18 +4,17 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
 import multiprocessing as mp
 from multiprocessing.connection import Connection
-from multiprocessing.context import BaseContext
 from multiprocessing.managers import SharedMemoryManager
 import os
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Set, Type, Union
 
 import jmespath
 from loguru import logger
 from pydantic import BaseModel
 
-from authzee.compute.compute_backend import ComputeBackend
-from authzee import exceptions
+from authzee.backend_locality import BackendLocality
 from authzee.compute import general as gc
+from authzee.compute.compute_backend import ComputeBackend
 from authzee.compute.shared_mem_event import SharedMemEvent
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
@@ -48,7 +47,11 @@ class MultiprocessCompute(ComputeBackend):
     """
 
     async_enabled: bool = True
-    multi_process_enabled: bool = True
+    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
+    storage_locality_compatibility: Set[BackendLocality] = {
+        BackendLocality.NETWORK,
+        BackendLocality.SYSTEM
+    }
 
 
     def __init__(
