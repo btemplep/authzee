@@ -1,11 +1,12 @@
 
 
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Set, Type, Union
 
 import jmespath
 from pydantic import BaseModel
 
 from authzee import exceptions
+from authzee.backend_locality import BackendLocality
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
 from authzee.resource_action import ResourceAction
@@ -32,16 +33,38 @@ class ComputeBackend:
         - ``authorize_many_async``
         - ``get_matching_grants_page_async``
 
-    The sub-class must also set the class vars:
-
-        - ``async_enabled`` - The class has all ``async`` methods available.
-        - ``multi_process_enabled`` - The compute backend uses multiple processes.
-
     No error checking should be needed for validation of resources, resource_types etc. That should all be handled by ``Authzee``.
+
+    Parameters
+    ----------
+    async_enabled : bool
+        This instance of the compute backend is async enabled.
+        It has all async methods.
+        This parameter should not be exposed on the child class.
+    backend_locality : BackendLocality
+        The backend locality this instance of the compute backend supports.
+        See ``authzee.backend_locality.BackendLocality`` for more info on what the localites mean.
+        This parameter should not be exposed on the child class.
+    compatible_localities : Set[BackendLocality]
+        Set of compatible storage backend localities.
+        This parameter should not be exposed on the child class.
     """
 
-    async_enabled: bool = False
-    multi_process_enabled: bool = False
+
+    def __init__(
+        self,
+        async_enabled: bool,
+        backend_locality: BackendLocality,
+        compatible_localities: Set[BackendLocality]
+    ):
+        self.async_enabled = async_enabled
+        self.backend_locality = backend_locality
+        self.compatible_localities = compatible_localities
+        # Reassign all to a method with a better error
+        if async_enabled is False:
+            self.authorize_async = self._async_not_supported
+            self.authorize_many_async = self._async_not_supported
+            self.get_matching_grants_page_async = self._async_not_supported
 
 
     def initialize(
@@ -262,7 +285,7 @@ class ComputeBackend:
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -285,9 +308,9 @@ class ComputeBackend:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -309,7 +332,7 @@ class ComputeBackend:
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -332,9 +355,9 @@ class ComputeBackend:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -349,5 +372,9 @@ class ComputeBackend:
         raise exceptions.MethodNotImplementedError()
 
 
+    async def _async_not_supported(self, *args, **kwargs) -> None:
+        raise exceptions.MethodNotImplementedError(
+            "Async is not supported by this compute backend instance."
+        )
 
 

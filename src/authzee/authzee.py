@@ -1,7 +1,7 @@
 
 import copy
 import json
-from typing import Any, AsyncIterable, Dict, Iterable, List, Optional, Set, Type, Union
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional, Set, Type, Union
 
 import jmespath
 import jmespath.exceptions
@@ -13,7 +13,6 @@ from authzee import exceptions
 from authzee.compute import general as gc
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
-from authzee.grant_iter import GrantIter
 from authzee.grants_page import GrantsPage
 from authzee.resource_authz import ResourceAuthz
 from authzee.resource_action import ResourceAction
@@ -22,13 +21,6 @@ from authzee.storage.storage_backend import StorageBackend
 
 class Authzee:
     """Authzee app for managing grants and verifying authorization.
-
-    Example:
-
-    .. code-block:: python
-
-        from authzee import Authzee
-
 
     Parameters
     ----------
@@ -45,9 +37,15 @@ class Authzee:
     jmespath_options : Optional[jmespath.Options], optional
         Custom JMESPath options to use for grant computations.
         See `python jmespath Options <https://github.com/jmespath/jmespath.py#options>`_ for more information.
-        By default, custom functions are used from ``authzee.jmespath_custom_functions.CustomFunctions``.
-    """
+        By default, custom functions are used from ``authzee.jmespath_custom_functions.CustomFunctions`` .
+    
+    Examples
+    --------
+    .. code-block:: python
 
+        from authzee import Authzee
+
+    """
 
     def __init__(
         self, 
@@ -59,10 +57,6 @@ class Authzee:
     ):
         self._compute_backend = compute_backend
         self._storage_backend = storage_backend
-        self._both_async_enabled = (
-            self._compute_backend.async_enabled 
-            and self._storage_backend.async_enabled
-        )
         self._identity_types: Set[Type[BaseModel]] = set()
         self._identity_type_names: Set[str] = set()
         self._resource_types: Set[Type[BaseModel]] = set()
@@ -89,6 +83,32 @@ class Authzee:
             self._jmespath_options = jmespath.Options(
                 custom_functions=CustomFunctions()
             )
+        
+        if self._compute_backend.backend_locality not in self._storage_backend.compatible_localities:
+            raise exceptions.BackendLocalityIncompatibility(
+                (  
+                    "The compute backend's locality {}: {} is not one of "
+                    "the storage compatible localities {}: {}."
+                ).format(
+                    self._compute_backend,
+                    self._compute_backend.backend_locality,
+                    self._storage_backend,
+                    self._storage_backend.compatible_localities
+                )
+            )
+        
+        if self._storage_backend.backend_locality not in self._compute_backend.compatible_localities:
+            raise exceptions.BackendLocalityIncompatibility(
+                (  
+                    "The storage backend's locality {}: {} is not one of "
+                    "the compute compatible localities {}: {}."
+                ).format(
+                    self._storage_backend,
+                    self._storage_backend.backend_locality,
+                    self._compute_backend,
+                    self._compute_backend.compatible_localities
+                )
+            )
 
 
     def initialize(self) -> None:
@@ -98,6 +118,13 @@ class Authzee:
         ------
         exceptions.InitializationError
             An error occurred while initializing the app.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         for authz in self._authzs:
             for p_authz_name in authz.parent_authz_names:
@@ -148,6 +175,13 @@ class Authzee:
 
         If for some reason you don't want the authzee app to last the life of the program,
         you can clean up the heavier resources with this function. 
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._storage_backend.shutdown()
         self._compute_backend.shutdown()
@@ -157,6 +191,13 @@ class Authzee:
         """One time setup for authzee app with the current configuration. 
 
         This method only has to be run once.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._storage_backend.setup()
         self._compute_backend.setup()
@@ -166,6 +207,13 @@ class Authzee:
         """Tear down resources create for one time setup by ``setup()``.
 
         This may delete all storage for grants etc. 
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._storage_backend.teardown()
         self._compute_backend.teardown()
@@ -184,6 +232,13 @@ class Authzee:
         ------
         authzee.exceptions.IdentityRegistrationError
             Error when trying to register the Identity model type.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         if identity_type in self._identity_types:
             raise exceptions.IdentityRegistrationError(
@@ -211,6 +266,13 @@ class Authzee:
         ------
         authzee.exceptions.ResourceAuthzRegistrationError
             Error when registering a ``ResourceAuthz``.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         resource_authz_inst = resource_authz_type()
         if resource_authz_type in self._authz_types:
@@ -301,6 +363,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_auth_args(
             resource=resource,
@@ -365,14 +434,14 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
-        """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'authorize' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
 
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
+        """
         self._verify_auth_args(
             resource=resource,
             resource_action=resource_action,
@@ -435,6 +504,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_auth_many_args(
             resources=resources,
@@ -499,14 +575,14 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
-        """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'authorize_many' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
 
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
+        """
         self._verify_auth_many_args(
             resources=resources,
             resource_action=resource_action,
@@ -536,15 +612,8 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
-    ) -> Iterable[Grant]:
+    ) -> Generator[Grant, None, None]:
         """List Grants.
-
-        Example:
-
-        .. code-block:: python
-
-            for grant in authzee_app.list_grants():
-                print(grant.name)
 
         Parameters
         ----------
@@ -562,13 +631,21 @@ class Authzee:
 
         Returns
         -------
-        Iterable[Grant]
-            An iterable for grants.
+        Generator[Grant, None, None]
+            A generator for grants that automatically handles pagination.
         
         Raises
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            for grant in authzee_app.list_grants():
+                print(grant.name)
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
@@ -576,14 +653,41 @@ class Authzee:
             resource_action=resource_action
         )
 
-        return GrantIter(
-            next_page_callable=self._storage_backend.get_grants_page,
-            page_size=page_size,
-            next_page_reference=None,
+        return self._list_grants(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action
+            resource_action=resource_action,
+            page_size=page_size
         )
+
+
+    def _list_grants(
+        self,
+        effect: GrantEffect,
+        resource_type: Optional[Type[BaseModel]],
+        resource_action: Optional[ResourceAction],
+        page_size: Optional[int]
+    ) -> Generator[Grant, None, None]:
+        did_once = False
+        next_page_ref = None
+        grants_page = None
+        while (
+            did_once is not True
+            or next_page_ref is not None
+        ):
+            did_once = True
+            raw_grants = self._storage_backend.get_raw_grants_page(
+                effect=effect,
+                resource_type=resource_type,
+                resource_action=resource_action,
+                page_size=page_size,
+                next_page_reference=next_page_ref
+            )
+            grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants)
+            next_page_ref = grants_page.next_page_reference
+            
+            for grant in grants_page.grants:
+                yield grant
 
 
     def list_grants_async(
@@ -592,17 +696,10 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
-    ) -> AsyncIterable[Grant]:
+    ) -> AsyncGenerator[Grant, None]:
         """List Grants.
 
         **NOTE** - This is not a coroutine but returns an async iterator.
-
-        Example:
-
-        .. code-block:: python
-
-            async for grant in authzee_app.list_grants_async():
-                print(grant.name)
 
         Parameters
         ----------
@@ -620,8 +717,8 @@ class Authzee:
 
         Returns
         -------
-        AsyncIterable[Grant]
-            Async iterable for grants.
+        AsyncGenerator[Grant, None]
+            Async generator for grants that automatically handles pagination.
 
         Raises
         ------
@@ -629,28 +726,55 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
-        """
-        if self._storage_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'list_grants' because the storage backend '{}' does not support it.".format(
-                    self._storage_backend.__class__.__name__
-                )
-            )
         
+        Examples
+        --------
+        .. code-block:: python
+
+            async for grant in authzee_app.list_grants_async():
+                print(grant.name)
+        """
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
             resource_type=resource_type,
             resource_action=resource_action
         )
 
-        return GrantIter(
-            next_page_callable=self._storage_backend.get_grants_page_async,
-            page_size=page_size,
-            next_page_reference=None,
+        return self._list_grants_async(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action
+            resource_action=resource_action,
+            page_size=page_size
         )
+    
+
+    async def _list_grants_async(
+        self,
+        effect: GrantEffect,
+        resource_type: Optional[Type[BaseModel]] = None,
+        resource_action: Optional[ResourceAction] = None,
+        page_size: Optional[int] = None
+    ) -> AsyncGenerator[Grant, None]:
+        did_once = False
+        next_page_ref = None
+        grants_page = None
+        while (
+            did_once is not True
+            or next_page_ref is not None
+        ):
+            did_once = True
+            raw_grants = await self._storage_backend.get_raw_grants_page_async(
+                effect=effect,
+                resource_type=resource_type,
+                resource_action=resource_action,
+                page_size=page_size,
+                next_page_reference=next_page_ref
+            )
+            grants_page = await self._storage_backend.normalize_raw_grants_page_async(raw_grants_page=raw_grants)
+            next_page_ref = grants_page.next_page_reference
+            
+            for grant in grants_page.grants:
+                yield grant
 
 
     def get_grants_page(
@@ -659,7 +783,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of grants matching the filters.
 
@@ -682,9 +806,9 @@ class Authzee:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -695,20 +819,28 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+        
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
             resource_type=resource_type,
             resource_action=resource_action
         )
-
-        return self._storage_backend.get_grants_page(
+        raw_grants_page = self._storage_backend.get_raw_grants_page(
             effect=effect,
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
             next_page_reference=next_page_reference
         )
+
+        return self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
 
 
     async def get_grants_page_async(
@@ -717,7 +849,7 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of grants matching the filters.
 
@@ -740,9 +872,9 @@ class Authzee:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -755,20 +887,28 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
             resource_type=resource_type,
             resource_action=resource_action
         )
-
-        return await self._storage_backend.get_grants_page_async(
+        raw_grants_page = await self._storage_backend.get_raw_grants_page_async(
             effect=effect,
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
             next_page_reference=next_page_reference
         )
+
+        return await self._storage_backend.normalize_raw_grants_page_async(raw_grants_page=raw_grants_page)
 
 
     def list_matching_grants(
@@ -780,7 +920,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
-    ) -> Iterable[Grant]:
+    ) -> Generator[Grant, None, None]:
         """List matching grants.
 
         Parameters
@@ -803,13 +943,20 @@ class Authzee:
 
         Returns
         -------
-        Iterable[Grant]
-            Iterable for matching Grants.
+        Generator[Grant, None, None]
+            Generator for matching grants that automatically handles pagination.
         
         Raises
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
@@ -827,15 +974,43 @@ class Authzee:
             identities=identities
         )
 
-        return GrantIter(
-            next_page_callable=self._compute_backend.get_matching_grants_page,
-            page_size=page_size,
-            next_page_reference=None,
+        return self._list_matching_grants(
             effect=effect,
             resource_type=type(resource),
             resource_action=resource_action,
-            jmespath_data=jmespath_data
+            jmespath_data=jmespath_data,
+            page_size=page_size
         )
+    
+
+    def _list_matching_grants(
+        self,
+        effect: GrantEffect,
+        resource_type: Type[BaseModel],
+        resource_action: ResourceAction,
+        jmespath_data: Dict[str, Any],
+        page_size: Optional[int]
+    ) -> Generator[Grant, None, None]:
+        did_once = False
+        next_page_ref = None
+        grants_page = None
+        while (
+            did_once is not True
+            or next_page_ref is not None
+        ):
+            did_once = True
+            grants_page = self._compute_backend.get_matching_grants_page(
+                effect=effect,
+                resource_type=resource_type,
+                resource_action=resource_action,
+                jmespath_data=jmespath_data,
+                page_size=page_size,
+                next_page_reference=next_page_ref
+            )
+            next_page_ref = grants_page.next_page_reference
+            
+            for grant in grants_page.grants:
+                yield grant
 
 
     def list_matching_grants_async(
@@ -847,7 +1022,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
-    ) -> AsyncIterable[Grant]:
+    ) -> AsyncGenerator[Grant, None]:
         """List matching grants.
 
         **NOTE** - This is not a coroutine but returns an async iterator.
@@ -873,8 +1048,8 @@ class Authzee:
 
         Returns
         -------
-        AsyncIterable[Grant]
-            Async Iterable for matching Grants.
+        AsyncGenerator[Grant, None]
+            Async generator for matching grants that automatically handles pagination.
         
         Raises
         ------
@@ -882,14 +1057,14 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
-        """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'list_matching_grants' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
 
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
+        """
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
             resource=resource,
@@ -906,15 +1081,43 @@ class Authzee:
             identities=identities
         )
 
-        return GrantIter(
-            next_page_callable=self._compute_backend.get_matching_grants_page_async,
-            page_size=page_size,
-            next_page_reference=None,
+        return self._list_matching_grants_async(
             effect=effect,
             resource_type=type(resource),
             resource_action=resource_action,
-            jmespath_data=jmespath_data
+            jmespath_data=jmespath_data,
+            page_size=page_size
         )
+
+
+    async def _list_matching_grants_async(
+        self,
+        effect: GrantEffect,
+        resource_type: Type[BaseModel],
+        resource_action: ResourceAction,
+        jmespath_data: Dict[str, Any],
+        page_size: Optional[int]
+    ) -> AsyncGenerator[Grant, None]:
+        did_once = False
+        next_page_ref = None
+        grants_page = None
+        while (
+            did_once is not True
+            or next_page_ref is not None
+        ):
+            did_once = True
+            grants_page = await self._compute_backend.get_matching_grants_page_async(
+                effect=effect,
+                resource_type=resource_type,
+                resource_action=resource_action,
+                jmespath_data=jmespath_data,
+                page_size=page_size,
+                next_page_reference=next_page_ref
+            )
+            next_page_ref = grants_page.next_page_reference
+            
+            for grant in grants_page.grants:
+                yield grant
 
 
     def get_matching_grants_page(
@@ -926,7 +1129,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -951,9 +1154,9 @@ class Authzee:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -964,6 +1167,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
@@ -1000,7 +1210,7 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
+        next_page_reference: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
@@ -1025,9 +1235,9 @@ class Authzee:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[BaseModel], optional
+        next_page_reference : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+            By default this will return the first page.
 
         Returns
         -------
@@ -1040,14 +1250,14 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'get_matching_grants_page' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
-        
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
             resource=resource,
@@ -1095,6 +1305,13 @@ class Authzee:
             Grants that are being added should not have a UUID.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._verify_grant(grant=grant)
@@ -1125,14 +1342,14 @@ class Authzee:
             Grants that are being added should not have a UUID.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
-        """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'add_grant' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
 
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
+        """
         self._verify_grant_effect(effect=effect)
         self._verify_grant(grant=grant)
 
@@ -1155,6 +1372,13 @@ class Authzee:
             The given grant does not exist.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant_effect(effect=effect)
         self._storage_backend.delete_grant(effect=effect, uuid=uuid)
@@ -1176,14 +1400,14 @@ class Authzee:
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'delete_grant' because the storage backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
-        
         self._verify_grant_effect(effect=effect)
         await self._storage_backend.delete_grant_async(effect=effect, uuid=uuid)
 
@@ -1223,6 +1447,13 @@ class Authzee:
         ------
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            from authzee import Authzee
+
         """
         self._verify_grant(grant=grant)
         self._verify_auth_args(
@@ -1604,4 +1835,4 @@ class Authzee:
         """
         if type(effect) != GrantEffect:
             raise exceptions.InputVerificationError("Must use a GrantEffect, but '{}' was given.".format(effect)) 
-    
+

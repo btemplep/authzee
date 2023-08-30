@@ -18,7 +18,7 @@ class Grant(BaseModel):
     resource_actions: Set[Any] 
     jmespath_expression: str
     result_match: Union[bool, dict, float, int, list, None, str] # store as json string
-    page_id: Optional[int] = None
+    storage_id: Optional[str] = None # Leave as a string so storage can decide what it wants
     uuid: Optional[str] = None
 
 

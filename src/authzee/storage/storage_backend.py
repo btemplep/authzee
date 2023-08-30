@@ -6,9 +6,11 @@ import uuid
 from pydantic import BaseModel
 
 from authzee import exceptions
+from authzee.backend_locality import BackendLocality
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
 
@@ -24,13 +26,15 @@ class StorageBackend:
         - ``teardown`` - Remove resources created from ``setup()``.
         - ``add_grant`` - Add a grant to storage.
         - ``delete_grant`` - Delete a grant from storage.
-        - ``get_grants_page`` - Retrieve a page of grants from storage. 
+        - ``get_raw_grants_page`` - Retrieve a page of raw grants from storage. 
+        - ``normalize_raw_grants_page`` - Convert the raw storage grants to a list of ``Grant`` models.
     
     Optionally ``async`` methods may also be created for calls to storage. 
 
         - ``add_grant_async``
         - ``delete_grant_async``
         - ``get_grants_page_async``
+        - ``normalize_raw_grants_page_async`` - Convert the raw storage grants to a list of ``Grant`` models.
 
     The sub-class must also set the class vars:
 
@@ -42,13 +46,44 @@ class StorageBackend:
     Storage backends should store all arguments to the ``__init__`` method in ``self.kwargs``, 
     and all arguments to the ``initialize`` method in ``self.initialize_kwargs``.  
     These should be available if the compute backend needs to instantiate more instances of the storage backend.
+
+    Parameters
+    ----------
+    async_enabled : bool
+        This instance of the storage backend is async enabled.
+        It has all async methods.
+        This parameter should not be exposed on the child class.
+    backend_locality : BackendLocality
+        The backend locality this instance of the storage backend supports.
+        See ``authzee.backend_locality.BackendLocality`` for more info on what the localites mean.
+        This parameter should not be exposed on the child class.
+    compatible_localities : Set[BackendLocality]
+        Set of compatible compute backend localities.
+        This parameter should not be exposed on the child class.
+    default_page_size : int
+        For methods that accept ``page_size``, this will be used as the default.
     """
 
-    async_enabled: bool = False
-    process_safe: bool = False
 
+    def __init__(
+        self, 
+        *, 
+        async_enabled: bool,
+        backend_locality: BackendLocality,
+        compatible_localities: Set[BackendLocality],
+        default_page_size: int, 
+        **kwargs
+    ):
+        self.async_enabled = async_enabled
+        self.backend_locality = backend_locality
+        self.compatible_localities = compatible_localities
+        # Reassign all to a method with a better error
+        if async_enabled is False:
+            self.add_grant_async = self._async_not_supported
+            self.delete_grant_async = self._async_not_supported
+            self.get_raw_grants_page_async = self._async_not_supported
+            self.normalize_raw_grants_page_async = self._async_not_supported
 
-    def __init__(self, *, default_page_size: int, **kwargs):
         self.default_page_size = default_page_size
         self.kwargs = kwargs
         self.kwargs['default_page_size'] = default_page_size
@@ -178,20 +213,22 @@ class StorageBackend:
             Sub-classes *may* implement this method if ``async`` is supported.
         """
         raise exceptions.MethodNotImplementedError()
+        
 
-
-    def get_grants_page(
+    def get_raw_grants_page(
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
-    ) -> GrantsPage:
-        """Retrieve a page of grants matching the filters.
+        next_page_reference: Optional[str] = None
+    ) -> RawGrantsPage:
+        """Retrieve a page of raw grants matching the filters.
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+
+        Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -209,14 +246,14 @@ class StorageBackend:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[BaseModel], optional
-            The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+        next_page_reference : Optional[str], optional
+            The reference to the next page that is returned in ``RawGrantsPage``.
+            By default this will return the first page.
 
         Returns
         -------
-        GrantsPage
-            The page of grants.
+        RawGrantsPage
+            The page of raw grants.
 
         Raises
         ------
@@ -226,18 +263,20 @@ class StorageBackend:
         raise exceptions.MethodNotImplementedError()
     
 
-    async def get_grants_page_async(
+    async def get_raw_grants_page_async(
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[BaseModel] = None
-    ) -> GrantsPage:
-        """Retrieve a page of grants matching the filters.
+        next_page_reference: Optional[str] = None
+    ) -> RawGrantsPage:
+        """Retrieve a page of raw grants matching the filters.
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+
+        Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -255,19 +294,68 @@ class StorageBackend:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[BaseModel], optional
-            The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the 1st page.
+        next_page_reference : Optional[str], optional
+            The reference to the next page that is returned in ``RawGrantsPage``.
+            By default this will return the first page.
 
         Returns
         -------
-        GrantsPage
-            The page of grants.
+        RawGrantsPage
+            The page of raw grants.
+
 
         Raises
         ------
         authzee.exceptions.MethodNotImplementedError
             Sub-classes *may* implement this method if ``async`` is supported.
+        """
+        raise exceptions.MethodNotImplementedError()
+    
+
+    def normalize_raw_grants_page(
+        self,
+        raw_grants_page: RawGrantsPage
+    ) -> GrantsPage:
+        """Convert a ``RawGrantsPage`` to a ``GrantsPage``.
+
+        Parameters
+        ----------
+        raw_grants_page : RawGrantsPage
+            Raw grants page to convert.
+
+        Returns
+        -------
+        GrantsPage
+            Normalized grants page.
+        
+        Raises
+        ------
+        authzee.exceptions.MethodNotImplementedError
+            Sub-classes must implement this method.
+        """
+        raise exceptions.MethodNotImplementedError()
+
+
+    async def normalize_raw_grants_page_async(
+        self,
+        raw_grants_page: RawGrantsPage
+    ) -> GrantsPage:
+        """Convert a ``RawGrantsPage`` to a ``GrantsPage``.
+
+        Parameters
+        ----------
+        raw_grants_page : RawGrantsPage
+            Raw grants page to convert.
+
+        Returns
+        -------
+        GrantsPage
+            Normalized grants page.
+        
+        Raises
+        ------
+        authzee.exceptions.MethodNotImplementedError
+            Sub-classes must implement this method.
         """
         raise exceptions.MethodNotImplementedError()
 
@@ -308,5 +396,11 @@ class StorageBackend:
             return self.default_page_size
     
         return page_size
+
+
+    async def _async_not_supported(self, *args, **kwargs) -> None:
+        raise exceptions.MethodNotImplementedError(
+            "Async is not supported by this storage backend instance."
+        )
 
 
