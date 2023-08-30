@@ -31,11 +31,10 @@ class MultiprocessCompute(ComputeBackend):
     Made with the "spawn" context. 
 
 
-
     Parameters
     ----------
     max_workers : Optional[int], optional
-        The max number of work processes.
+        The max number of worker processes.
         By default it will be the number of processor cores on the system.
 
     Examples
@@ -46,18 +45,20 @@ class MultiprocessCompute(ComputeBackend):
 
     """
 
-    async_enabled: bool = True
-    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
-    storage_locality_compatibility: Set[BackendLocality] = {
-        BackendLocality.NETWORK,
-        BackendLocality.SYSTEM
-    }
-
 
     def __init__(
             self,
             max_workers: Optional[int] = None
         ):
+        super().__init__(
+            async_enabled=True,
+            backend_locality=BackendLocality.SYSTEM,
+            compatible_localities={
+                BackendLocality.MAIN_PROCESS,
+                BackendLocality.NETWORK,
+                BackendLocality.SYSTEM
+            }
+        )
         self._max_workers = max_workers
         if self._max_workers is None:
             self._max_workers = len(os.sched_getaffinity(0))

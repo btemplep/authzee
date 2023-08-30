@@ -46,14 +46,44 @@ class StorageBackend:
     Storage backends should store all arguments to the ``__init__`` method in ``self.kwargs``, 
     and all arguments to the ``initialize`` method in ``self.initialize_kwargs``.  
     These should be available if the compute backend needs to instantiate more instances of the storage backend.
+
+    Parameters
+    ----------
+    async_enabled : bool
+        This instance of the storage backend is async enabled.
+        It has all async methods.
+        This parameter should not be exposed on the child class.
+    backend_locality : BackendLocality
+        The backend locality this instance of the storage backend supports.
+        See ``authzee.backend_locality.BackendLocality`` for more info on what the localites mean.
+        This parameter should not be exposed on the child class.
+    compatible_localities : Set[BackendLocality]
+        Set of compatible compute backend localities.
+        This parameter should not be exposed on the child class.
+    default_page_size : int
+        For methods that accept ``page_size``, this will be used as the default.
     """
 
-    async_enabled: bool = False
-    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
-    storage_locality_compatibility: Set[BackendLocality] = {}
 
+    def __init__(
+        self, 
+        *, 
+        async_enabled: bool,
+        backend_locality: BackendLocality,
+        compatible_localities: Set[BackendLocality],
+        default_page_size: int, 
+        **kwargs
+    ):
+        self.async_enabled = async_enabled
+        self.backend_locality = backend_locality
+        self.compatible_localities = compatible_localities
+        # Reassign all to a method with a better error
+        if async_enabled is False:
+            self.add_grant_async = self._async_not_supported
+            self.delete_grant_async = self._async_not_supported
+            self.get_raw_grants_page_async = self._async_not_supported
+            self.normalize_raw_grants_page_async = self._async_not_supported
 
-    def __init__(self, *, default_page_size: int, **kwargs):
         self.default_page_size = default_page_size
         self.kwargs = kwargs
         self.kwargs['default_page_size'] = default_page_size
@@ -366,5 +396,11 @@ class StorageBackend:
             return self.default_page_size
     
         return page_size
+
+
+    async def _async_not_supported(self, *args, **kwargs) -> None:
+        raise exceptions.MethodNotImplementedError(
+            "Async is not supported by this storage backend instance."
+        )
 
 

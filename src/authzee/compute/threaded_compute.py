@@ -24,17 +24,40 @@ from authzee.storage.storage_backend import StorageBackend
 
 
 class ThreadedCompute(ComputeBackend):
+    """Multithreaded compute backend.
 
-    async_enabled: bool = True
-    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
-    storage_locality_compatibility: Set[BackendLocality] = {
-        BackendLocality.MAIN_PROCESS,
-        BackendLocality.NETWORK,
-        BackendLocality.SYSTEM
-    }
+    Uses a pool of threads for compute.
+    
+    Threaded Compute may actually be slower than ``MainProcessCompute`` because of the overhead of threads,
+    and the GIL stopping multiple threads from executing python code at once. 
+    But it does offer async, and doesn't require extra processes.
+
+
+    Parameters
+    ----------
+    max_workers : Optional[int], optional
+        The max number of worker processes.
+        By default it will be the number of processor cores on the system.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from authzee import Authzee
+
+    """
 
 
     def __init__(self, max_workers: Optional[int] = None):
+        super().__init__(
+            async_enabled=True,
+            backend_locality=BackendLocality.MAIN_PROCESS,
+            compatible_localities={
+                BackendLocality.MAIN_PROCESS,
+                BackendLocality.NETWORK,
+                BackendLocality.SYSTEM
+            }
+        )
         self._max_workers = max_workers
         if self._max_workers is None:
             self._max_workers = os.cpu_count()

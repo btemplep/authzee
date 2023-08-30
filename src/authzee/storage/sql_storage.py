@@ -43,14 +43,6 @@ class SQLStorage(StorageBackend):
         The default page size when for calls when page size is not specified.
     """
 
-    async_enabled: bool = True
-    backend_locality: BackendLocality = BackendLocality.NETWORK
-    compute_locality_compatibility: Set[BackendLocality] = {
-        BackendLocality.MAIN_PROCESS,
-        BackendLocality.NETWORK,
-        BackendLocality.SYSTEM
-    }
-
 
     def __init__(
         self,
@@ -58,7 +50,34 @@ class SQLStorage(StorageBackend):
         sqlalchemy_async_engine_kwargs: Dict[str, Any],
         default_page_size: int = 1000
     ):
+        locality = BackendLocality.NETWORK
+        compute_localities = {
+            BackendLocality.MAIN_PROCESS,
+            BackendLocality.NETWORK,
+            BackendLocality.SYSTEM
+        }
+        url = sqlalchemy_async_engine_kwargs['url']
+        if url.endswith("://:memory:") is True:
+            locality = BackendLocality.MAIN_PROCESS
+            compute_localities = {
+                BackendLocality.MAIN_PROCESS
+            }
+        
+        if (
+            url.startswith("sqlite") is True
+            or "://localhost" in url
+            or "://127.0.0.1" in url
+        ):
+            locality = BackendLocality.SYSTEM
+            compute_localities = {
+                BackendLocality.MAIN_PROCESS,
+                BackendLocality.SYSTEM
+            }
+
         super().__init__(
+            async_enabled=True,
+            backend_locality=locality,
+            compatible_localities=compute_localities,
             default_page_size=default_page_size,
             sqlalchemy_async_engine_kwargs=sqlalchemy_async_engine_kwargs
         )

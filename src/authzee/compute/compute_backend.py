@@ -1,6 +1,6 @@
 
 
-from typing import Any, Dict, List, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Set, Type, Union
 
 import jmespath
 from pydantic import BaseModel
@@ -33,17 +33,38 @@ class ComputeBackend:
         - ``authorize_many_async``
         - ``get_matching_grants_page_async``
 
-    The sub-class must also set the class vars:
-
-        - ``async_enabled`` - The class has all ``async`` methods available.
-        - ``multi_process_enabled`` - The compute backend uses compute resources that are external to the main process.
-
     No error checking should be needed for validation of resources, resource_types etc. That should all be handled by ``Authzee``.
+
+    Parameters
+    ----------
+    async_enabled : bool
+        This instance of the compute backend is async enabled.
+        It has all async methods.
+        This parameter should not be exposed on the child class.
+    backend_locality : BackendLocality
+        The backend locality this instance of the compute backend supports.
+        See ``authzee.backend_locality.BackendLocality`` for more info on what the localites mean.
+        This parameter should not be exposed on the child class.
+    compatible_localities : Set[BackendLocality]
+        Set of compatible storage backend localities.
+        This parameter should not be exposed on the child class.
     """
 
-    async_enabled: bool = False
-    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
-    storage_locality_compatibility: Set[BackendLocality] = {}
+
+    def __init__(
+        self,
+        async_enabled: bool,
+        backend_locality: BackendLocality,
+        compatible_localities: Set[BackendLocality]
+    ):
+        self.async_enabled = async_enabled
+        self.backend_locality = backend_locality
+        self.compatible_localities = compatible_localities
+        # Reassign all to a method with a better error
+        if async_enabled is False:
+            self.authorize_async = self._async_not_supported
+            self.authorize_many_async = self._async_not_supported
+            self.get_matching_grants_page_async = self._async_not_supported
 
 
     def initialize(
@@ -351,5 +372,9 @@ class ComputeBackend:
         raise exceptions.MethodNotImplementedError()
 
 
+    async def _async_not_supported(self, *args, **kwargs) -> None:
+        raise exceptions.MethodNotImplementedError(
+            "Async is not supported by this compute backend instance."
+        )
 
 

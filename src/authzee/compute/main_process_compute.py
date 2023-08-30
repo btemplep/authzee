@@ -11,20 +11,21 @@ from authzee.grants_page import GrantsPage
 from authzee.resource_action import ResourceAction
 
 
-
 class MainProcessCompute(ComputeBackend):
+    """Process grants directly.
 
-    async_enabled: bool = False
-    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
-    storage_locality_compatibility: Set[BackendLocality] = {
-        BackendLocality.MAIN_PROCESS,
-        BackendLocality.NETWORK,
-        BackendLocality.SYSTEM
-    }
-
+    """
 
     def __init__(self):
-        pass
+        super().__init__(
+            async_enabled=False,
+            backend_locality=BackendLocality.MAIN_PROCESS,
+            compatible_localities={
+                BackendLocality.MAIN_PROCESS,
+                BackendLocality.NETWORK,
+                BackendLocality.SYSTEM
+            }
+        )
 
 
     def shutdown(self) -> None:

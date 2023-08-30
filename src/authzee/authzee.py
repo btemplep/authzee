@@ -57,10 +57,6 @@ class Authzee:
     ):
         self._compute_backend = compute_backend
         self._storage_backend = storage_backend
-        self._both_async_enabled = (
-            self._compute_backend.async_enabled 
-            and self._storage_backend.async_enabled
-        )
         self._identity_types: Set[Type[BaseModel]] = set()
         self._identity_type_names: Set[str] = set()
         self._resource_types: Set[Type[BaseModel]] = set()
@@ -86,6 +82,32 @@ class Authzee:
         else:
             self._jmespath_options = jmespath.Options(
                 custom_functions=CustomFunctions()
+            )
+        
+        if self._compute_backend.backend_locality not in self._storage_backend.compatible_localities:
+            raise exceptions.BackendLocalityIncompatibility(
+                (  
+                    "The compute backend's locality {}: {} is not one of "
+                    "the storage compatible localities {}: {}."
+                ).format(
+                    self._compute_backend,
+                    self._compute_backend.backend_locality,
+                    self._storage_backend,
+                    self._storage_backend.compatible_localities
+                )
+            )
+        
+        if self._storage_backend.backend_locality not in self._compute_backend.compatible_localities:
+            raise exceptions.BackendLocalityIncompatibility(
+                (  
+                    "The storage backend's locality {}: {} is not one of "
+                    "the compute compatible localities {}: {}."
+                ).format(
+                    self._storage_backend,
+                    self._storage_backend.backend_locality,
+                    self._compute_backend,
+                    self._compute_backend.compatible_localities
+                )
             )
 
 
@@ -420,13 +442,6 @@ class Authzee:
             from authzee import Authzee
 
         """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'authorize' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
-
         self._verify_auth_args(
             resource=resource,
             resource_action=resource_action,
@@ -568,13 +583,6 @@ class Authzee:
             from authzee import Authzee
 
         """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'authorize_many' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
-
         self._verify_auth_many_args(
             resources=resources,
             resource_action=resource_action,
@@ -726,13 +734,6 @@ class Authzee:
             async for grant in authzee_app.list_grants_async():
                 print(grant.name)
         """
-        if self._storage_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'list_grants' because the storage backend '{}' does not support it.".format(
-                    self._storage_backend.__class__.__name__
-                )
-            )
-        
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
             resource_type=resource_type,
@@ -1064,13 +1065,6 @@ class Authzee:
             from authzee import Authzee
 
         """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'list_matching_grants' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
-
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
             resource=resource,
@@ -1264,13 +1258,6 @@ class Authzee:
             from authzee import Authzee
 
         """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'get_matching_grants_page' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
-        
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
             resource=resource,
@@ -1363,13 +1350,6 @@ class Authzee:
             from authzee import Authzee
 
         """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'add_grant' because the compute backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
-
         self._verify_grant_effect(effect=effect)
         self._verify_grant(grant=grant)
 
@@ -1428,13 +1408,6 @@ class Authzee:
             from authzee import Authzee
 
         """
-        if self._compute_backend.async_enabled != True:
-            raise exceptions.AsyncNotAvailableError(
-                "Async is not available for 'delete_grant' because the storage backend '{}' does not support it.".format(
-                    self._compute_backend.__class__.__name__
-                )
-            )
-        
         self._verify_grant_effect(effect=effect)
         await self._storage_backend.delete_grant_async(effect=effect, uuid=uuid)
 

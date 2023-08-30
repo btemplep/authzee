@@ -16,20 +16,22 @@ from authzee.storage.storage_backend import StorageBackend
 
 
 class MemoryStorage(StorageBackend):
+    """Storage backend for memory. 
 
-
-    async_enabled: bool = False
-    backend_locality: BackendLocality = BackendLocality.MAIN_PROCESS
-    compute_locality_compatibility: Set[BackendLocality] = {
-        BackendLocality.MAIN_PROCESS,
-        BackendLocality.NETWORK,
-        BackendLocality.SYSTEM
-    }
+    Stores grants in python native data structures.
+    """
 
 
     def __init__(self):
         super().__init__(
-            default_page_size=1000
+            async_enabled=False,
+            backend_locality=BackendLocality.MAIN_PROCESS,
+            compatible_localities={
+                BackendLocality.MAIN_PROCESS,
+                BackendLocality.NETWORK,
+                BackendLocality.SYSTEM
+            },
+            default_page_size=-1,
         )
 
 

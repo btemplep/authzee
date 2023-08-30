@@ -14,6 +14,14 @@ class AsyncNotAvailableError(AuthzeeError):
     pass
 
 
+class BackendLocalityIncompatibility(AuthzeeError):
+    """The backend localities are not compatible.
+
+    See ``authzee.backend_locality.BackendLocality`` for more info.
+    """
+    pass
+
+
 class GrantDoesNotExistError(AuthzeeError):
     """The Grant Does not exist.
     """

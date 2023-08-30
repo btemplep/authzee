@@ -21,6 +21,8 @@ class BackendLocality(Enum):
     - ``NETWORK`` compute may only be compatible with ``NETWORK`` storage. 
     - ``SYSTEM`` compute may only be compatible with ``SYSTEM`` and ``NETWORK`` storage.
 
+    This enum is the ideas around it are to help people identify incompatibilities that may cause strange behavior as soon as the
+    authzee app is made. It's not perfect but it's better than nothing.
     """
 
     MAIN_PROCESS: str = "MAIN_PROCESS"
