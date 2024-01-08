@@ -39,9 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -->
 
 ## [Unreleased] - YYYY-MM-DD
-- [0.1.0a2] - 2023-07-23
+
+### [0.1.0a2] - 2023-07-23
     - Initial Alpha.
 
-- [0.1.0a1] - 2023-07-03
+### [0.1.0a1] - 2023-07-03
     - Initial stub 
 

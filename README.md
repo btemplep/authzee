@@ -1,6 +1,7 @@
 # `authzee`
 
-Documentation(Link TBD)
+<!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
+<img src="./docs/logo.svg" alt="Authzee Logo" width="300">
 
 Authzee aims to offer a simple, but highly expressive grant and revoke authorization framework while maintaining the ability to scale.
 
