@@ -100,7 +100,7 @@ class MemoryStorage(StorageBackend):
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> RawGrantsPage:
         if page_size is None:
             page_size = self.default_page_size
@@ -109,16 +109,16 @@ class MemoryStorage(StorageBackend):
         elif effect == GrantEffect.DENY:
             grants = self._deny_grants
         
-        if next_page_reference is None:
+        if page_ref is None:
             start_index = 0
         else:
-            start_index = next_page_reference + 1
+            start_index = page_ref + 1
         
         end_index = start_index + page_size
-        next_page_reference = str(end_index)
+        page_ref = str(end_index)
         if end_index >= len(grants) - 1:
             end_index = None
-            next_page_reference = None
+            page_ref = None
 
         grants = copy.deepcopy(grants[start_index:end_index])
         
@@ -130,7 +130,7 @@ class MemoryStorage(StorageBackend):
         
         return RawGrantsPage(
             raw_grants=grants,
-            next_page_reference=None
+            next_page_ref=None
         )
 
 
@@ -139,14 +139,14 @@ class MemoryStorage(StorageBackend):
         resource_type: Optional[type[BaseModel]] = None, 
         resource_action: Optional[ResourceAction]= None, 
         page_size: Optional[int] = None, 
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> RawGrantsPage:
         return self.get_raw_grants_page(
             effect=effect,
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
-            next_page_reference=next_page_reference
+            page_ref=page_ref
         )
     
 
@@ -156,7 +156,7 @@ class MemoryStorage(StorageBackend):
     ) -> GrantsPage:
         return GrantsPage(
             grants=raw_grants_page.raw_grants,
-            next_page_reference=raw_grants_page.next_page_reference
+            next_page_ref=raw_grants_page.next_page_ref
         )
 
 

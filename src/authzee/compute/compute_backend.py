@@ -285,12 +285,12 @@ class ComputeBackend:
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -308,7 +308,7 @@ class ComputeBackend:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 
@@ -332,12 +332,12 @@ class ComputeBackend:
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -355,7 +355,7 @@ class ComputeBackend:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 

@@ -285,12 +285,12 @@ class SQLStorage(StorageBackend):
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> RawGrantsPage:
         """Retrieve a page of raw grants matching the filters.
 
-        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=RawGrantsPage.next_page_ref`` .
 
         Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
@@ -310,7 +310,7 @@ class SQLStorage(StorageBackend):
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``RawGrantsPage``.
             By default this will return the first page.
 
@@ -326,7 +326,7 @@ class SQLStorage(StorageBackend):
                 resource_type=resource_type,
                 resource_action=resource_action,
                 page_size=page_size,
-                next_page_reference=next_page_reference
+                page_ref=page_ref
             )
         )
     
@@ -337,12 +337,12 @@ class SQLStorage(StorageBackend):
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> RawGrantsPage:
         """Retrieve a page of raw grants matching the filters.
 
-        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=RawGrantsPage.next_page_ref`` .
 
         Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
@@ -362,7 +362,7 @@ class SQLStorage(StorageBackend):
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``RawGrantsPage``.
             By default this will return the first page.
 
@@ -392,8 +392,8 @@ class SQLStorage(StorageBackend):
                     )
                 )
 
-            if next_page_reference is not None:
-                sql_next_page = SQLNextPageRef(**json.loads(next_page_reference))
+            if page_ref is not None:
+                sql_next_page = SQLNextPageRef(**json.loads(page_ref))
                 filters.append(
                     grant_table.storage_id > sql_next_page.next_token
                 )
@@ -409,7 +409,7 @@ class SQLStorage(StorageBackend):
 
         return RawGrantsPage(
             raw_grants=db_grants,
-            next_page_reference=next_page_ref
+            next_page_ref=next_page_ref
         )
 
 
@@ -449,7 +449,7 @@ class SQLStorage(StorageBackend):
 
         return GrantsPage(
             grants=grants,
-            next_page_reference=raw_grants_page.next_page_reference
+            next_page_ref=raw_grants_page.next_page_ref
         )
     
 

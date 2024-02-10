@@ -3,16 +3,19 @@
 <!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
 <img src="./docs/logo.svg" alt="Authzee Logo" width="300">
 
-Authzee aims to offer a simple, but highly expressive grant and revoke authorization framework while maintaining the ability to scale.
+Authzee is a highly expressive grant-based authorization framework that is extensible and scalable. 
 
-Define your own authorization resource and identity models with pydantic.
-Create grants by using an extended JMESPath specification to query input resources and identities. 
+Authzee was originally developed with a focus on authorization for existing infrastructure 
+like AD users, AD roles, AWS roles etc. Users, roles, groups and other identities are not stored in authzee. 
 
-> **NOTE** - It was originally developed with a focus on authorizing around existing infrastructure 
-like AD users, AD roles, AWS roles etc. 
-It is also adaptable to a user registration style system but may not fit as well as other options 
-like [authzed](https://authzed.com/).
+Authzee supports **ABAC** (Attribute Based Access Control) and **ACL** (Access Control List) style authorization.
+It does not support self-contained **RBAC** (Role Based Access Control) since roles are not stored in authzee.
+The relationships between users, roles, and groups is deferred to external systems.
+Authzee is not **ReBAC** based, but supports many of the ideas.  Tying users to specific actions on specific resources,
+and expressions to authorize. Note that this can be done on a user by user basis but authzee is more compute intense than 
+other options.
 
+For prod ready, large scale **ReBAC** check out [authzed](https://authzed.com/).
 
 - [Installation](#installation)
 - [Tutorial](#tutorial)

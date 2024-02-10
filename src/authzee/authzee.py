@@ -8,7 +8,6 @@ import jmespath.exceptions
 from pydantic import BaseModel
 
 from authzee.compute.compute_backend import ComputeBackend
-from authzee.jmespath_custom_functions import CustomFunctions
 from authzee import exceptions
 from authzee.compute import general as gc
 from authzee.grant import Grant
@@ -37,7 +36,7 @@ class Authzee:
     jmespath_options : Optional[jmespath.Options], optional
         Custom JMESPath options to use for grant computations.
         See `python jmespath Options <https://github.com/jmespath/jmespath.py#options>`_ for more information.
-        By default, custom functions are used from ``authzee.jmespath_custom_functions.CustomFunctions`` .
+        By default, no custom functions or options are used.
     
     Examples
     --------
@@ -68,6 +67,7 @@ class Authzee:
         self._resource_to_authz_lookup: Dict[Type[BaseModel], ResourceAuthz] = {}
         self._authz_name_to_authz_type_lookup: Dict[str, Type[ResourceAuthz]] = {}
         self._authz_type_to_authz_lookup: Dict[Type[ResourceAuthz], ResourceAuthz] = {}
+        self._jmespath_options = jmespath_options
 
         if identity_types is not None:
             for identity_type in identity_types:
@@ -77,12 +77,6 @@ class Authzee:
             for authz_type in resource_authz_types:
                 self.register_resource_authz(authz_type)
         
-        if jmespath_options is not None:
-            self._jmespath_options = jmespath_options
-        else:
-            self._jmespath_options = jmespath.Options(
-                custom_functions=CustomFunctions()
-            )
         
         if self._compute_backend.backend_locality not in self._storage_backend.compatible_localities:
             raise exceptions.BackendLocalityIncompatibility(
@@ -681,10 +675,10 @@ class Authzee:
                 resource_type=resource_type,
                 resource_action=resource_action,
                 page_size=page_size,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants)
-            next_page_ref = grants_page.next_page_reference
+            next_page_ref = grants_page.next_page_ref
             
             for grant in grants_page.grants:
                 yield grant
@@ -768,10 +762,10 @@ class Authzee:
                 resource_type=resource_type,
                 resource_action=resource_action,
                 page_size=page_size,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             grants_page = await self._storage_backend.normalize_raw_grants_page_async(raw_grants_page=raw_grants)
-            next_page_ref = grants_page.next_page_reference
+            next_page_ref = grants_page.next_page_ref
             
             for grant in grants_page.grants:
                 yield grant
@@ -783,12 +777,12 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of grants matching the filters.
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -806,7 +800,7 @@ class Authzee:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 
@@ -837,7 +831,7 @@ class Authzee:
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
-            next_page_reference=next_page_reference
+            page_ref=page_ref
         )
 
         return self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
@@ -849,12 +843,12 @@ class Authzee:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of grants matching the filters.
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -872,7 +866,7 @@ class Authzee:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 
@@ -905,7 +899,7 @@ class Authzee:
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
-            next_page_reference=next_page_reference
+            page_ref=page_ref
         )
 
         return await self._storage_backend.normalize_raw_grants_page_async(raw_grants_page=raw_grants_page)
@@ -1005,9 +999,9 @@ class Authzee:
                 resource_action=resource_action,
                 jmespath_data=jmespath_data,
                 page_size=page_size,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
-            next_page_ref = grants_page.next_page_reference
+            next_page_ref = grants_page.next_page_ref
             
             for grant in grants_page.grants:
                 yield grant
@@ -1112,9 +1106,9 @@ class Authzee:
                 resource_action=resource_action,
                 jmespath_data=jmespath_data,
                 page_size=page_size,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
-            next_page_ref = grants_page.next_page_reference
+            next_page_ref = grants_page.next_page_ref
             
             for grant in grants_page.grants:
                 yield grant
@@ -1129,12 +1123,12 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -1154,7 +1148,7 @@ class Authzee:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 
@@ -1197,7 +1191,7 @@ class Authzee:
             resource_action=resource_action,
             jmespath_data=jmespath_data,
             page_size=page_size,
-            next_page_reference=next_page_reference
+            page_ref=page_ref
         )
 
 
@@ -1210,12 +1204,12 @@ class Authzee:
         child_resources: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -1235,7 +1229,7 @@ class Authzee:
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 
@@ -1280,7 +1274,7 @@ class Authzee:
             resource_action=resource_action,
             jmespath_data=jmespath_data,
             page_size=page_size,
-            next_page_reference=next_page_reference
+            page_ref=page_ref
         )
     
 

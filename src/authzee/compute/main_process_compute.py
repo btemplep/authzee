@@ -50,10 +50,10 @@ class MainProcessCompute(ComputeBackend):
                 effect=GrantEffect.DENY,
                 resource_type=resource_type,
                 resource_action=resource_action,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
-            next_page_ref = grants_page.next_page_reference
+            next_page_ref = grants_page.next_page_ref
             if next_page_ref is None:
                 done_pagination = True
 
@@ -73,10 +73,10 @@ class MainProcessCompute(ComputeBackend):
                 effect=GrantEffect.ALLOW,
                 resource_type=resource_type,
                 resource_action=resource_action,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
-            next_page_ref = grants_page.next_page_reference
+            next_page_ref = grants_page.next_page_ref
             if next_page_ref is None:
                 done_pagination = True
 
@@ -107,10 +107,10 @@ class MainProcessCompute(ComputeBackend):
                 effect=GrantEffect.DENY,
                 resource_type=resource_type,
                 resource_action=resource_action,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
-            next_page_ref = grants_page.next_page_reference
+            next_page_ref = grants_page.next_page_ref
             if next_page_ref is None:
                 done_pagination = True
 
@@ -134,10 +134,10 @@ class MainProcessCompute(ComputeBackend):
                 effect=GrantEffect.ALLOW,
                 resource_type=resource_type,
                 resource_action=resource_action,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
-            next_page_ref = grants_page.next_page_reference
+            next_page_ref = grants_page.next_page_ref
             if next_page_ref is None:
                 done_pagination = True
 
@@ -164,7 +164,7 @@ class MainProcessCompute(ComputeBackend):
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         matching_grants = []
         raw_grants = self._storage_backend.get_raw_grants_page(
@@ -172,7 +172,7 @@ class MainProcessCompute(ComputeBackend):
             resource_type=resource_type,
             resource_action=resource_action,
             page_size=page_size,
-            next_page_reference=next_page_reference
+            page_ref=page_ref
         )
         grants_page = self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants)
         for grant in grants_page.grants:
@@ -186,7 +186,7 @@ class MainProcessCompute(ComputeBackend):
         
         return GrantsPage(
             grants=matching_grants,
-            next_page_reference=grants_page.next_page_reference
+            next_page_ref=grants_page.next_page_ref
         )
 
 

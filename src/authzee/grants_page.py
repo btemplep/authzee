@@ -9,5 +9,5 @@ from authzee.grant import Grant
 class GrantsPage(BaseModel):
 
     grants: List[Grant]
-    next_page_reference: Union[str, None]
+    next_page_ref: Union[str, None]
 

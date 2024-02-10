@@ -221,12 +221,12 @@ class StorageBackend:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> RawGrantsPage:
         """Retrieve a page of raw grants matching the filters.
 
-        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=RawGrantsPage.next_page_ref`` .
 
         Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
@@ -246,7 +246,7 @@ class StorageBackend:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``RawGrantsPage``.
             By default this will return the first page.
 
@@ -269,12 +269,12 @@ class StorageBackend:
         resource_type: Optional[Type[BaseModel]] = None,
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> RawGrantsPage:
         """Retrieve a page of raw grants matching the filters.
 
-        If ``RawGrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=RawGrantsPage.next_page_reference`` .
+        If ``RawGrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=RawGrantsPage.next_page_ref`` .
 
         Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
 
@@ -294,7 +294,7 @@ class StorageBackend:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``RawGrantsPage``.
             By default this will return the first page.
 

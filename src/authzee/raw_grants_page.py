@@ -7,5 +7,5 @@ from pydantic import BaseModel
 class RawGrantsPage(BaseModel):
 
     raw_grants: Any
-    next_page_reference: Union[str, None]
+    next_page_ref: Union[str, None]
 

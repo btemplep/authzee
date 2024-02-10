@@ -217,7 +217,7 @@ class MultiprocessCompute(ComputeBackend):
                         resource_type=resource_type,
                         resource_action=resource_action,
                         page_size=page_size,
-                        next_page_reference=next_page_ref,
+                        page_ref=next_page_ref,
                         jmespath_data=jmespath_data,
                         pipe_conn=send_conn,
                         cancel_event=cancel_event
@@ -253,7 +253,7 @@ class MultiprocessCompute(ComputeBackend):
                         resource_type=resource_type,
                         resource_action=resource_action,
                         page_size=page_size,
-                        next_page_reference=next_page_ref,
+                        page_ref=next_page_ref,
                         jmespath_data=jmespath_data,
                         pipe_conn=send_conn,
                         cancel_event=cancel_event,
@@ -403,7 +403,7 @@ class MultiprocessCompute(ComputeBackend):
                         resource_type=resource_type,
                         resource_action=resource_action,
                         page_size=page_size,
-                        next_page_reference=next_page_ref,
+                        page_ref=next_page_ref,
                         jmespath_data_entries=jmespath_data_entries,
                         pipe_conn=send_conn
                     )
@@ -433,7 +433,7 @@ class MultiprocessCompute(ComputeBackend):
                         resource_type=resource_type,
                         resource_action=resource_action,
                         page_size=page_size,
-                        next_page_reference=next_page_ref,
+                        page_ref=next_page_ref,
                         jmespath_data_entries=jmespath_data_entries,
                         pipe_conn=send_conn
                     )
@@ -469,12 +469,12 @@ class MultiprocessCompute(ComputeBackend):
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -494,7 +494,7 @@ class MultiprocessCompute(ComputeBackend):
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 
@@ -511,7 +511,7 @@ class MultiprocessCompute(ComputeBackend):
                 resource_action=resource_action,
                 jmespath_data=jmespath_data,
                 page_size=page_size,
-                next_page_reference=next_page_reference
+                page_ref=page_ref
             )
         )
 
@@ -523,12 +523,12 @@ class MultiprocessCompute(ComputeBackend):
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -548,7 +548,7 @@ class MultiprocessCompute(ComputeBackend):
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 
@@ -579,7 +579,7 @@ class MultiprocessCompute(ComputeBackend):
                         resource_type=resource_type,
                         resource_action=resource_action,
                         page_size=page_size,
-                        next_page_reference=next_page_ref,
+                        page_ref=next_page_ref,
                         jmespath_data=jmespath_data,
                         pipe_conn=send_conn
                     )
@@ -595,7 +595,7 @@ class MultiprocessCompute(ComputeBackend):
         
         return GrantsPage(
             grants=[grant for grants_list in results for grant in grants_list],
-            next_page_reference=next_page_reference
+            next_page_ref=page_ref
         )
         
 
@@ -626,7 +626,7 @@ def _executor_grant_page_matches_deny(
     resource_type: Type[BaseModel],
     resource_action: ResourceAction,
     page_size: int,
-    next_page_reference: Union[str, None],
+    page_ref: Union[str, None],
     jmespath_data: Dict[str, Any],
     pipe_conn: Connection,
     cancel_event: SharedMemEvent
@@ -638,10 +638,10 @@ def _executor_grant_page_matches_deny(
         resource_type=resource_type,
         resource_action=resource_action,
         page_size=page_size,
-        next_page_reference=next_page_reference
+        page_ref=page_ref
     )
     # Send back next page ref to parent
-    pipe_conn.send(raw_grants.next_page_reference)
+    pipe_conn.send(raw_grants.next_page_ref)
     if cancel_event.is_set() is True:
         return False
 
@@ -671,7 +671,7 @@ def _executor_grant_page_matches_allow(
     resource_type: Type[BaseModel],
     resource_action: ResourceAction,
     page_size: int,
-    next_page_reference: Union[str, None],
+    page_ref: Union[str, None],
     jmespath_data: Dict[str, Any],
     pipe_conn: Connection,
     cancel_event: SharedMemEvent,
@@ -684,9 +684,9 @@ def _executor_grant_page_matches_allow(
         resource_type=resource_type,
         resource_action=resource_action,
         page_size=page_size,
-        next_page_reference=next_page_reference
+        page_ref=page_ref
     )
-    pipe_conn.send(raw_grants.next_page_reference)
+    pipe_conn.send(raw_grants.next_page_ref)
     if (
         cancel_event.is_set() is True
         or allow_match_event.is_set() is True
@@ -719,7 +719,7 @@ def _executor_authorize_many(
     resource_type: Type[BaseModel],
     resource_action: ResourceAction,
     page_size: int,
-    next_page_reference: Union[str, None],
+    page_ref: Union[str, None],
     jmespath_data_entries: List[Dict[str, Any]],
     pipe_conn: Connection
 ) -> List[bool]:
@@ -730,9 +730,9 @@ def _executor_authorize_many(
         resource_type=resource_type,
         resource_action=resource_action,
         page_size=page_size,
-        next_page_reference=next_page_reference
+        page_ref=page_ref
     )
-    pipe_conn.send(raw_page.next_page_reference)
+    pipe_conn.send(raw_page.next_page_ref)
     grants_page = authzee_storage.normalize_raw_grants_page(raw_grants_page=raw_page)
 
     return gc.authorize_many_grants(
@@ -747,7 +747,7 @@ def _executor_matching_grants(
     resource_type: Type[BaseModel],
     resource_action: ResourceAction,
     page_size: int,
-    next_page_reference: Union[str, None],
+    page_ref: Union[str, None],
     jmespath_data: Dict[str, Any],
     pipe_conn: Connection
 ) -> List[Grant]:
@@ -758,9 +758,9 @@ def _executor_matching_grants(
         resource_type=resource_type,
         resource_action=resource_action,
         page_size=page_size,
-        next_page_reference=next_page_reference
+        page_ref=page_ref
     )
-    pipe_conn.send(raw_page.next_page_reference)
+    pipe_conn.send(raw_page.next_page_ref)
     grants_page = authzee_storage.normalize_raw_grants_page(raw_grants_page=raw_page)
 
     return gc.compute_matching_grants(

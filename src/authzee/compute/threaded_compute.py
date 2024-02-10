@@ -202,7 +202,7 @@ class ThreadedCompute(ComputeBackend):
                 resource_type=resource_type,
                 resource_action=resource_action,
                 page_size=page_size,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             deny_futures.append(
                 loop.run_in_executor(
@@ -236,7 +236,7 @@ class ThreadedCompute(ComputeBackend):
                 resource_type=resource_type,
                 resource_action=resource_action,
                 page_size=page_size,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             allow_futures.append(
                 loop.run_in_executor(
@@ -369,7 +369,7 @@ class ThreadedCompute(ComputeBackend):
                 resource_type=resource_type,
                 resource_action=resource_action,
                 page_size=page_size,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             deny_futures.append(
                 loop.run_in_executor(
@@ -396,7 +396,7 @@ class ThreadedCompute(ComputeBackend):
                 resource_type=resource_type,
                 resource_action=resource_action,
                 page_size=page_size,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             allow_futures.append(
                 loop.run_in_executor(
@@ -434,12 +434,12 @@ class ThreadedCompute(ComputeBackend):
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -459,7 +459,7 @@ class ThreadedCompute(ComputeBackend):
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 
@@ -476,7 +476,7 @@ class ThreadedCompute(ComputeBackend):
                 resource_action=resource_action,
                 jmespath_data=jmespath_data,
                 page_size=page_size,
-                next_page_reference=next_page_reference
+                page_ref=page_ref
             )
         )
 
@@ -488,12 +488,12 @@ class ThreadedCompute(ComputeBackend):
         resource_action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
-        next_page_reference: Optional[str] = None
+        page_ref: Optional[str] = None
     ) -> GrantsPage:
         """Retrieve a page of matching grants. 
 
-        If ``GrantsPage.next_page_reference`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``next_page_reference=GrantsPage.next_page_reference`` .
+        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
+        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
 
         **NOTE** - There is no guarantee of how many grants will be returned if any.
 
@@ -513,7 +513,7 @@ class ThreadedCompute(ComputeBackend):
             The page size to use for the storage backend.
             This is not directly related to the returned number of grants, and can vary by compute backend.
             The default is set on the storage backend.
-        next_page_reference : Optional[str], optional
+        page_ref : Optional[str], optional
             The reference to the next page that is returned in ``GrantsPage``.
             By default this will return the first page.
 
@@ -539,7 +539,7 @@ class ThreadedCompute(ComputeBackend):
                 resource_type=resource_type,
                 resource_action=resource_action,
                 page_size=page_size,
-                next_page_reference=next_page_ref
+                page_ref=next_page_ref
             )
             futures.append(
                 loop.run_in_executor(
@@ -557,7 +557,7 @@ class ThreadedCompute(ComputeBackend):
         
         return GrantsPage(
             grants=[grant for grants_list in results for grant in grants_list],
-            next_page_reference=next_page_reference
+            next_page_ref=page_ref
         )
         
 
