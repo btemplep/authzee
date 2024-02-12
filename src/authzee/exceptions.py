@@ -8,12 +8,6 @@ class AuthzeeError(Exception):
     pass
 
 
-class AsyncNotAvailableError(AuthzeeError):
-    """Async is not available in a class or method
-    """
-    pass
-
-
 class BackendLocalityIncompatibility(AuthzeeError):
     """The backend localities are not compatible.
 

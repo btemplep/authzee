@@ -5,7 +5,7 @@ from copy import deepcopy
 from functools import partial
 import os
 import threading
-from typing import Any, Dict, List, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Type
 
 import jmespath
 from loguru import logger
@@ -17,6 +17,7 @@ from authzee.compute.compute_backend import ComputeBackend
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.loop import get_event_loop, get_running_loop
 from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
@@ -50,13 +51,7 @@ class ThreadedCompute(ComputeBackend):
 
     def __init__(self, max_workers: Optional[int] = None):
         super().__init__(
-            async_enabled=True,
-            backend_locality=BackendLocality.MAIN_PROCESS,
-            compatible_localities={
-                BackendLocality.MAIN_PROCESS,
-                BackendLocality.NETWORK,
-                BackendLocality.SYSTEM
-            }
+            backend_locality=BackendLocality.MAIN_PROCESS
         )
         self._max_workers = max_workers
         if self._max_workers is None:
@@ -66,7 +61,7 @@ class ThreadedCompute(ComputeBackend):
             raise
 
 
-    def initialize(
+    async def initialize(
         self, 
         identity_types: List[Type[BaseModel]],
         jmespath_options: jmespath.Options,
@@ -101,7 +96,7 @@ class ThreadedCompute(ComputeBackend):
         )
         
 
-    def shutdown(self) -> None:
+    async def shutdown(self) -> None:
         """Early clean up of compute backend resources.
 
         Will shutdown the thread pool without waiting for current tasks to finish.
@@ -109,50 +104,7 @@ class ThreadedCompute(ComputeBackend):
         self._thread_pool.shutdown(wait=False)
 
 
-    def authorize(
-        self, 
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data: Dict[str, Any],
-        page_size: Optional[int] = None
-    ) -> bool:
-        """Authorize a given resource and action, with the JMESPath data against stored grants.
-
-        First ``GrantEffect.DENY`` grants should be checked.
-        If any match, then it is denied.
-
-        Then ``GrantEffect.ALLOW`` grants are checked.
-        If any match, it is allowed. If there are no matches, it is denied.
-
-        Parameters
-        ----------
-        resource_type : BaseModel
-            The resource type to compare grants to.
-        resource_action : ResourceAction
-            The resource action to compare grants to.
-        jmespath_data : Dict[str, Any]
-            JMESPath data that the grants will be computed with.
-        page_size : Optional[int], optional
-            The page size to use for the storage backend.
-            The default is set on the storage backend.
-
-        Returns
-        -------
-        bool
-            ``True`` if allowed, ``False`` if denied.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            self.authorize_async(
-                resource_type=resource_type,
-                resource_action=resource_action,
-                jmespath_data=jmespath_data,
-                page_size=page_size
-            )
-        ) 
-
-
-    async def authorize_async(
+    async def authorize(
         self, 
         resource_type: Type[BaseModel],
         resource_action: ResourceAction,
@@ -184,7 +136,7 @@ class ThreadedCompute(ComputeBackend):
         bool
             ``True`` if allowed, ``False`` if denied.
         """ 
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         deny_futures: List[asyncio.Future] = []
         next_page_ref = None
         did_once = False
@@ -197,7 +149,7 @@ class ThreadedCompute(ComputeBackend):
             and cancel_event['set'] is False
         ):
             did_once = True
-            raw_grants_page = await self._storage_backend.get_raw_grants_page_async(
+            raw_grants_page = await self._storage_backend.get_raw_grants_page(
                 effect=GrantEffect.DENY,
                 resource_type=resource_type,
                 resource_action=resource_action,
@@ -231,7 +183,7 @@ class ThreadedCompute(ComputeBackend):
             and allow_match_event['set'] is False
         ):
             did_once = True
-            raw_grants_page = await self._storage_backend.get_raw_grants_page_async(
+            raw_grants_page = await self._storage_backend.get_raw_grants_page(
                 effect=GrantEffect.ALLOW,
                 resource_type=resource_type,
                 resource_action=resource_action,
@@ -275,53 +227,9 @@ class ThreadedCompute(ComputeBackend):
                 return True
         
         return False
-    
-
-    def authorize_many(
-        self, 
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data_entries: List[Dict[str, Any]],
-        page_size: Optional[int] = None
-    ) -> List[bool]:
-        """Authorize a given resource and action, with the JMESPath data against stored grants.
-
-        First ``GrantEffect.DENY`` grants should be checked.
-        If any match, then it is denied.
-
-        Then ``GrantEffect.ALLOW`` grants are checked.
-        If any match, it is allowed. If there are no matches, it is denied.
-
-        Parameters
-        ----------
-        resource_type : BaseModel
-            The resource type to compare grants to.
-        resource_action : ResourceAction
-            The resource action to compare grants to.
-        jmespath_data_entries : List[Dict[str, Any]]
-            List of JMESPath data that the grants will be computed with.
-        page_size : Optional[int], optional
-            The page size to use for the storage backend.
-            The default is set on the storage backend.
-
-        Returns
-        -------
-        List[bool]
-            List of bools directory corresponding to ``jmespath_data_entries``.  
-            ``True`` if authorized, ``False`` if denied.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            self.authorize_many_async(
-                resource_type=resource_type,
-                resource_action=resource_action,
-                jmespath_data_entries=jmespath_data_entries,
-                page_size=page_size
-            )
-        ) 
 
 
-    async def authorize_many_async(
+    async def authorize_many(
         self, 
         resource_type: Type[BaseModel],
         resource_action: ResourceAction,
@@ -355,7 +263,7 @@ class ThreadedCompute(ComputeBackend):
             ``True`` if authorized, ``False`` if denied.
         """ 
         results = {i: None for i in range(len(jmespath_data_entries))}
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         deny_futures: List[asyncio.Future] = []
         next_page_ref = None
         did_once = False
@@ -364,7 +272,7 @@ class ThreadedCompute(ComputeBackend):
             or next_page_ref is not None
         ):
             did_once = True
-            raw_grants_page = await self._storage_backend.get_raw_grants_page_async(
+            raw_grants_page = await self._storage_backend.get_raw_grants_page(
                 effect=GrantEffect.DENY,
                 resource_type=resource_type,
                 resource_action=resource_action,
@@ -391,7 +299,7 @@ class ThreadedCompute(ComputeBackend):
             or next_page_ref is not None
         ):
             did_once = True
-            raw_grants_page = await self._storage_backend.get_raw_grants_page_async(
+            raw_grants_page = await self._storage_backend.get_raw_grants_page(
                 effect=GrantEffect.ALLOW,
                 resource_type=resource_type,
                 resource_action=resource_action,
@@ -427,61 +335,7 @@ class ThreadedCompute(ComputeBackend):
         return [val is True for val in list(results.values())]
 
 
-    def get_matching_grants_page(
-        self, 
-        effect: GrantEffect,
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data: Dict[str, Any],
-        page_size: Optional[int] = None,
-        page_ref: Optional[str] = None
-    ) -> GrantsPage:
-        """Retrieve a page of matching grants. 
-
-        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
-
-        **NOTE** - There is no guarantee of how many grants will be returned if any.
-
-        This will send a page of grants to each worker and return the results.
-        
-        Parameters
-        ----------
-        effect : GrantEffect
-            The effect of the grant.
-        resource_type : BaseModel
-            The resource type to compare grants to.
-        resource_action : ResourceAction
-            The resource action to compare grants to.
-        jmespath_data : Dict[str, Any]
-            JMESPath data that the grants will be computed with.
-        page_size : Optional[int], optional
-            The page size to use for the storage backend.
-            This is not directly related to the returned number of grants, and can vary by compute backend.
-            The default is set on the storage backend.
-        page_ref : Optional[str], optional
-            The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the first page.
-
-        Returns
-        -------
-        GrantsPage
-            The page of matching grants.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            self.get_matching_grants_page_async(
-                effect=effect,
-                resource_type=resource_type,
-                resource_action=resource_action,
-                jmespath_data=jmespath_data,
-                page_size=page_size,
-                page_ref=page_ref
-            )
-        )
-
-
-    async def get_matching_grants_page_async(
+    async def get_matching_grants_page(
         self, 
         effect: GrantEffect,
         resource_type: Type[BaseModel],
@@ -522,7 +376,7 @@ class ThreadedCompute(ComputeBackend):
         GrantsPage
             The page of matching grants.
         """
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         futures: List[asyncio.Future] = []
         next_page_ref = None
         did_once = False
@@ -534,7 +388,7 @@ class ThreadedCompute(ComputeBackend):
         ):
             worker_num += 1
             did_once = True
-            raw_grants_page = await self._storage_backend.get_raw_grants_page_async(
+            raw_grants_page = await self._storage_backend.get_raw_grants_page(
                 effect=GrantEffect.ALLOW,
                 resource_type=resource_type,
                 resource_action=resource_action,
@@ -589,7 +443,10 @@ def _executor_authorize_deny(
         threading.get_ident()
     )
     jmespath_options = globals()[options_var]
-    grants_page = storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)    
+    loop = get_event_loop()
+    grants_page = loop.run_until_complete(
+        storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
+    )   
     for grant in grants_page.grants:
         if gc.grant_matches(
             grant=grant,
@@ -617,7 +474,10 @@ def _executor_authorize_allow(
         threading.get_ident()
     )
     jmespath_options = globals()[options_var]
-    grants_page = storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
+    loop = get_event_loop()
+    grants_page = loop.run_until_complete(
+        storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
+    )
     for grant in grants_page.grants:
         if gc.grant_matches(
             grant=grant,
@@ -646,7 +506,10 @@ def _executor_authorize_many(
         threading.get_ident()
     )
     jmespath_options = globals()[options_var]
-    grants_page = storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
+    loop = get_event_loop()
+    grants_page = loop.run_until_complete(
+        storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
+    )
 
     return gc.authorize_many_grants(
         grants_page=grants_page,
@@ -664,7 +527,10 @@ def _executor_matching_grants(
         threading.get_ident()
     )
     jmespath_options = globals()[options_var]
-    grants_page = storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
+    loop = get_event_loop()
+    grants_page = loop.run_until_complete(
+        storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
+    )
 
     return gc.compute_matching_grants(
         grants_page=grants_page,

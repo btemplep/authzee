@@ -19,6 +19,7 @@ from authzee.compute.shared_mem_event import SharedMemEvent
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.loop import get_event_loop, get_running_loop
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
 from authzee.storage.storage_backend import StorageBackend 
@@ -47,24 +48,18 @@ class MultiprocessCompute(ComputeBackend):
 
 
     def __init__(
-            self,
-            max_workers: Optional[int] = None
-        ):
+        self,
+        max_workers: Optional[int] = None
+    ):
         super().__init__(
-            async_enabled=True,
-            backend_locality=BackendLocality.SYSTEM,
-            compatible_localities={
-                BackendLocality.MAIN_PROCESS,
-                BackendLocality.NETWORK,
-                BackendLocality.SYSTEM
-            }
+            backend_locality=BackendLocality.SYSTEM
         )
         self._max_workers = max_workers
         if self._max_workers is None:
             self._max_workers = len(os.sched_getaffinity(0))
 
 
-    def initialize(
+    async def initialize(
         self, 
         identity_types: List[Type[BaseModel]],
         jmespath_options: jmespath.Options,
@@ -86,7 +81,7 @@ class MultiprocessCompute(ComputeBackend):
         storage_backend : StorageBackend
             Storage backend registered with the ``Authzee`` app.
         """
-        super().initialize(
+        await super().initialize(
             identity_types=identity_types,
             jmespath_options=jmespath_options,
             resource_authzs=resource_authzs,
@@ -109,7 +104,7 @@ class MultiprocessCompute(ComputeBackend):
         self._shared_mem_manager.start()
 
 
-    def shutdown(self) -> None:
+    async def shutdown(self) -> None:
         """Early clean up of compute backend resources.
 
         Will shutdown the process pool without waiting for current tasks to finish.
@@ -117,52 +112,9 @@ class MultiprocessCompute(ComputeBackend):
         self._process_pool.shutdown(wait=False)
         self._thread_pool.shutdown(wait=False)
         self._shared_mem_manager.shutdown()
-        
-
-    def authorize(
-        self, 
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data: Dict[str, Any],
-        page_size: Optional[int] = None
-    ) -> bool:
-        """Authorize a given resource and action, with the JMESPath data against stored grants.
-
-        First ``GrantEffect.DENY`` grants should be checked.
-        If any match, then it is denied.
-
-        Then ``GrantEffect.ALLOW`` grants are checked.
-        If any match, it is allowed. If there are no matches, it is denied.
-
-        Parameters
-        ----------
-        resource_type : BaseModel
-            The resource type to compare grants to.
-        resource_action : ResourceAction
-            The resource action to compare grants to.
-        jmespath_data : Dict[str, Any]
-            JMESPath data that the grants will be computed with.
-        page_size : Optional[int], optional
-            The page size to use for the storage backend.
-            The default is set on the storage backend.
-
-        Returns
-        -------
-        bool
-            ``True`` if allowed, ``False`` if denied.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            self.authorize_async(
-                resource_type=resource_type,
-                resource_action=resource_action,
-                jmespath_data=jmespath_data,
-                page_size=page_size
-            )
-        )
 
 
-    async def authorize_async(
+    async def authorize(
         self, 
         resource_type: Type[BaseModel],
         resource_action: ResourceAction,
@@ -194,7 +146,7 @@ class MultiprocessCompute(ComputeBackend):
         bool
             ``True`` if allowed, ``False`` if denied.
         """ 
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         deny_futures: List[asyncio.Future] = []
         next_page_ref = None
         did_once = False
@@ -306,51 +258,7 @@ class MultiprocessCompute(ComputeBackend):
         return False
 
 
-    def authorize_many(
-        self, 
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data_entries: List[Dict[str, Any]],
-        page_size: Optional[int] = None
-    ) -> List[bool]:
-        """Authorize a given resource and action, with the JMESPath data against stored grants.
-
-        First ``GrantEffect.DENY`` grants should be checked.
-        If any match, then it is denied.
-
-        Then ``GrantEffect.ALLOW`` grants are checked.
-        If any match, it is allowed. If there are no matches, it is denied.
-
-        Parameters
-        ----------
-        resource_type : BaseModel
-            The resource type to compare grants to.
-        resource_action : ResourceAction
-            The resource action to compare grants to.
-        jmespath_data_entries : List[Dict[str, Any]]
-            List of JMESPath data that the grants will be computed with.
-        page_size : Optional[int], optional
-            The page size to use for the storage backend.
-            The default is set on the storage backend.
-
-        Returns
-        -------
-        List[bool]
-            List of bools directory corresponding to ``jmespath_data_entries``.  
-            ``True`` if authorized, ``False`` if denied.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            self.authorize_many_async(
-                resource_type=resource_type,
-                resource_action=resource_action,
-                jmespath_data_entries=jmespath_data_entries,
-                page_size=page_size
-            )
-        ) 
-
-
-    async def authorize_many_async(
+    async def authorize_many(
         self, 
         resource_type: Type[BaseModel],
         resource_action: ResourceAction,
@@ -384,7 +292,7 @@ class MultiprocessCompute(ComputeBackend):
             ``True`` if authorized, ``False`` if denied.
         """
         results = {i: None for i in range(len(jmespath_data_entries))}
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         deny_futures: List[asyncio.Future] = []
         next_page_ref = None
         did_once = False
@@ -462,61 +370,7 @@ class MultiprocessCompute(ComputeBackend):
         return [val is True for val in list(results.values())]
 
 
-    def get_matching_grants_page(
-        self, 
-        effect: GrantEffect,
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data: Dict[str, Any],
-        page_size: Optional[int] = None,
-        page_ref: Optional[str] = None
-    ) -> GrantsPage:
-        """Retrieve a page of matching grants. 
-
-        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
-
-        **NOTE** - There is no guarantee of how many grants will be returned if any.
-
-        ``max_worker`` pages of grants (using ``page_size`` ) will be pulled and checked for matches. 
-        
-        Parameters
-        ----------
-        effect : GrantEffect
-            The effect of the grant.
-        resource_type : BaseModel
-            The resource type to compare grants to.
-        resource_action : ResourceAction
-            The resource action to compare grants to.
-        jmespath_data : Dict[str, Any]
-            JMESPath data that the grants will be computed with.
-        page_size : Optional[int], optional
-            The page size to use for the storage backend.
-            This is not directly related to the returned number of grants, and can vary by compute backend.
-            The default is set on the storage backend.
-        page_ref : Optional[str], optional
-            The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the first page.
-
-        Returns
-        -------
-        GrantsPage
-            The page of matching grants.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            self.get_matching_grants_page_async(
-                effect=effect,
-                resource_type=resource_type,
-                resource_action=resource_action,
-                jmespath_data=jmespath_data,
-                page_size=page_size,
-                page_ref=page_ref
-            )
-        )
-
-
-    async def get_matching_grants_page_async(
+    async def get_matching_grants_page(
         self, 
         effect: GrantEffect,
         resource_type: Type[BaseModel],
@@ -557,7 +411,7 @@ class MultiprocessCompute(ComputeBackend):
         GrantsPage
             The page of matching grants.
         """
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         futures: List[asyncio.Future] = []
         next_page_ref = None
         did_once = False
@@ -618,7 +472,8 @@ def _executor_init(
     authzee_jmespath_options = jmespath_options
     global authzee_storage
     authzee_storage = storage_type(**storage_kwargs)
-    authzee_storage.initialize(**initialize_kwargs)
+    loop = get_event_loop()
+    loop.run_until_complete(authzee_storage.initialize(**initialize_kwargs))
 
 
 def _executor_grant_page_matches_deny(
@@ -633,20 +488,26 @@ def _executor_grant_page_matches_deny(
 ) -> bool:
     global authzee_jmespath_options
     global authzee_storage
-    raw_grants = authzee_storage.get_raw_grants_page(
-        effect=effect,
-        resource_type=resource_type,
-        resource_action=resource_action,
-        page_size=page_size,
-        page_ref=page_ref
+    loop = get_event_loop()
+    raw_grants = loop.run_until_complete(
+        authzee_storage.get_raw_grants_page(
+            effect=effect,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            page_size=page_size,
+            page_ref=page_ref
+        )
     )
+    
     # Send back next page ref to parent
     pipe_conn.send(raw_grants.next_page_ref)
     if cancel_event.is_set() is True:
         return False
 
-    grants_page = authzee_storage.normalize_raw_grants_page(
-        raw_grants_page=raw_grants
+    grants_page = loop.run_until_complete(
+        authzee_storage.normalize_raw_grants_page(
+            raw_grants_page=raw_grants
+        )
     )
     if cancel_event.is_set() is True:
         return False
@@ -679,12 +540,15 @@ def _executor_grant_page_matches_allow(
 ) -> bool:
     global authzee_jmespath_options
     global authzee_storage
-    raw_grants = authzee_storage.get_raw_grants_page(
-        effect=effect,
-        resource_type=resource_type,
-        resource_action=resource_action,
-        page_size=page_size,
-        page_ref=page_ref
+    loop = get_event_loop()
+    raw_grants = loop.run_until_complete(
+        authzee_storage.get_raw_grants_page(
+            effect=effect,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            page_size=page_size,
+            page_ref=page_ref
+        )
     )
     pipe_conn.send(raw_grants.next_page_ref)
     if (
@@ -693,8 +557,10 @@ def _executor_grant_page_matches_allow(
     ):
         return False
 
-    grants_page = authzee_storage.normalize_raw_grants_page(
-        raw_grants_page=raw_grants
+    grants_page = loop.run_until_complete(
+        authzee_storage.normalize_raw_grants_page(
+            raw_grants_page=raw_grants
+        )
     )
     for grant in grants_page.grants:
         if gc.grant_matches(
@@ -725,15 +591,20 @@ def _executor_authorize_many(
 ) -> List[bool]:
     global authzee_storage
     global authzee_jmespath_options
-    raw_page = authzee_storage.get_raw_grants_page(
-        effect=effect,
-        resource_type=resource_type,
-        resource_action=resource_action,
-        page_size=page_size,
-        page_ref=page_ref
+    loop = get_event_loop()
+    raw_page = loop.run_until_complete(
+        authzee_storage.get_raw_grants_page(
+            effect=effect,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            page_size=page_size,
+            page_ref=page_ref
+        )
     )
     pipe_conn.send(raw_page.next_page_ref)
-    grants_page = authzee_storage.normalize_raw_grants_page(raw_grants_page=raw_page)
+    grants_page = loop.run_until_complete(
+        authzee_storage.normalize_raw_grants_page(raw_grants_page=raw_page)
+    )
 
     return gc.authorize_many_grants(
         grants_page=grants_page,
@@ -753,15 +624,20 @@ def _executor_matching_grants(
 ) -> List[Grant]:
     global authzee_storage
     global authzee_jmespath_options
-    raw_page = authzee_storage.get_raw_grants_page(
-        effect=effect,
-        resource_type=resource_type,
-        resource_action=resource_action,
-        page_size=page_size,
-        page_ref=page_ref
+    loop = get_event_loop()
+    raw_page = loop.run_until_complete(
+        authzee_storage.get_raw_grants_page(
+            effect=effect,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            page_size=page_size,
+            page_ref=page_ref
+        )
     )
     pipe_conn.send(raw_page.next_page_ref)
-    grants_page = authzee_storage.normalize_raw_grants_page(raw_grants_page=raw_page)
+    grants_page = loop.run_until_complete(
+        authzee_storage.normalize_raw_grants_page(raw_grants_page=raw_page)
+    )
 
     return gc.compute_matching_grants(
         grants_page=grants_page,

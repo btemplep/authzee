@@ -1,6 +1,6 @@
 
 
-from typing import Any, Dict, List, Optional, Set, Type, Union
+from typing import Any, Dict, List, Optional, Set, Type
 
 import jmespath
 from pydantic import BaseModel
@@ -17,7 +17,7 @@ from authzee.storage.storage_backend import StorageBackend
 class ComputeBackend:
     """Base class for ``Authzee`` compute backend.
 
-    Base classes must at least implement:
+    Base classes must at least implement these async methods:
 
         - ``initialize`` - Initialize the compute backend.
         - ``shutdown`` - Preemptively cleanup compute backend resources.
@@ -27,47 +27,26 @@ class ComputeBackend:
         - ``authorize_many`` - Figure out if the given given identities are authorized to perform the given action on the given resources.
         - ``get_matching_grants_page`` - Get a page of matching grants. 
     
-    Optionally ``async`` methods may also be created for calls to compute. 
-
-        - ``authorize_async``
-        - ``authorize_many_async``
-        - ``get_matching_grants_page_async``
 
     No error checking should be needed for validation of resources, resource_types etc. That should all be handled by ``Authzee``.
 
     Parameters
     ----------
-    async_enabled : bool
-        This instance of the compute backend is async enabled.
-        It has all async methods.
-        This parameter should not be exposed on the child class.
     backend_locality : BackendLocality
         The backend locality this instance of the compute backend supports.
         See ``authzee.backend_locality.BackendLocality`` for more info on what the localites mean.
-        This parameter should not be exposed on the child class.
-    compatible_localities : Set[BackendLocality]
-        Set of compatible storage backend localities.
         This parameter should not be exposed on the child class.
     """
 
 
     def __init__(
         self,
-        async_enabled: bool,
         backend_locality: BackendLocality,
-        compatible_localities: Set[BackendLocality]
     ):
-        self.async_enabled = async_enabled
         self.backend_locality = backend_locality
-        self.compatible_localities = compatible_localities
-        # Reassign all to a method with a better error
-        if async_enabled is False:
-            self.authorize_async = self._async_not_supported
-            self.authorize_many_async = self._async_not_supported
-            self.get_matching_grants_page_async = self._async_not_supported
 
 
-    def initialize(
+    async def initialize(
         self, 
         identity_types: List[Type[BaseModel]],
         jmespath_options: jmespath.Options,
@@ -98,25 +77,25 @@ class ComputeBackend:
         self._storage_backend = storage_backend
 
 
-    def shutdown(self) -> None:
+    async def shutdown(self) -> None:
         """Early clean up of compute backend resources.
         """
         pass 
 
 
-    def setup(self) -> None:
+    async def setup(self) -> None:
         """One time setup for compute backend resources.
         """
         pass
 
     
-    def teardown(self) -> None:
+    async def teardown(self) -> None:
         """Teardown and delete the results of ``setup()`` .
         """
         pass
 
 
-    def authorize(
+    async def authorize(
         self, 
         resource_type: Type[BaseModel],
         resource_action: ResourceAction,
@@ -152,51 +131,11 @@ class ComputeBackend:
         ------
         authzee.exceptions.MethodNotImplementedError
             Sub-classes must implement this method.
-        """
-        raise exceptions.MethodNotImplementedError()
-
-
-    async def authorize_async(
-        self, 
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data: Dict[str, Any],
-        page_size: Optional[int] = None,
-    ) -> bool:
-        """Authorize a given resource and action, with the JMESPath data against stored grants.
-
-        First ``GrantEffect.DENY`` grants should be checked.
-        If any match, then it is denied.
-
-        Then ``GrantEffect.ALLOW`` grants are checked.
-        If any match, it is allowed. If there are no matches, it is denied.
-
-        Parameters
-        ----------
-        resource_type : BaseModel
-            The resource type to compare grants to.
-        resource_action : ResourceAction
-            The resource action to compare grants to.
-        jmespath_data : Dict[str, Any]
-            JMESPath data that the grants will be computed with.
-        page_size : Optional[int], optional
-            The page size to use for the storage backend.
-            The default is set on the storage backend.
-
-        Returns
-        -------
-        bool
-            ``True`` if allowed, ``False`` if denied.
-
-        Raises
-        ------
-        authzee.exceptions.MethodNotImplementedError
-            Sub-classes *may* implement this method if ``async`` is supported.
         """
         raise exceptions.MethodNotImplementedError()
     
 
-    def authorize_many(
+    async def authorize_many(
         self, 
         resource_type: Type[BaseModel],
         resource_action: ResourceAction,
@@ -237,48 +176,7 @@ class ComputeBackend:
         raise exceptions.MethodNotImplementedError()
 
 
-    async def authorize_many_async(
-        self, 
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data_entries: List[Dict[str, Any]],
-        page_size: Optional[int] = None
-    ) -> List[bool]:
-        """Authorize a given resource and action, with the JMESPath data against stored grants.
-
-        First ``GrantEffect.DENY`` grants should be checked.
-        If any match, then it is denied.
-
-        Then ``GrantEffect.ALLOW`` grants are checked.
-        If any match, it is allowed. If there are no matches, it is denied.
-
-        Parameters
-        ----------
-        resource_type : BaseModel
-            The resource type to compare grants to.
-        resource_action : ResourceAction
-            The resource action to compare grants to.
-        jmespath_data_entries : List[Dict[str, Any]]
-            List of JMESPath data that the grants will be computed with.
-        page_size : Optional[int], optional
-            The page size to use for the storage backend.
-            The default is set on the storage backend.
-
-        Returns
-        -------
-        List[bool]
-            List of bools directory corresponding to ``jmespath_data_entries``.  
-            ``True`` if authorized, ``False`` if denied.
-
-        Raises
-        ------
-        authzee.exceptions.MethodNotImplementedError
-            Sub-classes must implement this method.
-        """
-        raise exceptions.MethodNotImplementedError()
-
-
-    def get_matching_grants_page(
+    async def get_matching_grants_page(
         self, 
         effect: GrantEffect,
         resource_type: Type[BaseModel],
@@ -323,58 +221,3 @@ class ComputeBackend:
             Sub-classes must implement this method.
         """
         raise exceptions.MethodNotImplementedError()
-
-
-    async def get_matching_grants_page_async(
-        self, 
-        effect: GrantEffect,
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data: Dict[str, Any],
-        page_size: Optional[int] = None,
-        page_ref: Optional[str] = None
-    ) -> GrantsPage:
-        """Retrieve a page of matching grants. 
-
-        If ``GrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``page_ref=GrantsPage.next_page_ref`` .
-
-        **NOTE** - There is no guarantee of how many grants will be returned if any.
-
-        Parameters
-        ----------
-        effect : GrantEffect
-            The effect of the grant.
-        resource_type : BaseModel
-            The resource type to compare grants to.
-        resource_action : ResourceAction
-            The resource action to compare grants to.
-        jmespath_data : Dict[str, Any]
-            JMESPath data that the grants will be computed with.
-        page_size : Optional[int], optional
-            The page size to use for the storage backend.
-            This is not directly related to the returned number of grants, and can vary by compute backend.
-            The default is set on the storage backend.
-        page_ref : Optional[str], optional
-            The reference to the next page that is returned in ``GrantsPage``.
-            By default this will return the first page.
-
-        Returns
-        -------
-        GrantsPage
-            The page of matching grants.
-
-        Raises
-        ------
-        authzee.exceptions.MethodNotImplementedError
-            Sub-classes must implement this method.
-        """
-        raise exceptions.MethodNotImplementedError()
-
-
-    async def _async_not_supported(self, *args, **kwargs) -> None:
-        raise exceptions.MethodNotImplementedError(
-            "Async is not supported by this compute backend instance."
-        )
-
-

@@ -51,17 +51,9 @@ class SQLStorage(StorageBackend):
         default_page_size: int = 1000
     ):
         locality = BackendLocality.NETWORK
-        compute_localities = {
-            BackendLocality.MAIN_PROCESS,
-            BackendLocality.NETWORK,
-            BackendLocality.SYSTEM
-        }
         url = sqlalchemy_async_engine_kwargs['url']
         if url.endswith("://:memory:") is True:
             locality = BackendLocality.MAIN_PROCESS
-            compute_localities = {
-                BackendLocality.MAIN_PROCESS
-            }
         
         if (
             url.startswith("sqlite") is True
@@ -69,22 +61,17 @@ class SQLStorage(StorageBackend):
             or "://127.0.0.1" in url
         ):
             locality = BackendLocality.SYSTEM
-            compute_localities = {
-                BackendLocality.MAIN_PROCESS,
-                BackendLocality.SYSTEM
-            }
 
         super().__init__(
-            async_enabled=True,
             backend_locality=locality,
-            compatible_localities=compute_localities,
             default_page_size=default_page_size,
+            parallel_pagination=False,
             sqlalchemy_async_engine_kwargs=sqlalchemy_async_engine_kwargs
         )
         self._sqlalchemy_async_engine_kwargs = sqlalchemy_async_engine_kwargs
 
 
-    def initialize(
+    async def initialize(
         self, 
         identity_types: Set[Type[BaseModel]],
         resource_authzs: List[ResourceAuthz]
@@ -100,7 +87,7 @@ class SQLStorage(StorageBackend):
         resource_authzs : List[ResourceAuthz]
             ``ResourceAuthz`` instances that have been registered with ``Authzee``.
         """
-        super().initialize(
+        await super().initialize(
             identity_types=identity_types,
             resource_authzs=resource_authzs
         )
@@ -130,25 +117,23 @@ class SQLStorage(StorageBackend):
                 cursor.close()
     
 
-    def shutdown(self) -> None:
+    async def shutdown(self) -> None:
         """Early clean up of storage backend resources.
 
         Disposes of SQLAlchemy engine.
         """
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self._engine.dispose())
+        await self._engine.dispose()
     
 
-    def setup(self) -> None:
+    async def setup(self) -> None:
         """Create the necessary tables for Authzee SQL storage.
 
         Only run this once per configuration.
         """
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.create_tables_async())
+        await self.create_tables()
 
     
-    async def create_tables_async(self) -> None:
+    async def create_tables(self) -> None:
         """Create the necessary tables for Authzee SQL storage.
         """
         async with self._engine.begin() as conn:
@@ -162,28 +147,9 @@ class SQLStorage(StorageBackend):
                 session.add(ResourceActionDB(resource_action=ra_str))
             
             await session.commit()
-
-
-    def add_grant(self, effect: GrantEffect, grant: Grant) -> Grant:
-        """Add a grant. 
-
-        Parameters
-        ----------
-        effect : GrantEffect
-            The effect of the grant.
-        grant : Grant
-            The grant.
-
-        Returns
-        -------
-        Grant
-            The grant that has been added with additional information for the specific backend.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(self.add_grant_async(effect=effect, grant=grant))
     
 
-    async def add_grant_async(self, effect: GrantEffect, grant: Grant) -> Grant:
+    async def add_grant(self, effect: GrantEffect, grant: Grant) -> Grant:
         """Add a grant. 
 
         Parameters
@@ -228,26 +194,7 @@ class SQLStorage(StorageBackend):
         return grant
 
 
-    def delete_grant(self, effect: GrantEffect, uuid: str) -> None:
-        """Delete a grant.
-
-        Parameters
-        ----------
-        effect : GrantEffect
-            The effect of the grant.
-        uuid : str
-            UUID of grant to delete.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            self.delete_grant_async(
-                effect=effect,
-                uuid=uuid
-            )
-        )
-
-
-    async def delete_grant_async(self, effect: GrantEffect, uuid: str) -> None:
+    async def delete_grant(self, effect: GrantEffect, uuid: str) -> None:
         """Delete a grant.
 
         Parameters
@@ -277,61 +224,9 @@ class SQLStorage(StorageBackend):
 
             await session.delete(db_grant)
             await session.commit()
-
-
-    def get_raw_grants_page(
-        self,
-        effect: GrantEffect,
-        resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
-        page_size: Optional[int] = None,
-        page_ref: Optional[str] = None
-    ) -> RawGrantsPage:
-        """Retrieve a page of raw grants matching the filters.
-
-        If ``RawGrantsPage.next_page_ref`` is not ``None`` , there are more grants to retrieve.
-        To get the next page, pass ``page_ref=RawGrantsPage.next_page_ref`` .
-
-        Use ``normalize_raw_grants_page`` to convert the ``RawGrantsPage`` to a ``GrantsPage`` model.
-
-        **NOTE** - There is no guarantee of how many grants will be returned if any.
-
-        Parameters
-        ----------
-        effect : GrantEffect
-            The effect of the grant.
-        resource_type : Optional[Type[BaseModel]], optional
-            Filter by resource type.
-            By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
-            Filter by `ResourceAction``. 
-            By default no filter is applied.
-        page_size : Optional[int], optional
-            The suggested page size to return. 
-            There is no guarantee of how much data will be returned if any.
-            The default is set on the storage backend. 
-        page_ref : Optional[str], optional
-            The reference to the next page that is returned in ``RawGrantsPage``.
-            By default this will return the first page.
-
-        Returns
-        -------
-        RawGrantsPage
-            The page of raw grants.
-        """
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            self.get_raw_grants_page_async(
-                effect=effect,
-                resource_type=resource_type,
-                resource_action=resource_action,
-                page_size=page_size,
-                page_ref=page_ref
-            )
-        )
     
 
-    async def get_raw_grants_page_async(
+    async def get_raw_grants_page(
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
@@ -413,7 +308,7 @@ class SQLStorage(StorageBackend):
         )
 
 
-    def normalize_raw_grants_page(
+    async def normalize_raw_grants_page(
         self,
         raw_grants_page: RawGrantsPage
     ) -> GrantsPage:
@@ -450,14 +345,5 @@ class SQLStorage(StorageBackend):
         return GrantsPage(
             grants=grants,
             next_page_ref=raw_grants_page.next_page_ref
-        )
-    
-
-    async def normalize_raw_grants_page_async(
-        self,
-        raw_grants_page: RawGrantsPage
-    ) -> GrantsPage:
-        return self.normalize_raw_grants_page(
-            raw_grants_page=raw_grants_page
         )
 

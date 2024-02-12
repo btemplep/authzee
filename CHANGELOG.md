@@ -40,9 +40,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - YYYY-MM-DD
 
+### [0.1.0a3] - 2024-02-DD
+
+- Remove sync methods and only accepts async
+- Locality checks streamlined.
+- add needed boilerplate for parallel paging
+- general renaming
+- rework ResourceAuthzs. They are now passed as instances to the Authzee app. Logic is streamlined
+
 ### [0.1.0a2] - 2023-07-23
-    - Initial Alpha.
+
+- Initial Alpha.
 
 ### [0.1.0a1] - 2023-07-03
-    - Initial stub 
+
+- Initial stub 
 

@@ -18,20 +18,15 @@ from authzee.storage.storage_backend import StorageBackend
 class MemoryStorage(StorageBackend):
     """Storage backend for memory. 
 
-    Stores grants in python native data structures.
+    Stores grants in python native data structures. 
     """
 
 
     def __init__(self):
         super().__init__(
-            async_enabled=True,
             backend_locality=BackendLocality.MAIN_PROCESS,
-            compatible_localities={
-                BackendLocality.MAIN_PROCESS,
-                BackendLocality.NETWORK,
-                BackendLocality.SYSTEM
-            },
             default_page_size=10,
+            parallel_pagination=False
         )
         self._allow_grants: List[Grant] = []
         self._allow_grants_lookup: Dict[str, Grant] = {}
@@ -39,8 +34,7 @@ class MemoryStorage(StorageBackend):
         self._deny_grants_lookup: Dict[str, Grant] = {}
 
 
-
-    def initialize(
+    async def initialize(
         self, 
         identity_types: Set[Type[BaseModel]],
         resource_authzs: List[ResourceAuthz]
@@ -49,18 +43,18 @@ class MemoryStorage(StorageBackend):
         
 
     
-    def shutdown(self) -> None:
+    async def shutdown(self) -> None:
         pass
     
     
-    def teardown(self) -> None:
+    async def teardown(self) -> None:
         self._allow_grants = []
         self._allow_grants_lookup = {}
         self._deny_grants = []
         self._deny_grants_lookup = {}
 
     
-    def add_grant(self, effect: GrantEffect, grant: Grant) -> Grant:
+    async def add_grant(self, effect: GrantEffect, grant: Grant) -> Grant:
         new_grant = self._check_uuid(grant=grant, generate_uuid=True)
         if effect is GrantEffect.ALLOW:
             self._allow_grants.append(new_grant)
@@ -72,11 +66,7 @@ class MemoryStorage(StorageBackend):
         return copy.deepcopy(new_grant)
 
 
-    async def add_grant_async(self, effect: GrantEffect, grant: Grant) -> Grant:
-        return self.add_grant(effect=effect, grant=grant)
-
-
-    def delete_grant(self, effect: GrantEffect, uuid: str) -> None:
+    async def delete_grant(self, effect: GrantEffect, uuid: str) -> None:
         if effect is GrantEffect.ALLOW:
             if uuid in self._allow_grants_lookup:
                 self._allow_grants_lookup.pop(uuid)
@@ -89,12 +79,7 @@ class MemoryStorage(StorageBackend):
 
         raise exceptions.GrantDoesNotExistError("{} Grant with UUID '{}' does not exist.".format(effect.value, uuid))
 
-
-    async def delete_grant_async(self, effect: GrantEffect, uuid: str) -> None:
-        return self.delete_grant(effect=effect, uuid=uuid)
-
-
-    def get_raw_grants_page(
+    async def get_raw_grants_page(
         self, 
         effect: GrantEffect, 
         resource_type: Optional[Type[BaseModel]] = None,
@@ -132,38 +117,13 @@ class MemoryStorage(StorageBackend):
             raw_grants=grants,
             next_page_ref=None
         )
-
-
-    async def get_raw_grants_page_async(
-        self, effect: GrantEffect, 
-        resource_type: Optional[type[BaseModel]] = None, 
-        resource_action: Optional[ResourceAction]= None, 
-        page_size: Optional[int] = None, 
-        page_ref: Optional[str] = None
-    ) -> RawGrantsPage:
-        return self.get_raw_grants_page(
-            effect=effect,
-            resource_type=resource_type,
-            resource_action=resource_action,
-            page_size=page_size,
-            page_ref=page_ref
-        )
     
 
-    def normalize_raw_grants_page(
+    async def normalize_raw_grants_page(
         self,
         raw_grants_page: RawGrantsPage
     ) -> GrantsPage:
         return GrantsPage(
             grants=raw_grants_page.raw_grants,
             next_page_ref=raw_grants_page.next_page_ref
-        )
-
-
-    async def normalize_raw_grants_page_async(
-        self,
-        raw_grants_page: RawGrantsPage
-    ) -> GrantsPage:
-        return self.normalize_raw_grants_page(
-            raw_grants_page=raw_grants_page
         )

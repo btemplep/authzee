@@ -18,17 +18,11 @@ class MainProcessCompute(ComputeBackend):
 
     def __init__(self):
         super().__init__(
-            async_enabled=False,
-            backend_locality=BackendLocality.MAIN_PROCESS,
-            compatible_localities={
-                BackendLocality.MAIN_PROCESS,
-                BackendLocality.NETWORK,
-                BackendLocality.SYSTEM
-            }
+            backend_locality=BackendLocality.MAIN_PROCESS
         )
 
 
-    def shutdown(self) -> None:
+    async def shutdown(self) -> None:
         """Early clean up of compute backend resources.
 
         NOOP
@@ -36,7 +30,7 @@ class MainProcessCompute(ComputeBackend):
         pass
 
 
-    def authorize(
+    async def authorize(
         self, 
         resource_type: Type[BaseModel],
         resource_action: ResourceAction,
@@ -92,7 +86,7 @@ class MainProcessCompute(ComputeBackend):
         return False
 
 
-    def authorize_many(
+    async def authorize_many(
         self, 
         resource_type: Type[BaseModel],
         resource_action: ResourceAction,
@@ -157,7 +151,7 @@ class MainProcessCompute(ComputeBackend):
         return [val is True for val in list(results.values())]
 
 
-    def get_matching_grants_page(
+    async def get_matching_grants_page(
         self, 
         effect: GrantEffect,
         resource_type: Type[BaseModel],
