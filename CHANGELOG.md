@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - YYYY-MM-DD
 
-### [0.1.0a3] - 2024-02-DD
+### [0.1.0a3] - 2024-02-19
 
 - Remove sync methods and only accepts async
 - `AuthzeeSync` class as a sync wrapper for Authzee app
