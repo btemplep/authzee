@@ -19,7 +19,6 @@ class BackendLocality(Enum):
     See the ``authzee.compute_compatibility`` dictionary for the compatibility matrix. 
     Keys are the compute localities, and the values are sets of compatible storage localities.
     """
-
     PROCESS: str = "PROCESS"
     SYSTEM: str = "SYSTEM"
     NETWORK: str = "NETWORK"

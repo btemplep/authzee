@@ -1,12 +1,13 @@
 
 
-__version__ = "0.1.0a2"
+__version__ = "0.1.0a3"
 
 __all__ = [
     "Authzee",
     "Grant",
     "GrantEffect",
     "GrantsPage",
+    "PageRefsPage",
     "ResourceAction",
     "ResourceAuthz",
 ]
@@ -18,6 +19,7 @@ from authzee.authzee import Authzee
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.page_refs_page import PageRefsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
 

@@ -10,6 +10,7 @@ from authzee.backend_locality import BackendLocality
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.page_refs_page import PageRefsPage
 from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
@@ -220,6 +221,28 @@ class StorageBackend:
         ------
         authzee.exceptions.MethodNotImplementedError
             Sub-classes must implement this method.
+        """
+        raise exceptions.MethodNotImplementedError()
+    
+
+    async def get_page_ref_page(self, page_ref: str) -> PageRefsPage:
+        """Get a page of page references for parallel pagination. 
+
+        Parameters
+        ----------
+        page_ref : str
+            Page reference for the next page of page references.
+
+        Returns
+        -------
+        PageRefsPage
+            Page of page references.
+
+        Raises
+        ------
+        exceptions.MethodNotImplementedError
+            Sub-classes must implement this method if this storage backend supports parallel pagination. 
+            They must also set the ``parallel_pagination`` flag. 
         """
         raise exceptions.MethodNotImplementedError()
 

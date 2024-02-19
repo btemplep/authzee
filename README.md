@@ -76,7 +76,6 @@ Identity models are made with pydantic.
 from pydantic import BaseModel
 
 class ADUser(BaseModel):
-
     cn: str
 
 ```
@@ -92,7 +91,6 @@ Resource Models are made with pydantic.
 from pydantic import BaseModel
 
 class Balloon(BaseModel):
-
     color: str
     size: str
 ```
@@ -110,7 +108,6 @@ from enum import auto
 from authzee import ResourceAction
 
 class BalloonAction(ResourceAction):
-
     CreateBalloon: str = auto()
     DeleteBalloon: str = auto()
     ListBalloons: str = auto()
@@ -139,26 +136,22 @@ from authzee import ResourceAction, ResourceAuthz
 
 
 class Balloon(BaseModel):
-
     color: str
     size: float
 
 
 class BalloonAction(ResourceAction):
-
     CreateBalloon: str = auto()
     DeleteBalloon: str = auto()
     ListBalloons: str = auto()
 
   
 class BalloonString(BaseModel):
-
     color: str
     length: float
 
 
 class BalloonStringActions(ResourceAction):
-
     CreateBalloonString: str = auto()
     DeleteBalloonString: str = auto()
     ListBalloonsString: str = auto()
@@ -198,13 +191,11 @@ from authzee import Grant, GrantEffect
 
 
 class Balloon(BaseModel):
-
     color: str
     size: float
 
 
 class BalloonAction(ResourceAction):
-
     CreateBalloon: str = auto()
     DeleteBalloon: str = auto()
     ListBalloons: str = auto()
@@ -374,12 +365,10 @@ from authzee import (
 # Identity Models
 # Create identity models that represent the calling entities identities 
 class ADUser(BaseModel):
-
     cn: str
 
 
 class ADGroup(BaseModel):
-
     cn: str
 
 
@@ -387,13 +376,11 @@ class ADGroup(BaseModel):
 # Used to authorize actions on resources
 # Can use authorization specific resource models
 class Balloon(BaseModel):
-
     color: str
     size: float
 
   
 class BalloonString(BaseModel):
-
     color: str
     length: float
 
@@ -401,14 +388,12 @@ class BalloonString(BaseModel):
 # Resource Actions
 # One resource action per resource type to represent the actions that can be taken on the resource
 class BalloonAction(ResourceAction):
-
     CreateBalloon: str = auto()
     DeleteBalloon: str = auto()
     ListBalloons: str = auto()
 
 
 class BalloonStringAction(ResourceAction):
-
     CreateBalloonString: str = auto()
     DeleteBalloonString: str = auto()
     ListBalloonsString: str = auto()

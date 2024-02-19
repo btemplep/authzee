@@ -19,7 +19,6 @@ class ResourceAuthz(BaseModel):
         - child_resources_authzs - list of resource authz types for child resources
             - used in grants to authorize resources with specific child resources
     """
-
     resource_type: Type[BaseModel]
     resource_action_type: Type[ResourceAction]
     parent_resource_types: Set[Type[BaseModel]]

@@ -10,10 +10,10 @@ from pydantic import BaseModel
 from authzee.backend_locality import compute_compatibility
 from authzee.compute.compute_backend import ComputeBackend
 from authzee import exceptions
-from authzee.compute import general as gc
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.page_refs_page import PageRefsPage
 from authzee.resource_authz import ResourceAuthz
 from authzee.resource_action import ResourceAction
 from authzee.storage.storage_backend import StorageBackend
@@ -561,6 +561,45 @@ class Authzee:
         )
 
         return await self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
+    
+
+    async def get_page_ref_page(self, page_ref: str) -> PageRefsPage:
+        """Get a page of page references for parallel pagination. 
+
+        **NOTE** - Not all storage backends or storage backend configurations support parallel pagination.
+        You cannot be certain until the ``initialization`` method is called and complete. 
+        Then you can check the ``parallel_pagination`` flag on the storage backend to see if it is supported. 
+
+        .. code-block:: python
+
+            storage_backend = MyStorageBackend()
+            compute_backend = MyComputeBackend()
+            authzee_app = Authzee(compute_backend=compute_backend, storage_backend=storage_backend)
+
+            async def init():
+                await authzee_app.initialize()
+                if storage_backend.parallel_pagination is True:
+                    print("This storage backend supports parallel pagination!")
+                else:
+                    print("This storage backend doesn't support parallel pagination :(")
+
+        Parameters
+        ----------
+        page_ref : str
+            Page reference for the next page of page references.
+
+        Returns
+        -------
+        PageRefsPage
+            Page of page references.
+
+        Raises
+        ------
+        exceptions.MethodNotImplementedError
+            Sub-classes should implement this method if this storage backend supports parallel pagination. 
+            They must also set the ``parallel_pagination`` flag. 
+        """
+        return await self._storage_backend.get_page_ref_page(page_ref=page_ref)
 
 
     def list_matching_grants(

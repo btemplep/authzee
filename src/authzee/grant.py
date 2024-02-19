@@ -11,7 +11,6 @@ class Grant(BaseModel):
     
     fill in the model
     """
-
     name: str
     description: str
     resource_type: Type[BaseModel] 
