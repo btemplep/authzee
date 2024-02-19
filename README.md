@@ -383,6 +383,7 @@ from pydantic import BaseModel, Field
 
 from authzee import (
     Authzee,
+    AuthzeeSync,
     Grant, 
     GrantEffect,
     MultiprocessCompute,
@@ -457,6 +458,8 @@ authzee_app = Authzee(
     compute_backend=compute,
     storage_backend=storage
 )
+# Most methods to authzee are async, but you can use the synchronous wrapper if you aren't using async
+authzee_sync = AuthzeeSync(authzee_app=authzee_app)
 # Register Identity types
 authzee_app.register_identity_type(ADUser)
 authzee_app.register_identity_type(ADGroup)

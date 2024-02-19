@@ -4,6 +4,7 @@ __version__ = "0.1.0a3"
 
 __all__ = [
     "Authzee",
+    "AuthzeeSync",
     "Grant",
     "GrantEffect",
     "GrantsPage",
@@ -16,6 +17,7 @@ from authzee import logging_config
 logging_config
 
 from authzee.authzee import Authzee
+from authzee.authzee_sync import AuthzeeSync
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
