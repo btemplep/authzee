@@ -3,7 +3,7 @@
 <!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
 <img src="./docs/logo.svg" alt="Authzee Logo" width="300">
 
-Authzee is a highly expressive grant-based authorization framework that is extensible and scalable. 
+Authzee is a highly expressive grant-based authorization framework that is async, extensible, and scalable. 
 
 Authzee was originally developed with a focus on authorization for existing infrastructure 
 like AD users, AD roles, AWS roles etc. Users, roles, groups and other identities are not stored in authzee. 
@@ -25,6 +25,7 @@ For prod ready, large scale **ReBAC** check out [authzed](https://authzed.com/).
     - [Resource Authz](#resource-authz)
     - [Grant](#grant)
     - [`authzee` App](#authzee-app)
+    - [`authzee` Sync App](#authzee-sync-app)
     - [`authzee` App Grant Management](#authzee-app-grant-management)
     - [`authzee` App Authorization Methods](#authzee-app-authorization-methods)
     - [`authzee` App Helper Methods](#authzee-app-helper-methods)
@@ -294,7 +295,7 @@ Available Compute Backends:
 
 - `MainProcessCompute` - process authorization requests synchronously in the main thread - not async
 - `MultiprocessCompute` - process authorization requests asynchronously.  Distributes work to a process pool
-- `ThreadedCompute` - Process authorization requests asynchronously.  Distributes work to a thread pool.  Note that because of the GIL, using multiple threads may actually be slightly slower than `MainProcessCompute`, but it allows for somewhat async behavior.
+- `ThreadedCompute` - Process authorization requests asynchronously.  Distributes work to a thread pool.  Note that because of the GIL, using multiple threads may actually be slightly slower than `MainProcessCompute`.  While it's not truly parallel processing, it will not block the main thread. 
 
 ```python
 from authzee import (
@@ -317,6 +318,34 @@ authzee_app = Authzee(
 
 ```
 
+### `authzee` Sync App
+
+There is also a synchronous wrapper for the Authzee app. 
+It has all of the same methods but they are synchronous. 
+
+```python
+from authzee import (
+    Authzee,
+    AuthzeeSync,
+    MultiprocessCompute,
+    SQLStorage
+)
+
+compute = MultiprocessCompute()
+storage = SQLStorage(
+    sqlalchemy_async_engine_kwargs={
+        "url": "sqlite+aiosqlite:///test.sqlite",
+        "echo": True
+    }
+)
+authzee_app = Authzee(
+    compute_backend=compute,
+    storage_backend=storage
+)
+authzee_sync_app = AuthzeeSync(
+    authzee_app=authzee_app
+)
+```
 
 ### `authzee` App Grant Management
 
