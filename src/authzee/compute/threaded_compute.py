@@ -51,7 +51,8 @@ class ThreadedCompute(ComputeBackend):
 
     def __init__(self, max_workers: Optional[int] = None):
         super().__init__(
-            backend_locality=BackendLocality.MAIN_PROCESS
+            backend_locality=BackendLocality.PROCESS,
+            parallel_pagination=False
         )
         self._max_workers = max_workers
         if self._max_workers is None:

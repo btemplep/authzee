@@ -24,7 +24,7 @@ class MemoryStorage(StorageBackend):
 
     def __init__(self):
         super().__init__(
-            backend_locality=BackendLocality.MAIN_PROCESS,
+            backend_locality=BackendLocality.PROCESS,
             default_page_size=10,
             parallel_pagination=False
         )

@@ -52,7 +52,8 @@ class MultiprocessCompute(ComputeBackend):
         max_workers: Optional[int] = None
     ):
         super().__init__(
-            backend_locality=BackendLocality.SYSTEM
+            backend_locality=BackendLocality.SYSTEM,
+            parallel_pagination=False
         )
         self._max_workers = max_workers
         if self._max_workers is None:

@@ -53,7 +53,7 @@ class SQLStorage(StorageBackend):
         locality = BackendLocality.NETWORK
         url = sqlalchemy_async_engine_kwargs['url']
         if url.endswith("://:memory:") is True:
-            locality = BackendLocality.MAIN_PROCESS
+            locality = BackendLocality.PROCESS
         
         if (
             url.startswith("sqlite") is True

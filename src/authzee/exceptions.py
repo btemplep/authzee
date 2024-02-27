@@ -54,6 +54,11 @@ class MethodNotImplementedError(AuthzeeError):
         super().__init__(msg, *args, **kwargs)
 
 
+class ParallelPaginationNotSupported(AuthzeeError):
+    """Parallel pagination is not supported.
+    """
+    pass
+
 class ResourceAuthzRegistrationError(AuthzeeError):
     """There was an error when registering the ResourceAuthz.
     """

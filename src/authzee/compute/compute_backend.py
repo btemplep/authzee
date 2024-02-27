@@ -36,14 +36,21 @@ class ComputeBackend:
         The backend locality this instance of the compute backend supports.
         See ``authzee.backend_locality.BackendLocality`` for more info on what the localites mean.
         This parameter should not be exposed on the child class.
+    parallel_pagination : bool
+        Flag for if this compute backend supports parallel pagination if the storage backend does. 
+        If ``True``, the compute backend must support getting pages in parallel from the storage backend, 
+        and effectively using that functionality in the ``authorize``, ``authorize_many``, and ``get_matching_grants_page`` methods.
+        This parameter should not be exposed as a parameter on the child class.
     """
 
 
     def __init__(
         self,
         backend_locality: BackendLocality,
+        parallel_pagination: bool
     ):
         self.backend_locality = backend_locality
+        self.parallel_pagination = parallel_pagination
 
 
     async def initialize(

@@ -18,7 +18,8 @@ class MainProcessCompute(ComputeBackend):
 
     def __init__(self):
         super().__init__(
-            backend_locality=BackendLocality.MAIN_PROCESS
+            backend_locality=BackendLocality.PROCESS,
+            parallel_pagination=False
         )
 
 

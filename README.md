@@ -1,7 +1,7 @@
 # `authzee`
 
 <!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
-<img src="./docs/logo.svg" alt="Authzee Logo" width="300">
+<img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/logo.svg" alt="Authzee Logo" width="300">
 
 Authzee is a highly expressive grant-based authorization framework that is async, extensible, and scalable. 
 

@@ -51,8 +51,8 @@ class StorageBackend:
     parallel_pagination : bool
         Flag for if this storage backend support parallel pagination. 
         If it does then it must implement the ``get_page_ref_page`` async method.
+        This parameter should not be exposed as a parameter on the child class.
     """
-
 
     def __init__(
         self, 
@@ -244,7 +244,18 @@ class StorageBackend:
             Sub-classes must implement this method if this storage backend supports parallel pagination. 
             They must also set the ``parallel_pagination`` flag. 
         """
-        raise exceptions.MethodNotImplementedError()
+        if self.parallel_pagination is True:
+            raise exceptions.MethodNotImplementedError(
+                (
+                    "There is an error in the storage backend!"
+                    "This storage backend has marked parallel_pagination as true "
+                    "but it has not implemented the required methods!"
+                )
+            )
+        else:
+            raise exceptions.ParallelPaginationNotSupported(
+                "This storage backend does not support parallel pagination."
+            )
 
    
     def _check_uuid(self, grant: Grant, generate_uuid: bool) -> Grant:
