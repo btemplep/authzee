@@ -1,6 +1,8 @@
 
 import copy
+import datetime
 from typing import Dict, List, Optional, Set, Type
+import uuid
 
 from pydantic import BaseModel
 
@@ -13,6 +15,7 @@ from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
 from authzee.storage.storage_backend import StorageBackend
+from authzee.storage_flag import StorageFlag
 
 
 class MemoryStorage(StorageBackend):
@@ -32,6 +35,7 @@ class MemoryStorage(StorageBackend):
         self._allow_grants_lookup: Dict[str, Grant] = {}
         self._deny_grants: List[Grant] = []
         self._deny_grants_lookup: Dict[str, Grant] = {}
+        self._flags_lookup: Dict[str, StorageFlag] = {}
 
 
     async def initialize(
@@ -39,8 +43,7 @@ class MemoryStorage(StorageBackend):
         identity_types: Set[Type[BaseModel]],
         resource_authzs: List[ResourceAuthz]
     ) -> None:
-        super().initialize(identity_types, resource_authzs)
-        
+        await super().initialize(identity_types, resource_authzs)
 
     
     async def shutdown(self) -> None:
@@ -52,6 +55,7 @@ class MemoryStorage(StorageBackend):
         self._allow_grants_lookup = {}
         self._deny_grants = []
         self._deny_grants_lookup = {}
+        self._flags_lookup = {}
 
     
     async def add_grant(self, effect: GrantEffect, grant: Grant) -> Grant:
@@ -127,3 +131,128 @@ class MemoryStorage(StorageBackend):
             grants=raw_grants_page.raw_grants,
             next_page_ref=raw_grants_page.next_page_ref
         )
+    
+
+    async def create_flag(self) -> StorageFlag:
+        """Create a new shared flag in the storage backend.
+
+        Returns
+        -------
+        StorageFlag
+            New storage flag. 
+        """
+        new_flag = StorageFlag(
+            uuid=str(uuid.uuid4()),
+            is_set=False,
+            created_at=datetime.datetime.now(tz=datetime.timezone.utc)
+        )
+        self._flags_lookup[new_flag.uuid] = new_flag
+
+        return copy.deepcopy(new_flag)
+
+
+    async def get_flag(self, uuid: str) -> StorageFlag:
+        """Retrieve flag by UUID.
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID.
+
+        Returns
+        -------
+        StorageFlag
+            The storage flag with the given UUID.
+        
+        Raises
+        ------
+        authzee.exceptions.StorageFlagNotFoundError
+            The storage flag with the given UUID was not found.
+        """
+        self._check_flag_uuid_exists(uuid=uuid)
+        
+        return copy.deepcopy(self._flags_lookup[uuid])
+
+
+    async def set_flag(self, uuid: str) -> StorageFlag:
+        """Set a flag for a given UUID. 
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID.
+
+        Returns
+        -------
+        StorageFlag
+            The storage flag with the given UUID and the flag set.
+        
+        Raises
+        ------
+        authzee.exceptions.StorageFlagNotFoundError
+            The storage flag with the given UUID was not found.
+        """
+        self._check_flag_uuid_exists(uuid=uuid)
+        flag = self._flags_lookup[uuid]
+        flag.is_set = True
+
+        return copy.deepcopy(flag)
+
+
+    async def delete_flag(self, uuid: str) -> None:
+        """Delete a storage flag by UUID.
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID.
+        
+        Raises
+        ------
+        authzee.exceptions.StorageFlagNotFoundError
+            The storage flag with the given UUID was not found.
+        """
+        self._check_flag_uuid_exists(uuid=uuid)
+        self._flags_lookup.pop(uuid)
+
+
+    async def cleanup_flags(self, earlier_than: datetime.datetime) -> None:
+        """Delete zombie storage flags from before a certain point in time.
+
+        Parameters
+        ----------
+        earlier_than : datetime.datetime
+            Delete flags created earlier than this date. 
+            Naive datetimes are assumed to be UTC. 
+        """
+        if earlier_than.tzinfo is None:
+            earlier_than = earlier_than.replace(tzinfo=datetime.timezone.utc)
+        elif earlier_than.tzinfo is not None:
+            earlier_than = earlier_than.astimezone(datetime.timezone.utc)
+
+        delete_uuids = []
+        for uuid in self._flags_lookup:
+            if self._flags_lookup[uuid].created_at < earlier_than:
+                delete_uuids.append(uuid)
+
+        for uuid in delete_uuids:
+            self._flags_lookup.pop(uuid)
+
+
+    def _check_flag_uuid_exists(self, uuid: str) -> None:
+        """Check that a flag with the given UUID exists and return it. 
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID. 
+
+        Raises
+        ------
+        authzee.exceptions.StorageFlagNotFoundError
+            The storage flag with the given UUID was not found.
+        """
+        if uuid not in self._flags_lookup:
+            raise exceptions.StorageFlagNotFoundError(
+                f"The storage flag with UUID '{uuid}' was not found!"
+            )

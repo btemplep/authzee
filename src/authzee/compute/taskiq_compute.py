@@ -1,12 +1,16 @@
 
-
+import base64
+import pickle
 from typing import Any, Dict, List, Optional, Type, Union
+from typing_extensions import Annotated
 
 import jmespath
 from pydantic import BaseModel
+import taskiq
 
 from authzee import exceptions
 from authzee.backend_locality import BackendLocality
+from authzee.compute.compute_backend import ComputeBackend
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
 from authzee.resource_action import ResourceAction
@@ -14,43 +18,50 @@ from authzee.resource_authz import ResourceAuthz
 from authzee.storage.storage_backend import StorageBackend
 
 
-class ComputeBackend:
-    """Base class for ``Authzee`` compute backend.
+class TaskiqCompute(ComputeBackend):
+    """Distributed compute with Taskiq. 
 
-    Base classes must at least implement these async methods:
+    Uses `Taskiq <https://taskiq-python.github.io/>`_ to distribute compute tasks.
 
-        - ``initialize`` - Initialize the compute backend.
-        - ``shutdown`` - Preemptively cleanup compute backend resources.
-        - ``setup`` - One time setup for compute backend.
-        - ``teardown`` - Remove resources created from ``setup()``.
-        - ``authorize`` - Figure out if the given given identities are authorized to perform the given action on the given resource.
-        - ``authorize_many`` - Figure out if the given given identities are authorized to perform the given action on the given resources.
-        - ``get_matching_grants_page`` - Get a page of matching grants. 
-    
+    Example of how to use and the workers file. 
 
-    No error checking should be needed for validation of resources, resource_types etc. That should all be handled by ``Authzee``.
+
+    **NOTES** 
+
+    - In the workers file you will need to create and initialize the authzee app 
+    to make sure that all tasks and event handlers are added to the broker.
+
+    - Must call broker.startup after authzee.initialize
 
     Parameters
     ----------
-    backend_locality : BackendLocality
-        The backend locality this instance of the compute backend supports.
-        See ``authzee.backend_locality.BackendLocality`` for more info on what the localites mean.
-        This parameter should not be exposed on the child class.
-    parallel_pagination : bool
-        Flag for if this compute backend supports parallel pagination if the storage backend does. 
-        If ``True``, the compute backend must support getting pages in parallel from the storage backend, 
-        and effectively using that functionality in the ``authorize``, ``authorize_many``, and ``get_matching_grants_page`` methods.
-        This parameter should not be exposed as a parameter on the child class.
+    broker : taskiq.AsyncBroker
+        Taskiq broker for compute and results. 
+        The ``startup()`` method should not be run on the broker. 
+    check_interval : float, default: 0.01
+        Interval to poll if worker results are available.
+    task_timeout : float, default: 2.0 
+        Timeout in seconds for TASKiq tasks to finish. 
     """
 
 
     def __init__(
         self,
-        backend_locality: BackendLocality,
-        parallel_pagination: bool
+        broker: taskiq.AsyncBroker,
+        check_interval: float = 0.01,
+        task_timeout: float = 2.0
     ):
-        self.backend_locality = backend_locality
-        self.parallel_pagination = parallel_pagination
+        self._broker = broker
+        self._check_interval = check_interval
+        self._task_timeout = task_timeout
+        locality = BackendLocality.NETWORK
+        if type(self._broker) is taskiq.InMemoryBroker:
+            locality = BackendLocality.PROCESS
+        
+        super().__init__(
+            backend_locality=locality,
+            parallel_pagination=False
+        )
 
 
     async def initialize(
@@ -78,16 +89,43 @@ class ComputeBackend:
         storage_backend : StorageBackend
             Storage backend registered with the ``Authzee`` app.
         """
-        self._identity_types = identity_types
-        self._jmespath_options = jmespath_options
-        self._resource_authzs = resource_authzs
-        self._storage_backend = storage_backend
+        await super().initialize(
+            identity_types=identity_types,
+            jmespath_options=jmespath_options,
+            resource_authzs=resource_authzs,
+            storage_backend=storage_backend
+        )
+        self._authorize_task = self._broker.register_task(
+            _authorize_task, 
+            "authzee.authorize"
+        )
+        self._authorize_many_task = self._broker.register_task(
+            _authorize_many_task, 
+            "authzee.authorize_many"
+        )
+        self._get_matching_grants_page_task = self._broker.register_task(
+            _get_matching_grants_page_task, 
+            "authzee.get_matching_grants_page"
+        )
+
+        async def worker_startup(state: taskiq.TaskiqState) -> None:
+            print("start worker startup")
+            state.jmespath_options = self._jmespath_options
+            if self._storage_backend.backend_locality is BackendLocality.PROCESS:
+                state.storage_backend = self._storage_backend
+            else:
+                state.storage_backend = type(self._storage_backend)(**self._storage_backend.kwargs)
+                await state.storage_backend.initialize(**self._storage_backend.initialize_kwargs)
+
+            print("end worker startup")
+
+        self._broker.add_event_handler(taskiq.TaskiqEvents.WORKER_STARTUP, worker_startup)
 
 
     async def shutdown(self) -> None:
         """Early clean up of compute backend resources.
         """
-        pass 
+        await self._broker.shutdown() 
 
 
     async def setup(self) -> None:
@@ -133,13 +171,24 @@ class ComputeBackend:
         -------
         bool
             ``True`` if allowed, ``False`` if denied.
-
-        Raises
-        ------
-        authzee.exceptions.MethodNotImplementedError
-            Sub-classes must implement this method.
         """
-        raise exceptions.MethodNotImplementedError()
+        kwargs = {
+            "resource_type": resource_type,
+            "resource_action": resource_action,
+            "jmespath_data": jmespath_data,
+            "page_size": page_size
+        }
+        task = await self._authorize_task.kiq(
+            base64.b64encode(
+                pickle.dumps(kwargs)
+            ).decode("ascii")
+        )
+        result = await task.wait_result(
+            check_interval=self._check_interval, 
+            timeout=self._task_timeout
+        )
+
+        return result.return_value
     
 
     async def authorize_many(
@@ -228,3 +277,33 @@ class ComputeBackend:
             Sub-classes must implement this method.
         """
         raise exceptions.MethodNotImplementedError()
+
+
+async def _authorize_task(
+    kwp: str,
+    context: Annotated[taskiq.Context, taskiq.TaskiqDepends()]
+) -> bool:
+    jmespath_options: Union[jmespath.Options, None] = context.state.jmespath_options
+    storage_backend: StorageBackend = context.state.storage_backend
+    print("Got to authorize task")
+    print(jmespath_options)
+    print(storage_backend)
+    kwargs = pickle.loads(
+        base64.b64decode(kwp.encode("ascii"))
+    )
+    resource_type: BaseModel = kwargs['resource_type']
+    resource_action: ResourceAction = kwargs['resource_action']
+    jmespath_data: Dict[str, Any] = kwargs['jmespath_data']
+    page_size: Union[int, None] = kwargs['page_size']
+    
+    
+    return False
+
+
+async def _authorize_many_task(kwp: bytes) -> List[bool]:
+    print(f"authorize many task got: {pickle.loads(kwp)}")
+
+
+async def _get_matching_grants_page_task(kwp: bytes) -> bytes: # GrantsPage:
+    print(f"get matching grants page task got: {pickle.loads(kwp)}")
+

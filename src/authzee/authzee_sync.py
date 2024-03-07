@@ -31,7 +31,7 @@ class AuthzeeSync:
 
         Raises
         ------
-        exceptions.InitializationError
+        authzee.exceptions.InitializationError
             An error occurred while initializing the app.
         
         Examples
@@ -260,7 +260,7 @@ class AuthzeeSync:
         resource_action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
     ) -> Iterator[Grant]:
-        """List Grants.d
+        """List Grants.
 
         Parameters
         ----------
@@ -293,21 +293,6 @@ class AuthzeeSync:
             for grant in authzee_app.list_grants():
                 print(grant.name)
         """
-        return self._list_grants(
-            effect=effect,
-            resource_type=resource_type,
-            resource_action=resource_action,
-            page_size=page_size
-        )
-    
-
-    def _list_grants(
-        self,
-        effect: GrantEffect,
-        resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
-        page_size: Optional[int] = None
-    ) -> Iterator[Grant]:
         a_iter = self._authzee_app.list_grants(
             effect=effect,
             resource_type=resource_type,
@@ -361,7 +346,7 @@ class AuthzeeSync:
         
         Raises
         ------
-        exceptions.AsyncNotAvailableError
+        authzee.exceptions.AsyncNotAvailableError
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
@@ -431,28 +416,6 @@ class AuthzeeSync:
             from authzee import Authzee
 
         """
-        return self._list_matching_grants(
-            effect=effect,
-            resource=resource,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
-            identities=identities,
-            page_size=page_size
-
-        )
-
-
-    def _list_matching_grants(
-        self,
-        effect: GrantEffect,
-        resource: BaseModel,
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
-        identities: List[BaseModel],
-        page_size: Optional[int] = None
-    ) -> Iterator[Grant]:
         a_iter = self._authzee_app.list_matching_grants(
             effect=effect,
             resource=resource,

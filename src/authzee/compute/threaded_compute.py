@@ -5,7 +5,7 @@ from copy import deepcopy
 from functools import partial
 import os
 import threading
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, Union
 
 import jmespath
 from loguru import logger
@@ -65,7 +65,7 @@ class ThreadedCompute(ComputeBackend):
     async def initialize(
         self, 
         identity_types: List[Type[BaseModel]],
-        jmespath_options: jmespath.Options,
+        jmespath_options: Union[jmespath.Options, None],
         resource_authzs: List[ResourceAuthz],
         storage_backend: StorageBackend,
     ) -> None:
@@ -77,7 +77,7 @@ class ThreadedCompute(ComputeBackend):
         ----------
         identity_types : List[Type[BaseModel]]
             Identity types registered with the ``Authzee`` app.
-        jmespath_options : jmespath.Options
+        jmespath_options : Union[jmespath.Options, None]
             Custom ``jmespath.Options`` registered with the ``Authzee`` app.
         resource_authzs : List[ResourceAuthz]
             ``ResourceAuthz`` s registered with the ``Authzee`` app.

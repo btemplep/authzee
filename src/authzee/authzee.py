@@ -85,7 +85,7 @@ class Authzee:
 
         Raises
         ------
-        exceptions.InitializationError
+        authzee.exceptions.InitializationError
             An error occurred while initializing the app.
         
         Examples
@@ -410,7 +410,7 @@ class Authzee:
         )
 
 
-    def list_grants(
+    async def list_grants(
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
@@ -418,8 +418,6 @@ class Authzee:
         page_size: Optional[int] = None
     ) -> AsyncIterator[Grant]:
         """List Grants.
-
-        **NOTE** - This is not a coroutine but returns an async iterator.
 
         Parameters
         ----------
@@ -457,22 +455,6 @@ class Authzee:
             resource_type=resource_type,
             resource_action=resource_action
         )
-
-        return self._list_grants(
-            effect=effect,
-            resource_type=resource_type,
-            resource_action=resource_action,
-            page_size=page_size
-        )
-    
-
-    async def _list_grants(
-        self,
-        effect: GrantEffect,
-        resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
-        page_size: Optional[int] = None
-    ) -> AsyncIterator[Grant]:
         did_once = False
         next_page_ref = None
         grants_page = None
@@ -535,7 +517,7 @@ class Authzee:
         
         Raises
         ------
-        exceptions.AsyncNotAvailableError
+        authzee.exceptions.AsyncNotAvailableError
             Async is not available for the storage backend.
         authzee.exceptions.InputVerificationError
             The inputs were not verified with the ``Authzee`` configuration.
@@ -595,14 +577,14 @@ class Authzee:
 
         Raises
         ------
-        exceptions.MethodNotImplementedError
+        authzee.exceptions.MethodNotImplementedError
             Sub-classes should implement this method if this storage backend supports parallel pagination. 
             They must also set the ``parallel_pagination`` flag. 
         """
         return await self._storage_backend.get_page_ref_page(page_ref=page_ref)
 
 
-    def list_matching_grants(
+    async def list_matching_grants(
         self,
         effect: GrantEffect,
         resource: BaseModel,
@@ -613,8 +595,6 @@ class Authzee:
         page_size: Optional[int] = None
     ) -> AsyncIterator[Grant]:
         """List matching grants.
-
-        **NOTE** - This is not a coroutine but returns an async iterator.
 
         Parameters
         ----------
@@ -633,7 +613,6 @@ class Authzee:
         page_size : Optional[int], optional
             The page size to use for the storage backend.
             The default is set on the storage backend.
-
 
         Returns
         -------
@@ -667,24 +646,6 @@ class Authzee:
             child_resources=child_resources,
             identities=identities
         )
-
-        return self._list_matching_grants(
-            effect=effect,
-            resource_type=type(resource),
-            resource_action=resource_action,
-            jmespath_data=jmespath_data,
-            page_size=page_size
-        )
-
-
-    async def _list_matching_grants(
-        self,
-        effect: GrantEffect,
-        resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
-        jmespath_data: Dict[str, Any],
-        page_size: Optional[int]
-    ) -> AsyncIterator[Grant]:
         did_once = False
         next_page_ref = None
         grants_page = None
@@ -695,7 +656,7 @@ class Authzee:
             did_once = True
             grants_page = await self._compute_backend.get_matching_grants_page(
                 effect=effect,
-                resource_type=resource_type,
+                resource_type=type(resource),
                 resource_action=resource_action,
                 jmespath_data=jmespath_data,
                 page_size=page_size,

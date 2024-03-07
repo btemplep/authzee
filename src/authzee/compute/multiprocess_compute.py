@@ -63,7 +63,7 @@ class MultiprocessCompute(ComputeBackend):
     async def initialize(
         self, 
         identity_types: List[Type[BaseModel]],
-        jmespath_options: jmespath.Options,
+        jmespath_options: Union[jmespath.Options, None],
         resource_authzs: List[ResourceAuthz],
         storage_backend: StorageBackend,
     ) -> None:
@@ -75,7 +75,7 @@ class MultiprocessCompute(ComputeBackend):
         ----------
         identity_types : List[Type[BaseModel]]
             Identity types registered with the ``Authzee`` app.
-        jmespath_options : jmespath.Options
+        jmespath_options : Union[jmespath.Options, None]
             Custom ``jmespath.Options`` registered with the ``Authzee`` app.
         resource_authzs : List[ResourceAuthz]
             ``ResourceAuthz`` s registered with the ``Authzee`` app.
@@ -467,7 +467,7 @@ def _executor_init(
     storage_type: Type[StorageBackend],
     storage_kwargs: Dict[str, Any],
     initialize_kwargs: Dict[str, Any],
-    jmespath_options: jmespath.Options
+    jmespath_options: Union[jmespath.Options, None]
 ) -> None:
     global authzee_jmespath_options
     authzee_jmespath_options = jmespath_options

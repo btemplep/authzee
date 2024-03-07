@@ -1,10 +1,11 @@
 
-import asyncio
+import datetime
 import json
 from typing import Any, Dict, List, Optional, Set, Type, Union
+import uuid
 
 from pydantic import BaseModel
-from sqlalchemy import event, select
+from sqlalchemy import delete, event, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
 
 from authzee import exceptions
@@ -20,9 +21,11 @@ from authzee.storage.sql_storage_models import (
     Base, 
     DenyGrantDB, 
     ResourceActionDB, 
-    ResourceTypeDB
+    ResourceTypeDB,
+    StorageFlagDB
 )
 from authzee.storage.storage_backend import StorageBackend
+from authzee.storage_flag import StorageFlag
 
 
 class SQLNextPageRef(BaseModel):
@@ -347,3 +350,119 @@ class SQLStorage(StorageBackend):
             next_page_ref=raw_grants_page.next_page_ref
         )
 
+
+    async def create_flag(self) -> StorageFlag:
+        """Create a new shared flag in the storage backend.
+
+        Returns
+        -------
+        StorageFlag
+            New storage flag. 
+        """
+        new_flag = StorageFlag(
+            uuid=str(uuid.uuid4()),
+            is_set=False,
+            created_at=datetime.datetime.now(tz=datetime.timezone.utc)
+        )
+        async with self._async_sessionmaker() as session:
+            db_flag = StorageFlagDB(**new_flag.model_dump())
+            session.add(db_flag)
+            await session.commit()
+
+        return new_flag
+
+
+    async def get_flag(self, uuid: str) -> StorageFlag:
+        """Retrieve flag by UUID.
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID.
+
+        Returns
+        -------
+        StorageFlag
+            The storage flag with the given UUID.
+        
+        Raises
+        ------
+        authzee.exceptions.StorageFlagNotFoundError
+            The storage flag with the given UUID was not found.
+        """
+        async with self._async_sessionmaker() as session:
+            query = select(StorageFlagDB).where(StorageFlagDB.uuid == uuid)
+            result = await session.execute(query)
+            db_flag = result.scalars().unique().one_or_none()
+            if  db_flag is None:
+                raise exceptions.StorageFlagNotFoundError(
+                    f"The storage flag with UUID '{uuid}' was not found!"
+                )
+        
+            await session.commit()
+    
+        return StorageFlag.model_validate(db_flag, from_attributes=True)
+
+
+    async def set_flag(self, uuid: str) -> StorageFlag:
+        """Set a flag for a given UUID. 
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID.
+
+        Returns
+        -------
+        StorageFlag
+            The storage flag with the given UUID and the flag set.
+        
+        Raises
+        ------
+        authzee.exceptions.StorageFlagNotFoundError
+            The storage flag with the given UUID was not found.
+        """
+        async with self._async_sessionmaker() as session:
+            query = select(StorageFlagDB).where(StorageFlagDB.uuid == uuid)
+            result = await session.execute(query)
+            db_flag = result.scalars().unique().one_or_none()
+            if  db_flag is None:
+                raise exceptions.StorageFlagNotFoundError(
+                    f"The storage flag with UUID '{uuid}' was not found!"
+                )
+        
+            db_flag.is_set = True
+            await session.commit()
+    
+        return StorageFlag.model_validate(db_flag, from_attributes=True)
+
+
+    async def delete_flag(self, uuid: str) -> None:
+        """Delete a storage flag by UUID.
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID.
+        """
+        async with self._async_sessionmaker() as session:
+            await session.execute(
+                delete(StorageFlagDB).where(StorageFlagDB.uuid == uuid)
+            )
+            await session.commit()
+
+
+    async def cleanup_flags(self, earlier_than: datetime.datetime) -> None:
+        """Delete zombie storage flags from before a certain point in time.
+
+        Parameters
+        ----------
+        earlier_than : datetime.datetime
+            Delete flags created earlier than this date. 
+            Naive datetimes are assumed to be UTC. 
+        """
+        async with self._async_sessionmaker() as session:
+            await session.execute(
+                delete(StorageFlagDB).where(StorageFlagDB.created_at < earlier_than)
+            )
+            await session.commit()
