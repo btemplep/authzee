@@ -26,15 +26,104 @@ class TaskiqCompute(ComputeBackend):
 
     Uses `Taskiq <https://taskiq-python.github.io/>`_ to distribute compute tasks.
 
-    Example of how to use and the workers file. 
-
-
     **NOTES** 
 
     - In the workers file you will need to create and initialize the authzee app 
     to make sure that all tasks and event handlers are added to the broker.
 
     - Must call broker.startup after authzee.initialize
+
+    Examples
+    --------
+    
+    Initializing Authzee with Taskiq:
+
+        .. code-block:: python
+
+            import asyncio
+        
+            from authzee import Authzee, TaskiqCompute, SQLStorage
+            import taskiq
+
+            broker = taskiq.InMemoryBroker()
+            compute = TaskiqCompute(broker=broker)
+            storage = SQLStorage(
+                sqlalchemy_async_engine_kwargs={
+                    "url": "sqlite+aiosqlite:///test.sqlite",
+                    "echo": False
+                }
+            )
+            authzee = Authzee(
+                compute_backend=compute,
+                storage_backend=storage,
+                identity_types=[],
+                resource_authzs=[]
+            )
+            # register identities and resource authzs as needed
+
+            async def main():
+                await authzee.initialize()
+                # Only run setup once
+                #await authzee.setup()
+                await broker.startup()
+                is_authorized = await authzee.authorize(
+                    resource=Balloon(
+                        color="green",
+                        size=1.2
+                    ),
+                    resource_action=BalloonAction.CreateBalloon,
+                    parent_resources=[],
+                    child_resources=[],
+                    identities=[
+                        ADGroup(cn="MYGroup")
+                    ]
+                )
+                print(f"is authorized: {is_authorized}")
+            
+            
+            asyncio.run(main())
+    
+    Taskiq workers file:
+    
+        .. code-block:: python
+
+            # my_taskiq_workers.py
+            import asyncio
+        
+            from authzee import Authzee, TaskiqCompute, SQLStorage
+            import taskiq
+
+            broker = taskiq.InMemoryBroker()
+            compute = TaskiqCompute(broker=broker)
+            storage = SQLStorage(
+                sqlalchemy_async_engine_kwargs={
+                    "url": "sqlite+aiosqlite:///test.sqlite",
+                    "echo": False
+                }
+            )
+            authzee = Authzee(
+                compute_backend=compute,
+                storage_backend=storage,
+                identity_types=[],
+                resource_authzs=[]
+            )
+            # register identities and resource authzs as needed
+
+            async def main():
+                await authzee.initialize()
+                # Only run setup once
+                #await authzee.setup()
+                await broker.startup()
+            
+                
+            asyncio.run(main())
+
+    The workers for Taskiq will run from the workers file.
+    Then start the workers (note that workers are not needed for in memory broker)
+
+        .. code-block:: console
+    
+            taskiq worker my_taskiq_workers:broker
 
     Parameters
     ----------
@@ -131,7 +220,7 @@ class TaskiqCompute(ComputeBackend):
     async def shutdown(self) -> None:
         """Early clean up of compute backend resources.
         """
-        await self._broker.shutdown() 
+        pass
 
 
     async def setup(self) -> None:
@@ -320,7 +409,23 @@ class TaskiqCompute(ComputeBackend):
         authzee.exceptions.MethodNotImplementedError
             Sub-classes must implement this method.
         """
-        raise exceptions.MethodNotImplementedError()
+        kwargs = {
+            "effect": effect,
+            "resource_type": resource_type,
+            "resource_action": resource_action,
+            "jmespath_data": jmespath_data,
+            "page_size": page_size,
+            "page_ref": page_ref
+        }
+        task: taskiq.AsyncTaskiqTask = await self._get_matching_grants_page_task.kiq(
+            _kwargs_dumps(**kwargs)
+        )
+        result = await task.wait_result(
+            check_interval=self._check_interval, 
+            timeout=self._task_timeout
+        )
+        
+        return result.return_value
 
 
 def _kwargs_dumps(**kwargs) -> str:
@@ -590,6 +695,36 @@ async def _authorize_many_task(
             return auth_list
 
 
-async def _get_matching_grants_page_task(kwp: bytes) -> bytes: # GrantsPage:
-    print(f"get matching grants page task got: {pickle.loads(kwp)}")
+async def _get_matching_grants_page_task(
+    kwp: str,
+    context: Annotated[taskiq.Context, taskiq.TaskiqDepends()]
+) -> GrantsPage:
+    jmespath_options: Union[jmespath.Options, None] = context.state.az_jmespath_options
+    storage_backend: StorageBackend = context.state.az_storage_backend
+    kwargs = _kwargs_loads(kwp)
+    effect: GrantEffect = kwargs['effect']
+    resource_type: BaseModel = kwargs['resource_type']
+    resource_action: ResourceAction = kwargs['resource_action']
+    jmespath_data: Dict[str, Any] = kwargs['jmespath_data']
+    page_size: Union[int, None] = kwargs['page_size']
+    page_ref: Union[str, None] = kwargs['page_ref']
+    raw_grants = await storage_backend.get_raw_grants_page(
+        effect=effect,
+        resource_type=resource_type,
+        resource_action=resource_action,
+        page_size=page_size,
+        page_ref=page_ref
+    )
+    grants_page = await storage_backend.normalize_raw_grants_page(raw_grants)
+    matching_grants = gc.compute_matching_grants(
+        grants_page=grants_page,
+        jmespath_data=jmespath_data,
+        jmespath_options=jmespath_options
+    )
+
+    return GrantsPage(
+        grants=matching_grants,
+        next_page_ref=grants_page.next_page_ref
+    )
+
 
