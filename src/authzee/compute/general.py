@@ -11,7 +11,7 @@ from authzee.grants_page import GrantsPage
 def grant_matches(
     grant: Grant,
     jmespath_data: Dict[str, Any],
-    jmespath_options: jmespath.Options
+    jmespath_options: Union[jmespath.Options, None]
 ) -> bool:
     import json
     logger.debug("JMESPath Data: {}".format(json.dumps(jmespath_data, indent=4)))
@@ -35,7 +35,7 @@ def grant_matches(
 def authorize_many_grants(
     grants_page: GrantsPage, 
     jmespath_data_entries: List[Dict[str, Any]], 
-    jmespath_options: jmespath.Options
+    jmespath_options: Union[jmespath.Options, None]
 ) -> List[Union[bool, None]]:
     results = {i: None for i in range(len(jmespath_data_entries))}
     for grant in grants_page.grants:        
@@ -54,7 +54,7 @@ def authorize_many_grants(
 def compute_matching_grants(
     grants_page: GrantsPage, 
     jmespath_data: Dict[str, Any], 
-    jmespath_options: jmespath.Options
+    jmespath_options: Union[jmespath.Options, None]
 ) -> List[Grant]:
     matching_grants: List[Grant] = []
     for grant in grants_page.grants:

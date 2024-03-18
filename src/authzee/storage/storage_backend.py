@@ -1,5 +1,6 @@
 
 import copy
+import datetime
 from typing import List, Optional, Set, Type, Union
 import uuid
 
@@ -14,12 +15,13 @@ from authzee.page_refs_page import PageRefsPage
 from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
+from authzee.storage_flag import StorageFlag
 
 
 class StorageBackend:
     """Base class for ``Authzee`` storage. 
 
-    Base classes must at least implement these async methods:
+    Base classes must at least implement these async methods for grants:
 
         - ``initialize`` - Initialize the storage backend. External connections should be created here
         - ``shutdown`` - Preemptively cleanup storage backend resources.
@@ -29,6 +31,15 @@ class StorageBackend:
         - ``delete_grant`` - Delete a grant from storage.
         - ``get_raw_grants_page`` - Retrieve a page of raw grants from storage. 
         - ``normalize_raw_grants_page`` - Convert the raw storage grants to a list of ``Grant`` models.
+    
+    The base class must also implement these async methods for "flags".  
+    These are primarily used by compute to help keep state for running requests. 
+
+        - ``create_flag`` - Create a new flag entry for storage.  This is needed for some compute backends to maintain state, especially over the network.
+        - ``get_flag`` - Return flag by UUID. 
+        - ``set_flag`` - Set a storage flag by UUID.
+        - ``delete_flag`` - Delete a flag by UUID
+        - ``cleanup_flags`` - Delete all flags older than a certain date. 
     
     Optional async methods:
         - ``get_page_ref_page`` - For parallel pagination.  Retrieve a page of page references. 
@@ -130,7 +141,7 @@ class StorageBackend:
         Raises
         ------
         authzee.exceptions.MethodNotImplementedError
-            Sub-classes must implement this method.
+            ``StorageBackend`` sub-classes must implement this method.
         """
         raise exceptions.MethodNotImplementedError()
 
@@ -148,7 +159,7 @@ class StorageBackend:
         Raises
         ------
         authzee.exceptions.MethodNotImplementedError
-            Sub-classes *may* implement this method if ``async`` is supported.
+            ``StorageBackend`` sub-classes *may* implement this method if ``async`` is supported.
         """
         raise exceptions.MethodNotImplementedError()
         
@@ -196,7 +207,7 @@ class StorageBackend:
         Raises
         ------
         authzee.exceptions.MethodNotImplementedError
-            Sub-classes must implement this method.
+            ``StorageBackend`` sub-classes must implement this method.
         """
         raise exceptions.MethodNotImplementedError()
     
@@ -220,7 +231,7 @@ class StorageBackend:
         Raises
         ------
         authzee.exceptions.MethodNotImplementedError
-            Sub-classes must implement this method.
+            ``StorageBackend`` sub-classes must implement this method.
         """
         raise exceptions.MethodNotImplementedError()
     
@@ -240,8 +251,8 @@ class StorageBackend:
 
         Raises
         ------
-        exceptions.MethodNotImplementedError
-            Sub-classes must implement this method if this storage backend supports parallel pagination. 
+        authzee.exceptions.MethodNotImplementedError
+            ``StorageBackend`` sub-classes must implement this method if this storage backend supports parallel pagination. 
             They must also set the ``parallel_pagination`` flag. 
         """
         if self.parallel_pagination is True:
@@ -256,8 +267,98 @@ class StorageBackend:
             raise exceptions.ParallelPaginationNotSupported(
                 "This storage backend does not support parallel pagination."
             )
+    
+    
+    async def create_flag(self) -> StorageFlag:
+        """Create a new shared flag in the storage backend.
 
-   
+        Returns
+        -------
+        StorageFlag
+            New storage flag. 
+        
+        Raises
+        ------
+        authzee.exceptions.MethodNotImplementedError
+            ``StorageBackend`` sub-classes must implement this method.
+        """
+        pass
+
+
+    async def get_flag(self, uuid: str) -> StorageFlag:
+        """Retrieve flag by UUID.
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID.
+
+        Returns
+        -------
+        StorageFlag
+            The storage flag with the given UUID.
+        
+        Raises
+        ------
+        authzee.exceptions.MethodNotImplementedError
+            ``StorageBackend`` sub-classes must implement this method.
+        """
+        pass
+
+
+    async def set_flag(self, uuid: str) -> StorageFlag:
+        """Set a flag for a given UUID. 
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID.
+
+        Returns
+        -------
+        StorageFlag
+            The storage flag with the given UUID and the flag set.
+        
+        Raises
+        ------
+        authzee.exceptions.MethodNotImplementedError
+            ``StorageBackend`` sub-classes must implement this method.
+        """
+        pass
+
+
+    async def delete_flag(self, uuid: str) -> None:
+        """Delete a storage flag by UUID.
+
+        Parameters
+        ----------
+        uuid : str
+            Storage flag UUID.
+        
+        Raises
+        ------
+        authzee.exceptions.MethodNotImplementedError
+            ``StorageBackend`` sub-classes must implement this method.
+        """
+        pass
+
+
+    async def cleanup_flags(self, earlier_than: datetime.datetime) -> None:
+        """Delete zombie storage flags from before a certain point in time.
+
+        Parameters
+        ----------
+        earlier_than : datetime.datetime
+            Delete flags created earlier than this date.
+        
+        Raises
+        ------
+        authzee.exceptions.MethodNotImplementedError
+            ``StorageBackend`` sub-classes must implement this method.
+        """
+        pass
+
+
     def _check_uuid(self, grant: Grant, generate_uuid: bool) -> Grant:
         """Check if a UUID is on a grant to add, optionally generate a UUID with UUID 4.
 
@@ -294,4 +395,3 @@ class StorageBackend:
             return self.default_page_size
     
         return page_size
-

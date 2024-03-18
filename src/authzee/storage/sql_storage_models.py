@@ -1,4 +1,5 @@
 
+import datetime
 from typing import Set
 
 from sqlalchemy import Column, ForeignKey, Table
@@ -11,14 +12,12 @@ class Base(AsyncAttrs, DeclarativeBase):
 
 
 class ResourceTypeDB(Base):
-
     __tablename__ = "resource_type"
 
     resource_type: Mapped[str] = mapped_column(primary_key=True)
 
 
 class ResourceActionDB(Base):
-
     __tablename__ = "resource_action"
 
     resource_action: Mapped[str] = mapped_column(primary_key=True) # should be a string of the form ResourceAction.MyAction
@@ -33,7 +32,6 @@ allow_grant_action_association = Table(
 
 
 class AllowGrantDB(Base):
-
     __tablename__ = "allow_grant"
 
     storage_id: Mapped[int] = mapped_column(primary_key=True, nullable=False)
@@ -60,7 +58,6 @@ deny_grant_action_association = Table(
 
 
 class DenyGrantDB(Base):
-
     __tablename__ = "deny_grant"
 
     storage_id: Mapped[int] = mapped_column(primary_key=True, nullable=False)
@@ -76,4 +73,13 @@ class DenyGrantDB(Base):
     )
     jmespath_expression: Mapped[str] = mapped_column(nullable=False)
     result_match: Mapped[str] = mapped_column(nullable=False)
+
+
+class StorageFlagDB(Base):
+    __tablename__ = "storage_flag"
+
+    storage_id: Mapped[int] = mapped_column(primary_key=True, nullable=False)
+    uuid: Mapped[str] = mapped_column(unique=True, nullable=True)
+    is_set: Mapped[bool] = mapped_column(nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(nullable=False)
 

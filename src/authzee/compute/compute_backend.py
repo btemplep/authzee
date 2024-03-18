@@ -1,6 +1,6 @@
 
 
-from typing import Any, Dict, List, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Type, Union
 
 import jmespath
 from pydantic import BaseModel
@@ -56,7 +56,7 @@ class ComputeBackend:
     async def initialize(
         self, 
         identity_types: List[Type[BaseModel]],
-        jmespath_options: jmespath.Options,
+        jmespath_options: Union[jmespath.Options, None],
         resource_authzs: List[ResourceAuthz],
         storage_backend: StorageBackend,
     ) -> None:
@@ -68,7 +68,7 @@ class ComputeBackend:
         ----------
         identity_types : List[Type[BaseModel]]
             Identity types registered with the ``Authzee`` app.
-        jmespath_options : jmespath.Options
+        jmespath_options : Union[jmespath.Options, None]
             Custom ``jmespath.Options`` registered with the ``Authzee`` app.
             **This object should not be considered thread safe**. 
             Threads should get their own copy of this object.

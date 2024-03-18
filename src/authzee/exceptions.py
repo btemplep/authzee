@@ -16,6 +16,12 @@ class BackendLocalityIncompatibility(AuthzeeError):
     pass
 
 
+class StorageFlagNotFoundError(AuthzeeError):
+    """The flag with a specific UUID was not found in the storage backend.
+    """
+    pass
+
+
 class GrantDoesNotExistError(AuthzeeError):
     """The Grant Does not exist.
     """
@@ -58,6 +64,7 @@ class ParallelPaginationNotSupported(AuthzeeError):
     """Parallel pagination is not supported.
     """
     pass
+
 
 class ResourceAuthzRegistrationError(AuthzeeError):
     """There was an error when registering the ResourceAuthz.
