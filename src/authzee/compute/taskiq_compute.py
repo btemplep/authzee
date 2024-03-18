@@ -1,4 +1,5 @@
 
+import asyncio
 import base64
 import pickle
 from typing import Any, Dict, List, Optional, Type, Union
@@ -11,11 +12,13 @@ import taskiq
 from authzee import exceptions
 from authzee.backend_locality import BackendLocality
 from authzee.compute.compute_backend import ComputeBackend
+from authzee.compute import general as gc
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
 from authzee.storage.storage_backend import StorageBackend
+from authzee.storage_flag import StorageFlag
 
 
 class TaskiqCompute(ComputeBackend):
@@ -109,15 +112,18 @@ class TaskiqCompute(ComputeBackend):
         )
 
         async def worker_startup(state: taskiq.TaskiqState) -> None:
-            print("start worker startup")
-            state.jmespath_options = self._jmespath_options
+            state.az_broker = self._broker
+            state.az_jmespath_options = self._jmespath_options
+            state.az_check_interval = self._check_interval
+            state.az_task_timeout = self._task_timeout
+            state.az_authorize_task = self._authorize_task
+            state.az_authorize_many_task = self._authorize_many_task
+            state.az_get_matching_grants_page_task = self._get_matching_grants_page_task
             if self._storage_backend.backend_locality is BackendLocality.PROCESS:
-                state.storage_backend = self._storage_backend
+                state.az_storage_backend = self._storage_backend
             else:
-                state.storage_backend = type(self._storage_backend)(**self._storage_backend.kwargs)
-                await state.storage_backend.initialize(**self._storage_backend.initialize_kwargs)
-
-            print("end worker startup")
+                state.az_storage_backend = type(self._storage_backend)(**self._storage_backend.kwargs)
+                await state.az_storage_backend.initialize(**self._storage_backend.initialize_kwargs)
 
         self._broker.add_event_handler(taskiq.TaskiqEvents.WORKER_STARTUP, worker_startup)
 
@@ -172,23 +178,39 @@ class TaskiqCompute(ComputeBackend):
         bool
             ``True`` if allowed, ``False`` if denied.
         """
+        deny_flag, allow_flag = await asyncio.gather(
+            self._storage_backend.create_flag(),
+            self._storage_backend.create_flag()
+        )
         kwargs = {
             "resource_type": resource_type,
             "resource_action": resource_action,
             "jmespath_data": jmespath_data,
-            "page_size": page_size
+            "page_size": page_size,
+            "page_ref": None,
+            "deny_flag_uuid": deny_flag.uuid,
+            "allow_flag_uuid": allow_flag.uuid,
+            "more_deny_grants": True
         }
-        task = await self._authorize_task.kiq(
-            base64.b64encode(
-                pickle.dumps(kwargs)
-            ).decode("ascii")
+        task: taskiq.AsyncTaskiqTask = await self._authorize_task.kiq(
+            _kwargs_dumps(**kwargs)
         )
-        result = await task.wait_result(
+        await task.wait_result(
             check_interval=self._check_interval, 
             timeout=self._task_timeout
         )
-
-        return result.return_value
+        # refresh flags
+        deny_flag, allow_flag = await asyncio.gather(
+            self._storage_backend.get_flag(deny_flag.uuid),
+            self._storage_backend.get_flag(allow_flag.uuid)
+        )
+        if deny_flag.is_set is True:
+            return False
+        
+        if allow_flag.is_set is True:
+            return True
+        
+        return False
     
 
     async def authorize_many(
@@ -229,7 +251,29 @@ class TaskiqCompute(ComputeBackend):
         authzee.exceptions.MethodNotImplementedError
             Sub-classes must implement this method.
         """
-        raise exceptions.MethodNotImplementedError()
+        kwargs = {
+            "resource_type": resource_type,
+            "resource_action": resource_action,
+            "jmespath_data_entries": jmespath_data_entries,
+            "page_size": page_size,
+            "page_ref": None,
+            "more_deny_grants": True
+        }
+        task: taskiq.AsyncTaskiqTask = await self._authorize_many_task.kiq(
+            _kwargs_dumps(**kwargs)
+        )
+        task_result = await task.wait_result(
+            check_interval=self._check_interval, 
+            timeout=self._task_timeout
+        )
+        auth_list = []
+        for auth in task_result.return_value:
+            if auth is None:
+                auth_list.append(False)
+            else:
+                auth_list.append(auth)
+
+        return auth_list
 
 
     async def get_matching_grants_page(
@@ -279,29 +323,271 @@ class TaskiqCompute(ComputeBackend):
         raise exceptions.MethodNotImplementedError()
 
 
+def _kwargs_dumps(**kwargs) -> str:
+    return base64.b64encode(
+        pickle.dumps(kwargs)
+    ).decode("ascii")
+
+
+def _kwargs_loads(kwp: str) -> Dict[str, Any]:
+    return pickle.loads(
+        base64.b64decode(kwp.encode("ascii"))
+    )
+
+
 async def _authorize_task(
     kwp: str,
     context: Annotated[taskiq.Context, taskiq.TaskiqDepends()]
-) -> bool:
-    jmespath_options: Union[jmespath.Options, None] = context.state.jmespath_options
-    storage_backend: StorageBackend = context.state.storage_backend
-    print("Got to authorize task")
-    print(jmespath_options)
-    print(storage_backend)
-    kwargs = pickle.loads(
-        base64.b64decode(kwp.encode("ascii"))
-    )
+) -> None:
+    authorize_task: taskiq.AsyncTaskiqDecoratedTask = context.state.az_authorize_task
+    jmespath_options: Union[jmespath.Options, None] = context.state.az_jmespath_options
+    storage_backend: StorageBackend = context.state.az_storage_backend
+    check_interval: float = context.state.az_check_interval
+    task_timeout: float = context.state.az_task_timeout
+    kwargs = _kwargs_loads(kwp)
     resource_type: BaseModel = kwargs['resource_type']
     resource_action: ResourceAction = kwargs['resource_action']
     jmespath_data: Dict[str, Any] = kwargs['jmespath_data']
     page_size: Union[int, None] = kwargs['page_size']
-    
-    
-    return False
+    page_ref: Union[str, None] = kwargs['page_ref']
+    more_deny_grants: bool = kwargs['more_deny_grants']
+    deny_flag_uuid: Union[str, None] = kwargs['deny_flag_uuid']
+    allow_flag_uuid: Union[str, None] = kwargs['allow_flag_uuid']
+    deny_flag: StorageFlag
+    allow_flag: StorageFlag
+    deny_flag, allow_flag = await asyncio.gather(
+        storage_backend.get_flag(deny_flag_uuid),
+        storage_backend.get_flag(allow_flag_uuid)
+    )
+
+    if (
+        deny_flag.is_set is True
+        or allow_flag.is_set is True
+    ):
+        return 
+
+    if more_deny_grants is True:
+        raw_grants = await storage_backend.get_raw_grants_page(
+            effect=GrantEffect.DENY,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            page_size=page_size,
+            page_ref=page_ref
+        )
+        if raw_grants.next_page_ref is None:
+            more_deny_grants = False
+
+        next_task_kiq = asyncio.create_task(
+            authorize_task.kiq(
+                _kwargs_dumps(
+                    **{
+                        "resource_type": resource_type,
+                        "resource_action": resource_action,
+                        "jmespath_data": jmespath_data,
+                        "page_size": page_size,
+                        "page_ref": raw_grants.next_page_ref,
+                        "deny_flag_uuid": deny_flag.uuid,
+                        "allow_flag_uuid": allow_flag.uuid,
+                        "more_deny_grants": more_deny_grants,
+                    }
+                )
+            )
+        )
+        grants_page = await storage_backend.normalize_raw_grants_page(raw_grants)
+        for grant in grants_page.grants:
+            if gc.grant_matches(
+                grant=grant,
+                jmespath_data=jmespath_data,
+                jmespath_options=jmespath_options
+            ) is True:
+                deny_flag = await storage_backend.set_flag(deny_flag.uuid)
+                break
+        
+        next_task_iq = await next_task_kiq
+        await next_task_iq.wait_result(
+            check_interval=check_interval,
+            timeout=task_timeout
+        )
+
+        return 
+
+    else:
+        raw_grants = await storage_backend.get_raw_grants_page(
+            effect=GrantEffect.ALLOW,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            page_size=page_size,
+            page_ref=page_ref
+        )
+        if raw_grants.next_page_ref is not None:
+            next_task_kiq = asyncio.create_task(
+                authorize_task.kiq(
+                    _kwargs_dumps(
+                        **{
+                            "resource_type": resource_type,
+                            "resource_action": resource_action,
+                            "jmespath_data": jmespath_data,
+                            "page_size": page_size,
+                            "page_ref": raw_grants.next_page_ref,
+                            "deny_flag_uuid": deny_flag.uuid,
+                            "allow_flag_uuid": allow_flag.uuid,
+                            "more_deny_grants": more_deny_grants,
+                        }
+                    )
+                )
+            )
+        else:
+            next_task_kiq = None
+
+        grants_page = await storage_backend.normalize_raw_grants_page(raw_grants)
+        for grant in grants_page.grants:
+            if gc.grant_matches(
+                grant=grant,
+                jmespath_data=jmespath_data,
+                jmespath_options=jmespath_options
+            ) is True:
+                allow_flag = await storage_backend.set_flag(allow_flag.uuid)
+                break
+        
+        if next_task_kiq is not None:
+            next_task_iq = await next_task_kiq
+            await next_task_iq.wait_result(
+                check_interval=check_interval,
+                timeout=task_timeout
+            )
 
 
-async def _authorize_many_task(kwp: bytes) -> List[bool]:
-    print(f"authorize many task got: {pickle.loads(kwp)}")
+async def _authorize_many_task(
+    kwp: str,
+    context: Annotated[taskiq.Context, taskiq.TaskiqDepends()]
+) -> List[Union[bool, None]]:
+    authorize_many_task: taskiq.AsyncTaskiqDecoratedTask = context.state.az_authorize_many_task
+    jmespath_options: Union[jmespath.Options, None] = context.state.az_jmespath_options
+    storage_backend: StorageBackend = context.state.az_storage_backend
+    check_interval: float = context.state.az_check_interval
+    task_timeout: float = context.state.az_task_timeout
+    kwargs = _kwargs_loads(kwp)
+    resource_type: BaseModel = kwargs['resource_type']
+    resource_action: ResourceAction = kwargs['resource_action']
+    jmespath_data_entries: List[Dict[str, Any]] = kwargs['jmespath_data_entries']
+    page_size: Union[int, None] = kwargs['page_size']
+    page_ref: Union[str, None] = kwargs['page_ref']
+    more_deny_grants: bool = kwargs['more_deny_grants']
+
+    if more_deny_grants is True:
+        raw_grants = await storage_backend.get_raw_grants_page(
+            effect=GrantEffect.DENY,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            page_size=page_size,
+            page_ref=page_ref
+        )
+        if raw_grants.next_page_ref is None:
+            more_deny_grants = False
+
+        next_task_kiq = asyncio.create_task(
+            authorize_many_task.kiq(
+                _kwargs_dumps(
+                    **{
+                        "resource_type": resource_type,
+                        "resource_action": resource_action,
+                        "jmespath_data_entries": jmespath_data_entries,
+                        "page_size": page_size,
+                        "page_ref": raw_grants.next_page_ref,
+                        "more_deny_grants": more_deny_grants
+                    }
+                )
+            )
+        )
+        grants_page = await storage_backend.normalize_raw_grants_page(raw_grants)
+        results = gc.authorize_many_grants(
+            grants_page=grants_page,
+            jmespath_data_entries=jmespath_data_entries,
+            jmespath_options=jmespath_options
+        )
+        auth_list = []
+        for result in results:
+            # if deny match, not authorized
+            if result is True:
+                auth_list.append(False)
+            else:
+                auth_list.append(None)
+
+        next_task_iq = await next_task_kiq
+        next_results = await next_task_iq.wait_result(
+            check_interval=check_interval,
+            timeout=task_timeout
+        )
+        combined_auth_list = []
+        for auth, nr in zip(auth_list, next_results.return_value):
+            # if it's an explicit deny, always use that
+            if auth is False:
+                combined_auth_list.append(False)
+            # or else just pass on the value from the next task
+            else:
+                combined_auth_list.append(nr)
+        
+        return combined_auth_list
+
+    else:
+        raw_grants = await storage_backend.get_raw_grants_page(
+            effect=GrantEffect.ALLOW,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            page_size=page_size,
+            page_ref=page_ref
+        )
+        if raw_grants.next_page_ref is not None:
+            next_task_kiq = asyncio.create_task(
+                authorize_many_task.kiq(
+                    _kwargs_dumps(
+                        **{
+                            "resource_type": resource_type,
+                            "resource_action": resource_action,
+                            "jmespath_data_entries": jmespath_data_entries,
+                            "page_size": page_size,
+                            "page_ref": raw_grants.next_page_ref,
+                            "more_deny_grants": more_deny_grants
+                        }
+                    )
+                )
+            )
+        else:
+            next_task_kiq = None
+
+        grants_page = await storage_backend.normalize_raw_grants_page(raw_grants)
+        results = gc.authorize_many_grants(
+            grants_page=grants_page,
+            jmespath_data_entries=jmespath_data_entries,
+            jmespath_options=jmespath_options
+        )
+        auth_list = []
+        for result in results:
+            # if allow match, authorized
+            if result is True:
+                auth_list.append(True)
+            else:
+                auth_list.append(None)
+
+        if next_task_kiq is not None:
+            next_task_iq = await next_task_kiq
+            next_results = await next_task_iq.wait_result(
+                check_interval=check_interval,
+                timeout=task_timeout
+            )
+            combined_auth_list = []
+            for auth, nr in zip(auth_list, next_results.return_value):
+                # if it's an explicit allow, always use that
+                if auth is True:
+                    combined_auth_list.append(True)
+                # or else just pass on the next 
+                else:
+                    combined_auth_list.append(nr)
+            
+            return combined_auth_list
+
+        else:
+            return auth_list
 
 
 async def _get_matching_grants_page_task(kwp: bytes) -> bytes: # GrantsPage:
