@@ -141,11 +141,7 @@ class MemoryStorage(StorageBackend):
         StorageFlag
             New storage flag. 
         """
-        new_flag = StorageFlag(
-            uuid=str(uuid.uuid4()),
-            is_set=False,
-            created_at=datetime.datetime.now(tz=datetime.timezone.utc)
-        )
+        new_flag = StorageFlag()
         self._flags_lookup[new_flag.uuid] = new_flag
 
         return copy.deepcopy(new_flag)

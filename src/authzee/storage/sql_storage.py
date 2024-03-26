@@ -261,7 +261,8 @@ class SQLStorage(StorageBackend):
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
         page_ref : Optional[str], optional
-            The reference to the next page that is returned in ``RawGrantsPage``.
+            The reference to the next page that is returned in ``RawGrantsPage``, 
+            or one of the page references from ``StorageBackend.get_page_ref_page()`` (if parallel pagination is supported.) .
             By default this will return the first page.
 
         Returns
@@ -359,11 +360,7 @@ class SQLStorage(StorageBackend):
         StorageFlag
             New storage flag. 
         """
-        new_flag = StorageFlag(
-            uuid=str(uuid.uuid4()),
-            is_set=False,
-            created_at=datetime.datetime.now(tz=datetime.timezone.utc)
-        )
+        new_flag = StorageFlag()
         async with self._async_sessionmaker() as session:
             db_flag = StorageFlagDB(**new_flag.model_dump())
             session.add(db_flag)

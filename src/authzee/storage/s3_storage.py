@@ -1,9 +1,14 @@
 
-import copy
+import asyncio
+from contextlib import AsyncExitStack
 import datetime
-from typing import List, Optional, Set, Type, Union
+import json
+from typing import Dict, List, Optional, Set, Type, Union
+from typing_extensions import Any
 import uuid
 
+import aioboto3
+import botocore.exceptions
 from pydantic import BaseModel
 
 from authzee import exceptions
@@ -15,69 +20,63 @@ from authzee.page_refs_page import PageRefsPage
 from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
+from authzee.storage.storage_backend import StorageBackend
 from authzee.storage_flag import StorageFlag
 
 
-class StorageBackend:
-    """Base class for ``Authzee`` storage. 
+class S3Storage(StorageBackend):
+    """
 
-    Base classes must at least implement these async methods for grants:
+    Stores all data in S3. allows parallel pagination
 
-        - ``initialize`` - Initialize the storage backend. External connections should be created here
-        - ``shutdown`` - Preemptively cleanup storage backend resources.
-        - ``setup`` - One time setup for compute backend.
-        - ``teardown`` - Remove resources created from ``setup()``.
-        - ``add_grant`` - Add a grant to storage.
-        - ``delete_grant`` - Delete a grant from storage.
-        - ``get_raw_grants_page`` - Retrieve a page of raw grants from storage. 
-        - ``normalize_raw_grants_page`` - Convert the raw storage grants to a list of ``Grant`` models.
+    bucket-name/prefix/path/
+    - /grants/{ALLOW or DENY}/by_uuid/{grant UUID}.json
+        - holds actual object data
+
+    - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/page-{page num}/{grant UUID}
+        - holds empty object but is good for filters
+
+    - /flags/{flag UUID}.json
+        - holds flags
+
+
+    catches:
     
-    The base class must also implement these async methods for "flags".  
-    These are primarily used by compute to help keep state for running requests. 
+    - Must call shutdown!
 
-        - ``create_flag`` - Create a new flag entry for storage.  This is needed for some compute backends to maintain state, especially over the network.
-        - ``get_flag`` - Return flag by UUID. 
-        - ``set_flag`` - Set a storage flag by UUID.
-        - ``delete_flag`` - Delete a flag by UUID
-        - ``cleanup_flags`` - Delete all flags older than a certain date. 
-    
-    Optional async methods:
-        - ``get_page_ref_page`` - For parallel pagination.  Retrieve a page of page references. 
-            Set ``parallel_pagination`` flag if this is implemented.
-
-    No error checking should be needed for validation of resources, resource_types etc. That should all be handled by ``Authzee``.
-
-    Storage backends should store all arguments to the ``__init__`` method in ``self.kwargs``, 
-    and all arguments to the ``initialize`` method in ``self.initialize_kwargs``.  
-    These should be available if the compute backend needs to instantiate more instances of the storage backend.
-
-    Parameters
-    ----------
-    backend_locality : BackendLocality
-        The backend locality this instance of the storage backend supports.
-        See ``authzee.backend_locality.BackendLocality`` for more info on what the localites mean.
-        This parameter should not be exposed on the child class.
-    default_page_size : int
-        For methods that accept ``page_size``, this will be used as the default.
-    parallel_pagination : bool
-        Flag for if this storage backend support parallel pagination. 
-        If it does then it must implement the ``get_page_ref_page`` async method.
-        This parameter should not be exposed as a parameter on the child class.
+    - aioboto3 session must auto refresh
     """
 
     def __init__(
         self, 
         *, 
-        backend_locality: BackendLocality,
-        default_page_size: int, 
-        parallel_pagination: bool,
-        **kwargs
+        bucket: str,
+        prefix: str,
+        aioboto3_session: Optional[aioboto3.Session] = None,
+        s3_client_kwargs: Optional[Dict[str, Any]] = None,
+        get_object_kwargs: Optional[Dict[str, Any]] = None,
+        put_object_kwargs: Optional[Dict[str, Any]] = None,
+        delete_object_kwargs: Optional[Dict[str, Any]] = None
     ):
-        self.backend_locality = backend_locality
-        self.default_page_size = default_page_size
-        self.parallel_pagination = parallel_pagination
-        self.kwargs = kwargs
-        self.initialize_kwargs = {}
+        self._bucket = bucket
+        self._prefix = prefix
+        self._aioboto3_session = aioboto3_session if aioboto3_session is not None else aioboto3.Session()
+        self._s3_client_kwargs = s3_client_kwargs if s3_client_kwargs is not None else {}
+        self._get_object_kwargs = get_object_kwargs if get_object_kwargs is not None else {}
+        self._put_object_kwargs = put_object_kwargs if put_object_kwargs is not None else {}
+        self._delete_object_kwargs = delete_object_kwargs if delete_object_kwargs is not None else {}
+        super().__init__(
+            backend_locality=BackendLocality.NETWORK,
+            default_page_size=1000,
+            parallel_pagination=True,
+            bucket=bucket,
+            prefix=prefix,
+            aioboto3_session=aioboto3_session,
+            s3_client_kwargs=s3_client_kwargs,
+            get_object_kwargs=get_object_kwargs,
+            put_object_kwargs=put_object_kwargs
+        )
+        self._aes = AsyncExitStack()
 
 
     async def initialize(
@@ -97,18 +96,22 @@ class StorageBackend:
         resource_authzs : List[ResourceAuthz]
             ``ResourceAuthz`` instances that have been registered with ``Authzee``.
         """
-        self.initialize_kwargs = {
-            "identity_types": identity_types,
-            "resource_authzs": resource_authzs
-        }
-        self._identity_types = identity_types
-        self._resource_authzs = resource_authzs
+        await super().initialize(
+            identity_types=identity_types,
+            resource_authzs=resource_authzs
+        )
+        self._s3_client = await self._aes.enter_async_context(
+            self._aioboto3_session.client("s3", **self._s3_client_kwargs)
+        )
+        
     
 
     async def shutdown(self) -> None:
-        """Early clean up of storage backend resources.
+        """Clean up of storage backend resources.
+
+        Must be called for the ``S3Storage`` backend!
         """
-        pass
+        await self._aes.aclose()
 
 
     async def setup(self) -> None:
@@ -237,14 +240,7 @@ class StorageBackend:
         raise exceptions.MethodNotImplementedError()
     
 
-    async def get_page_ref_page(
-        self,
-        effect: GrantEffect,
-        resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
-        page_size: Optional[int] = None,
-        page_ref: Optional[str] = None
-    ) -> PageRefsPage:
+    async def get_page_ref_page(self, page_ref: str) -> PageRefsPage:
         """Get a page of page references for parallel pagination. 
 
         Parameters
@@ -268,12 +264,6 @@ class StorageBackend:
         -------
         PageRefsPage
             Page of page references.
-
-        Raises
-        ------
-        authzee.exceptions.MethodNotImplementedError
-            ``StorageBackend`` sub-classes must implement this method if this storage backend supports parallel pagination. 
-            They must also set the ``parallel_pagination`` flag. 
         """
         if self.parallel_pagination is True:
             raise exceptions.MethodNotImplementedError(
@@ -296,13 +286,18 @@ class StorageBackend:
         -------
         StorageFlag
             New storage flag. 
-        
-        Raises
-        ------
-        authzee.exceptions.MethodNotImplementedError
-            ``StorageBackend`` sub-classes must implement this method.
         """
-        pass
+        new_flag = StorageFlag()
+        await self._s3_client.put_object(
+            **{
+                **self._put_object_kwargs, 
+                "Bucket": self._bucket, 
+                "Key": f"{self._prefix}/flags/{new_flag.uuid}.json",
+                "Body": new_flag.model_dump_json()
+            }
+        )
+
+        return new_flag
 
 
     async def get_flag(self, uuid: str) -> StorageFlag:
@@ -320,10 +315,26 @@ class StorageBackend:
         
         Raises
         ------
-        authzee.exceptions.MethodNotImplementedError
-            ``StorageBackend`` sub-classes must implement this method.
+        authzee.exceptions.StorageFlagNotFoundError
+            The storage flag with the given UUID was not found.
         """
-        pass
+        try:
+            response = await self._s3_client.get_object(
+                **{
+                    **self._get_object_kwargs,
+                    "Bucket": self._bucket,
+                    "Key": f"{self._prefix}/flags/{uuid}.json",
+                }
+            )
+        except botocore.exceptions.ClientError as exc:
+            if exc.response[''][''] == "":
+                raise exceptions.StorageFlagNotFoundError(
+                    f"Could not find storage flag with UUID: {uuid}. {exc}"
+                ) from exc
+            
+            raise
+        
+        return StorageFlag(**json.loads(await response['Body']))
 
 
     async def set_flag(self, uuid: str) -> StorageFlag:
@@ -341,10 +352,21 @@ class StorageBackend:
         
         Raises
         ------
-        authzee.exceptions.MethodNotImplementedError
-            ``StorageBackend`` sub-classes must implement this method.
+        authzee.exceptions.StorageFlagNotFoundError
+            The storage flag with the given UUID was not found.
         """
-        pass
+        flag = await self.get_flag(uuid=uuid)
+        flag.is_set = True
+        await self._s3_client.put_object(
+            **{
+                **self._put_object_kwargs, 
+                "Bucket": self._bucket, 
+                "Key": f"{self._prefix}/flags/{uuid}.json",
+                "Body": flag.model_dump_json()
+            }
+        )
+
+        return flag
 
 
     async def delete_flag(self, uuid: str) -> None:
@@ -360,7 +382,19 @@ class StorageBackend:
         authzee.exceptions.MethodNotImplementedError
             ``StorageBackend`` sub-classes must implement this method.
         """
-        pass
+        try:
+            await self._s3_client.delete_object(
+                {
+                    **self._delete_object_kwargs,
+                    "Bucket": self._bucket,
+                    "Key": "{self._prefix}/flags/{uuid}.json"
+                }
+            )
+        except botocore.exceptions.ClientError as exc:
+            if exc.response[''][''] == "":
+                pass
+            
+            raise
 
 
     async def cleanup_flags(self, earlier_than: datetime.datetime) -> None:
@@ -370,48 +404,40 @@ class StorageBackend:
         ----------
         earlier_than : datetime.datetime
             Delete flags created earlier than this date.
-        
-        Raises
-        ------
-        authzee.exceptions.MethodNotImplementedError
-            ``StorageBackend`` sub-classes must implement this method.
         """
-        pass
-
-
-    def _check_uuid(self, grant: Grant, generate_uuid: bool) -> Grant:
-        """Check if a UUID is on a grant to add, optionally generate a UUID with UUID 4.
-
-
-        Parameters
-        ----------
-        grant : Grant
-            The grant to check.
-        generate_uuid : bool
-            Optionally generate a UUID and add it to the grant. 
-
-        Returns
-        -------
-        Grant
-            A deep copy of the passed in grant, optionally with a UUID 4 added.
-
-        Raises
-        ------
-        authzee.exceptions.GrantUUIDError
-            Grants that are being added should not have a UUID.
-        """
-        if grant.uuid is not None:
-            raise exceptions.GrantUUIDError("Cannot create a grant that has a UUID.")
-
-        grant = copy.deepcopy(grant)
-        if generate_uuid == True:
-            grant.uuid = str(uuid.uuid4())
+        pagey = self._s3_client.get_paginator("list_objects_v2")
+        delete_keys = []
+        delete_tasks = []
+        async for page in pagey.paginate(Bucket=self._bucket, Prefix=self._prefix + "/"):
+            for obj in page['Contents']:
+                if obj['LastModified'] <= earlier_than:
+                    delete_keys.append(obj['Key'])
+            
+            if len(delete_keys) >= 1000:
+                delete_tasks.append(
+                    asyncio.create_task(
+                        self._s3_client.delete_objects(
+                            {
+                                **self._delete_object_kwargs,
+                                "Bucket": self._bucket,
+                                "Objects": [{"Key": k} for k in delete_keys[:1000]]
+                            }
+                        )
+                    )
+                )
+                delete_keys = delete_keys[1000:]
         
-        return grant
-    
-
-    def _real_page_size(self, page_size: Union[int, None]) -> int:
-        if page_size is None:
-            return self.default_page_size
-    
-        return page_size
+        if len(delete_keys) > 0:
+            delete_tasks.append(
+                asyncio.create_task(
+                    self._s3_client.delete_objects(
+                        {
+                            **self._delete_object_kwargs,
+                            "Bucket": self._bucket,
+                            "Objects": [{"Key": k} for k in delete_keys]
+                        }
+                    )
+                )
+            )
+        
+        await asyncio.gather(*delete_tasks)
