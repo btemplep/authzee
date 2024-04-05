@@ -33,8 +33,12 @@ class S3Storage(StorageBackend):
     - /grants/{ALLOW or DENY}/by_uuid/{grant UUID}.json
         - holds actual object data
 
-    - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/page-{page num}/{grant UUID}
+    - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/pages/{page num}/{grant UUID}
         - holds empty object but is good for filters
+    
+    - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/page_counts/{page num}
+        - page nums have a tag that has the approximate count of objects
+        - don't need to delete these. Just add when if you need a new page
 
     - /flags/{flag UUID}.json
         - holds flags
@@ -54,6 +58,7 @@ class S3Storage(StorageBackend):
         prefix: str,
         aioboto3_session: Optional[aioboto3.Session] = None,
         s3_client_kwargs: Optional[Dict[str, Any]] = None,
+        list_objects_kwargs: Optional[Dict[str, Any]] = None,
         get_object_kwargs: Optional[Dict[str, Any]] = None,
         put_object_kwargs: Optional[Dict[str, Any]] = None,
         delete_object_kwargs: Optional[Dict[str, Any]] = None
@@ -62,6 +67,7 @@ class S3Storage(StorageBackend):
         self._prefix = prefix
         self._aioboto3_session = aioboto3_session if aioboto3_session is not None else aioboto3.Session()
         self._s3_client_kwargs = s3_client_kwargs if s3_client_kwargs is not None else {}
+        self._list_objects_kwargs = list_objects_kwargs if list_objects_kwargs is not None else {}
         self._get_object_kwargs = get_object_kwargs if get_object_kwargs is not None else {}
         self._put_object_kwargs = put_object_kwargs if put_object_kwargs is not None else {}
         self._delete_object_kwargs = delete_object_kwargs if delete_object_kwargs is not None else {}
@@ -145,8 +151,111 @@ class S3Storage(StorageBackend):
         ------
         authzee.exceptions.MethodNotImplementedError
             ``StorageBackend`` sub-classes must implement this method.
+
+        bucket-name/prefix/path/
+
+        - /grants/{ALLOW or DENY}/by_uuid/{grant UUID}.json
+            - holds actual object data
+
+        - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/pages/{page num}/{grant UUID}
+            - holds empty object but is good for filters
+        
+        - /grants/{ALLOW or DENY}/deleted/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/pages/{page num}/{grant UUID}
+            - delete markers where "holes" need to be filled
+            - downsides: "holes" exist until a new grant is added
+                - If the deletes out way the adds, then there will be a lot of pages that are very short or empty
+        
+            
+        or when we delete one we copy another one from the last page to the first
+        Then we put a delete marker on the one in the last page
+        then after a certain amount of time we delete the one on the last page?
+        That way we always correctly back fill deletes
+        downsides: 
+            - there are duplicates that can come out when getting a page of matching grants.
+            - There is chance that if a task runs longer than the delete time it could skip a grant
+                - While this can be made to be statistically very low, it's possible
+
+        another prefix that acts as delete markers for each page
+        when deleted put a delete in the other prefix so the hole can be filled
+        check if the latest page is less then just add to the latest page and delete the older delete markers
+
+        OBV there are still race conditions here but it's pretty minimal
+        check if there are any holes, delete hole obj then start your add
+        PLUS race conditions just lead to extra objects in the page, which is better than less in the long run. 
+        Where as in the separate tagging structure race conditions to lead to less or more than page size. 
+
+        list objects are ordered by utf-8 binary order
+        When listing grants it doesn't matter the order
+        Delete doesn't matter the order
+        Adding order matters if there are no holes, we would like to only check the first page
+        If we do like 8 digits for page num and start backwards, we should always get the "latest" page first when listing objects
+        start at page  9999 9999 or 16 digits if that's not enough. 
+
+        Add something to the class for max_pages, default is 16
         """
-        raise exceptions.MethodNotImplementedError()
+        grant = self._check_uuid(grant=grant, generate_uuid=True)
+        actions = [a.value for a in grant.resource_actions]
+        actions.sort()
+        filter_key = f"grants/{effect}/by_resource_type/{grant.resource_type}/{"-".join(actions)}/"
+        store_task = asyncio.create_task(
+            self._s3_client.put_object(
+                **{
+                    **self._put_object_kwargs,
+                    "Body": grant.model_dump_json(),
+                    "Bucket": self._bucket,
+                    "Key": f"grants/{effect.value}/by_uuid/{grant.uuid}.json"
+                }
+            )
+        )
+        # First find the highest page num
+        highest_page = 0
+        pagey = self._s3_client.get_paginator("list_objects_v2")
+        async for page in pagey.paginate(
+            **{
+                **self._list_objects_kwargs,
+                "Bucket": self._bucket, 
+                "Delimiter": "/",
+                "Prefix": filter_key + "pages/"
+            }
+        ):
+            for o in page['Contents']:
+                page_num = int(o['Key'].split("/")[-1])
+                if page_num > highest_page:
+                    highest_page = page_num
+            
+        # Then see if there needs to be another page
+        # but this is not going to work indefinitely
+        # if things are deleted there is no way to go back and fill them
+        # you have to just insert new objects in the less than full pages
+        # keep tags on the dirs? then we need to maintain page objects. 
+        # I don't think that will matter, we don't need to delete
+        # them.....
+        
+        # separate the page "dirs" from the page counts with tags
+        filter_key += f"{highest_page}/"
+        async for page in pagey.paginate(
+            **{
+                **self._list_objects_kwargs,
+                "Bucket": self._bucket, 
+                "Delimiter": "/",
+                "Prefix": filter_key
+            }
+        ):  
+            pass
+
+
+
+        ref_task = asyncio.create_task(
+            self._s3_client.put_object(
+                **{
+                    **self._put_object_kwargs,
+                    "Body": "",
+                    "Bucket": self._bucket,
+                    "Key": filter_key
+                }
+            )
+        )
+
 
 
     async def delete_grant(self, effect: GrantEffect, uuid: str) -> None:

@@ -1,4 +1,5 @@
 
+from enum import Enum
 from typing import Any, Optional, Set, Type, Union
 
 from pydantic import BaseModel, validator
@@ -14,7 +15,7 @@ class Grant(BaseModel):
     name: str
     description: str
     resource_type: Type[BaseModel] 
-    resource_actions: Set[Any] 
+    resource_actions: Set[Enum] 
     jmespath_expression: str
     result_match: Union[bool, dict, float, int, list, None, str] # store as json string
     storage_id: Optional[str] = None # Leave as a string so storage can decide what it wants

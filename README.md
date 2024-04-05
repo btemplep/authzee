@@ -67,7 +67,7 @@ You can go straight to the [full code example](#full-tutorial-example), or follo
 Authzee expects the calling entity to be described by its identities. 
 An entity could be a person, a service user, a role etc. 
 An identity could be anything used to describe who or what an entity is.  The calling entity can have many identities. 
-Common identity types could be AD user, AD groups, AWS User, AWS Role.  A single identity could have all of these and multiples of them. 
+Common identity types could be AD user, AD groups, AWS User, AWS Role.  A single entity could have all of these and multiples of each. 
 
 
 In Authzee actions can be limited based on identities.
@@ -99,8 +99,8 @@ class Balloon(BaseModel):
 
 ### Resource Actions
 
-Resource actions are used to enumerate operations that can be performed on a resources.
-You can define resource actions as enums that are based on `authzee.ResourceAction`.
+Resource actions are used to enumerate operations that can be performed on a resource type.
+You define resource actions as enums that are based on `authzee.ResourceAction`.
 Each resource type must have it's own set of resource actions.
 
 ```python
@@ -117,11 +117,11 @@ class BalloonAction(ResourceAction):
 
 ### Resource Authz
 
-"Resource Authz" is a metadata wrapper for resources, resource actions, and their relationships. 
+"Resource Authz"s are used to associate resources, resource actions, and their relationships. 
 
 Create them as a child class of `authzee.ResourceAuthz`, and fill in the default values to declare the resource type, resource action type, as well as parent and child relationships.  
 
-Authzee does not keep a a hierarchy of relationships, and defining these is purely up to the user, and how they would like to authorize their resources.  
+Authzee does not keep a a hierarchy of relationships, and defining these is purely up to you, and how you would like to authorize resources.  
 If you create a resource authz then you can set up the parent and child relationships however you want.  What Authzee will do with the defined relationships is:
 
 - check parent and child resource types against the authz
@@ -172,6 +172,7 @@ BalloonStringAuthz = ResourceAuthz(
 )
 ```
 
+
 ### Grant 
 
 By default everything in Authzee is unauthorized/not allowed.  
@@ -180,7 +181,7 @@ In order to allow anything, grants must be created.
 There are two types of grants denoted by their effect. 
 
 - Allow - Grants that authorize/allow matching requests.
-- Deny - Grants that deny matching requests.  Requests with matching deny grants are unauthorized. Even if there are matching allow grants.
+- Deny - Grants that deny matching requests.  Requests with a matching deny grant is always unauthorized. Even if there are matching allow grants.
 
 Grants are created with the `authzee.Grant` model, then added to the authzee app. 
 
@@ -218,12 +219,6 @@ new_grant = Grant(
     """,
     result_match=True # If the result of the jmespath search query matches this, then the grant is considered a match!
 )
-
-# add to an authzee app. See more in authzee app section
-# new_grant = authzee_app.add_grant(
-#     effect=GrantEffect.ALLOW,
-#     grant=new_grant
-# )
 ```
 
 The grant above will match with:
@@ -232,6 +227,9 @@ The grant above will match with:
 - resource actions of `CreateBalloon` or `DeleteBalloon`
 
 But what are `jmespath_expression` and `result_match` for?
+
+- `jmespath_expression`is a JMESpath query
+- If the JMESPath query matches `result_match`, (as well as resource and actions) then the grant is a match
 
 [JMESPath](https://jmespath.org/) is a JSON query language with a complete specification. Authzee uses it as the query tool for authorizations. 
 
@@ -289,13 +287,16 @@ An Authzee app requires a storage backend and a compute backend.
 
 Available Storage Backends:
 
+- ` MemoryStorage` - In memory storage. 
 - `SQLStorage` - Store data in a SQL database - async enabled
+- `S3Storage` - AWS S3 storage.
 
 Available Compute Backends:
 
 - `MainProcessCompute` - process authorization requests synchronously in the main thread - not async
 - `MultiprocessCompute` - process authorization requests asynchronously.  Distributes work to a process pool
 - `ThreadedCompute` - Process authorization requests asynchronously.  Distributes work to a thread pool.  Note that because of the GIL, using multiple threads may actually be slightly slower than `MainProcessCompute`.  While it's not truly parallel processing, it will not block the main thread. 
+- `TaskiqCompute` - Send compute tasks to Taskiq workers (Like Celery but asyncio).
 
 ```python
 from authzee import (
@@ -355,6 +356,7 @@ After initialization of the Authzee app you can manage grants with these async m
 - `add_grant` - Add a new grant.
 - `delete_grant` - Delete a grant.
 - `get_grants_page` - Retrieve a single page of grants.
+- `get_page_refs_page` - Retrieve a page of page references for parallel pagination (not supported by all storage backends).
 
 
 ### `authzee` App Authorization Methods
@@ -612,9 +614,9 @@ if __name__ == "__main__":
 
 ### Definitions
 
-- Authorization Request (Request) - A request to see if a the calling entity is authorized to perform a specific resource action on a resource. 
+- Authorization Request (AKA Resource) - A request to see if a the calling entity is authorized to perform a specific resource action on a resource. 
 
-- Calling Entity (Entity) - In an authorization request, the calling entity is essentially "who" is being authorized. The entity could be a person, service account, role etc.   
+- Calling Entity (AKA Entity) - In an authorization request, the calling entity is essentially "who" is being authorized. The entity could be a person, service account, role etc.   
 
 - Identity - A way to identify an entity. An identity could be AD users, AD groups, AWS roles, AWS users etc.
 
@@ -624,5 +626,5 @@ if __name__ == "__main__":
 
 - Resource Actions - Actions that can be done to resources.  Example: Balloon resource type could have actions of "InflateBalloon", "PopBalloon", "ListBalloons", "CreateBalloon".
 
-- Grant - The unit that defines how to query and match against authorization requests.  Grants are added to authzee to allow of explicitly deny authorization requests.  Requests that match any DENY grants are not authorized.  Requests that match any ALLOW grants and does not match any DENY grants are allowed. 
+- Grant - The unit that defines how to query and match against authorization requests.  Grants are added to authzee to allow or explicitly deny authorization requests.  Requests that match any DENY grants are never authorized.  Requests that match any ALLOW grants and does not match any DENY grants are allowed. 
 

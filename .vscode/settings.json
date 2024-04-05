@@ -39,6 +39,7 @@
         "modindex",
         "Multiprocess",
         "noindex",
+        "pagey",
         "Pickler",
         "pids",
         "processpoolexecutor",
