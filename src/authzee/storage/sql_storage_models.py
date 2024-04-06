@@ -1,14 +1,18 @@
 
 import datetime
-from typing import Set
+from typing import Any, Dict, Set
 
 from sqlalchemy import Column, ForeignKey, Table
+from sqlalchemy.types import JSON
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(AsyncAttrs, DeclarativeBase):
-    pass
+    type_annotation_map = {
+        Dict[str, Any]: JSON,
+        Any: JSON
+    }
 
 
 class ResourceTypeDB(Base):
@@ -39,14 +43,15 @@ class AllowGrantDB(Base):
     name: Mapped[str] = mapped_column(nullable=False)
     description: Mapped[str] = mapped_column(nullable=False)
     resource_type: Mapped[str] = mapped_column(ForeignKey("resource_type.resource_type"), nullable=False)
-    resource_actions: Mapped[Set[ResourceActionDB]] = relationship(
+    actions: Mapped[Set[ResourceActionDB]] = relationship(
         "ResourceActionDB", 
         secondary=allow_grant_action_association, 
         lazy="joined",
         cascade=""
     )
-    jmespath_expression: Mapped[str] = mapped_column(nullable=False)
-    result_match: Mapped[str] = mapped_column(nullable=False)
+    expression: Mapped[str] = mapped_column(nullable=False)
+    context: Mapped[Dict[str, Any]] = mapped_column(nullable=False)
+    equality: Mapped[Any] = mapped_column(nullable=False)
 
 
 deny_grant_action_association = Table(
@@ -65,14 +70,15 @@ class DenyGrantDB(Base):
     name: Mapped[str] = mapped_column(nullable=False)
     description: Mapped[str] = mapped_column(nullable=False)
     resource_type: Mapped[str] = mapped_column(ForeignKey("resource_type.resource_type"), nullable=False)
-    resource_actions: Mapped[Set[ResourceActionDB]] = relationship(
+    actions: Mapped[Set[ResourceActionDB]] = relationship(
         "ResourceActionDB", 
         secondary=deny_grant_action_association, 
         lazy="joined",
         cascade=""
     )
-    jmespath_expression: Mapped[str] = mapped_column(nullable=False)
-    result_match: Mapped[str] = mapped_column(nullable=False)
+    expression: Mapped[str] = mapped_column(nullable=False)
+    context: Mapped[Dict[str, Any]] = mapped_column(nullable=False)
+    equality: Mapped[Any] = mapped_column(nullable=False)
 
 
 class StorageFlagDB(Base):

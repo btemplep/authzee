@@ -169,7 +169,7 @@ class SQLStorage(StorageBackend):
         """
         grant = self._check_uuid(grant=grant, generate_uuid=True)
         async with self._async_sessionmaker() as session:
-            resource_action_strs = {str(action) for action in grant.resource_actions}
+            resource_action_strs = {str(action) for action in grant.actions}
             result = await session.execute(
                 select(ResourceActionDB).where(
                     ResourceActionDB.resource_action.in_(resource_action_strs)
@@ -181,9 +181,10 @@ class SQLStorage(StorageBackend):
                 "name": grant.name,
                 "description": grant.description,
                 "resource_type": grant.resource_type.__name__,
-                "resource_actions": re_actions,
-                "jmespath_expression": grant.jmespath_expression,
-                "result_match": json.dumps(grant.result_match)
+                "actions": re_actions,
+                "expression": grant.expression,
+                "context": grant.context,
+                "equality": grant.equality
             }
             if effect is GrantEffect.ALLOW:
                 db_grant = AllowGrantDB(**grant_kwargs)
@@ -286,7 +287,7 @@ class SQLStorage(StorageBackend):
             
             if resource_action is not None:
                 filters.append(
-                    grant_table.resource_actions.any(
+                    grant_table.actions.any(
                         ResourceActionDB.resource_action == str(resource_action)
                     )
                 )
@@ -336,11 +337,12 @@ class SQLStorage(StorageBackend):
                     name=db_grant.name,
                     description=db_grant.description,
                     resource_type=self._resource_type_lookup[db_grant.resource_type],
-                    resource_actions={
-                        self._resource_action_lookup[action.resource_action] for action in db_grant.resource_actions
+                    actions={
+                        self._resource_action_lookup[action.resource_action] for action in db_grant.actions
                     },
-                    jmespath_expression=db_grant.jmespath_expression,
-                    result_match=json.loads(db_grant.result_match),
+                    expression=db_grant.expression,
+                    context=db_grant.context,
+                    equality=db_grant.equality,
                     storage_id=str(db_grant.storage_id),
                     uuid=db_grant.uuid
                 )

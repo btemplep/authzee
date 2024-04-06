@@ -115,7 +115,7 @@ class MemoryStorage(StorageBackend):
             grants = [grant for grant in grants if grant.resource_type == resource_type]
         
         if resource_action is not None:
-            grants = [grant for grant in grants if resource_action in grant.resource_actions]
+            grants = [grant for grant in grants if resource_action in grant.actions]
         
         return RawGrantsPage(
             raw_grants=grants,

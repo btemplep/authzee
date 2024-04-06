@@ -246,7 +246,7 @@ class Authzee:
             
             raise exceptions.ResourceAuthzRegistrationError(
                 "ResourceAction '{}' is already registered with the '{}' ResourceAuthz".format(
-                    resource_authz.resource_actions.__name__,
+                    resource_authz.actions.__name__,
                     registered_resource_authz.__name__
                 )
             )
@@ -1077,11 +1077,11 @@ class Authzee:
                 )
             )
         
-        if len(grant.resource_actions) < 1:
+        if len(grant.actions) < 1:
             raise exceptions.InputVerificationError("A set of at least one resource action must be given in a grant.")
         
         resource_authz_inst = self._resource_to_authz_lookup[resource_type]
-        for resource_action in grant.resource_actions:
+        for resource_action in grant.actions:
             resource_action_type = type(resource_action)
             if resource_action_type not in self._resource_action_types:
                 raise exceptions.InputVerificationError(

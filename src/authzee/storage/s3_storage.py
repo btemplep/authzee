@@ -194,7 +194,7 @@ class S3Storage(StorageBackend):
         Add something to the class for max_pages, default is 16
         """
         grant = self._check_uuid(grant=grant, generate_uuid=True)
-        actions = [a.value for a in grant.resource_actions]
+        actions = [a.value for a in grant.actions]
         actions.sort()
         filter_key = f"grants/{effect}/by_resource_type/{grant.resource_type}/{"-".join(actions)}/"
         store_task = asyncio.create_task(

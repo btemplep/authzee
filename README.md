@@ -207,17 +207,26 @@ new_grant = Grant(
     name="Human friendly name",
     description="human friendly description",
     resource_type=Balloon, # The class resource type
-    resource_actions={ # the set of resource actions
+    actions={ # the set of resource actions
         BalloonAction.CreateBalloon,
         BalloonAction.DeleteBalloon
     },
     # JMESpath is the JSON query language for verifying identities and 
     # resources, as well as their relationships
-    jmespath_expression=""" 
+    expression=""" 
     contains(identities.ADUser[].cn, 'authzee_user_1')
     && resource.color == 'blue'
+    && contains(context.allowed_sizes, resource.size)
     """,
-    result_match=True # If the result of the jmespath search query matches this, then the grant is considered a match!
+    # context makes additional data available when the expression is evaluated
+    context={
+        "allowed_sizes": [
+            20.0,
+            27.0,
+            30.0
+        ]
+    },
+    equality=True # If the result of the jmespath search query matches this, then the grant is considered a match!
 )
 ```
 
@@ -226,15 +235,16 @@ The grant above will match with:
 - resources of the `Balloon` type
 - resource actions of `CreateBalloon` or `DeleteBalloon`
 
-But what are `jmespath_expression` and `result_match` for?
+But what are `expression`, `context`, and `equality` for?
 
-- `jmespath_expression`is a JMESpath query
-- If the JMESPath query matches `result_match`, (as well as resource and actions) then the grant is a match
+- `expression`is a JMESpath query
+- `context` is available as additional data to the request. 
+- If the JMESPath query matches `equality`, (as well as resource and actions) then the grant is a match
 
 [JMESPath](https://jmespath.org/) is a JSON query language with a complete specification. Authzee uses it as the query tool for authorizations. 
 
-The request data is normalized into a JSON object. The JMESPath query from `jmespath_expression`
-is evaluated and then checked if it is an exact match of `result_match`.  If so, then the grant
+The request data is normalized into a JSON object. The JMESPath query from `expression`
+is evaluated and then checked if it is an exact match of `equality`.  If so, then the grant
 is considered a match.
 
 Example of normalized request data:
@@ -263,6 +273,13 @@ Example of normalized request data:
                 "length": 27
             }
         ]
+    }, 
+    "context": {
+        "allowed_sizes": [
+            20.0,
+            27.0,
+            30.0
+        ]
     }
 }
 ```
@@ -276,6 +293,7 @@ The data for this is normalized as follows:
 - `resource_action` is the full name of the action for the request. `<class name>.<enum member>`
 - `parent_resources` and `child_resources` are JSON objects that include all of the parent and child resource types class names as keys, and the value of each is an array.
 - Any child or parent resources will be serialized and added to the array of their respective parent or child resource types. 
+- `context` - additional data provided by the grant.  
 
 The above json is used as the data in `jmespath.search()`, along with the jmespath expression from the grant used as the expression.
 
@@ -513,25 +531,35 @@ if __name__ == "__main__":
             name="Human friendly name",
             description="human friendly description",
             resource_type=Balloon, # The class resource type
-            resource_actions={ # the set of resource actions
+            actions={ # the set of resource actions
                 BalloonAction.CreateBalloon,
                 BalloonAction.DeleteBalloon
             },
             # JMESpath is the JSON query language for verifying identities and 
             # resources, as well as their relationships
-            jmespath_expression=""" 
+            expression=""" 
             contains(identities.ADUser[].cn, 'authzee_user_1')
             && resource.color == 'blue'
+            && contains(context.allowed_sizes, resource.size)
             """,
-            result_match=True # If the result of the jmespath search query matches this, then the grant is considered a match!
+            # context makes additional data available when the expression is evaluated
+            context={
+                "allowed_sizes": [
+                    20.0,
+                    27.0,
+                    30.0
+                ]
+            },
+            equality=True # If the result of the jmespath search query matches this, then the grant is considered a match!
         )
         match_everything_grant = Grant(
             name="everything",
             description="",
             resource_type=Balloon,
-            resource_actions={BalloonAction.CreateBalloon},
-            jmespath_expression="`true`",
-            result_match=True
+            actions={BalloonAction.CreateBalloon},
+            expression="`true`",
+            context={},
+            equality=True
         )
         # Add the new grant to authzee as an ALLOW Grant
         new_grant = await authzee_app.add_grant( 
