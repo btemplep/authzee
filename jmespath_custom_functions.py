@@ -87,7 +87,7 @@ class CustomFunctions(functions.Functions):
     ) -> Union[str, None]:
         if type(group) != int:
             raise exceptions.JMESPathError(
-                "In function pyregex_group, type of 'group' was {} but the input must translate to an integer.".format(type(group))
+                f"In function pyregex_group, type of 'group' was {type(group)} but the input must translate to an integer."
             )
 
         if group < 1:

@@ -81,7 +81,9 @@ class MemoryStorage(StorageBackend):
                 self._deny_grants_lookup.pop(uuid)
                 return 
 
-        raise exceptions.GrantDoesNotExistError("{} Grant with UUID '{}' does not exist.".format(effect.value, uuid))
+        raise exceptions.GrantDoesNotExistError(
+            f"{effect.value} Grant with UUID '{uuid}' does not exist.")
+
 
     async def get_raw_grants_page(
         self, 

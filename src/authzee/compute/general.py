@@ -14,8 +14,8 @@ def grant_matches(
     jmespath_options: Union[jmespath.Options, None]
 ) -> bool:
     import json
-    logger.debug("JMESPath Data: {}".format(json.dumps(jmespath_data, indent=4)))
-    logger.debug("JMESPath Expression: {}".format(grant.expression))
+    logger.debug(f"JMESPath Data: {json.dumps(jmespath_data, indent=4)}")
+    logger.debug(f"JMESPath Expression: {grant.expression}")
     jmespath_data['context'] = grant.context
     try:
         result = jmespath.search(
@@ -23,13 +23,13 @@ def grant_matches(
             jmespath_data, 
             options=jmespath_options
         )
-        logger.debug("JMESPath Expression Value: {}".format(result))
+        logger.debug(f"JMESPath Expression Value: {result}")
     except jmespath.exceptions.JMESPathError as error:
-        logger.debug("JMESPath Search error: {}".format(error))
+        logger.debug(f"JMESPath Search error: {error}")
         return False
 
     jmespath_data.pop("context")
-    logger.debug("JMESPath result == equality: {}".format(result == grant.equality))
+    logger.debug(f"JMESPath result == equality: {result == grant.equality}")
 
     return result == grant.equality
 

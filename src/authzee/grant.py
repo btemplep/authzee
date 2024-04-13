@@ -9,9 +9,7 @@ from authzee.resource_action import ResourceAction
 
 
 class Grant(BaseModel):
-    """Model for creating a grant.
-    
-    fill in the model
+    """Authorization grant model.
     """
     name: str
     description: str

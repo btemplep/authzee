@@ -1,11 +1,13 @@
-
+__all__ = [
+    "S3Storage"
+]
 import asyncio
+import base64
 from contextlib import AsyncExitStack
 import datetime
 import json
 from typing import Dict, List, Optional, Set, Type, Union
 from typing_extensions import Any
-import uuid
 
 import aioboto3
 import botocore.exceptions
@@ -24,21 +26,22 @@ from authzee.storage.storage_backend import StorageBackend
 from authzee.storage_flag import StorageFlag
 
 
+class S3PageRef(BaseModel):
+        prefix: str
+        s3_next_token: str
+
+
 class S3Storage(StorageBackend):
     """
 
-    Stores all data in S3. allows parallel pagination
+    Stores all data in S3. (No parallel pagination :(
 
     bucket-name/prefix/path/
     - /grants/{ALLOW or DENY}/by_uuid/{grant UUID}.json
         - holds actual object data
 
-    - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/pages/{page num}/{grant UUID}
+    - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/{grant UUID}
         - holds empty object but is good for filters
-    
-    - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/page_counts/{page num}
-        - page nums have a tag that has the approximate count of objects
-        - don't need to delete these. Just add when if you need a new page
 
     - /flags/{flag UUID}.json
         - holds flags
@@ -64,7 +67,7 @@ class S3Storage(StorageBackend):
         delete_object_kwargs: Optional[Dict[str, Any]] = None
     ):
         self._bucket = bucket
-        self._prefix = prefix
+        self._prefix = prefix if prefix[-1] != "/" else prefix[:-1]
         self._aioboto3_session = aioboto3_session if aioboto3_session is not None else aioboto3.Session()
         self._s3_client_kwargs = s3_client_kwargs if s3_client_kwargs is not None else {}
         self._list_objects_kwargs = list_objects_kwargs if list_objects_kwargs is not None else {}
@@ -83,6 +86,7 @@ class S3Storage(StorageBackend):
             put_object_kwargs=put_object_kwargs
         )
         self._aes = AsyncExitStack()
+        self._action_to_rt: Dict[ResourceAction, BaseModel] = {}
 
 
     async def initialize(
@@ -109,9 +113,11 @@ class S3Storage(StorageBackend):
         self._s3_client = await self._aes.enter_async_context(
             self._aioboto3_session.client("s3", **self._s3_client_kwargs)
         )
+        for authz in self._resource_authzs:
+            for action in authz.resource_action_type:
+                self._action_to_rt[action] = authz.resource_type
         
     
-
     async def shutdown(self) -> None:
         """Clean up of storage backend resources.
 
@@ -151,52 +157,11 @@ class S3Storage(StorageBackend):
         ------
         authzee.exceptions.MethodNotImplementedError
             ``StorageBackend`` sub-classes must implement this method.
-
-        bucket-name/prefix/path/
-
-        - /grants/{ALLOW or DENY}/by_uuid/{grant UUID}.json
-            - holds actual object data
-
-        - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/pages/{page num}/{grant UUID}
-            - holds empty object but is good for filters
-        
-        - /grants/{ALLOW or DENY}/deleted/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/pages/{page num}/{grant UUID}
-            - delete markers where "holes" need to be filled
-            - downsides: "holes" exist until a new grant is added
-                - If the deletes out way the adds, then there will be a lot of pages that are very short or empty
-        
-            
-        or when we delete one we copy another one from the last page to the first
-        Then we put a delete marker on the one in the last page
-        then after a certain amount of time we delete the one on the last page?
-        That way we always correctly back fill deletes
-        downsides: 
-            - there are duplicates that can come out when getting a page of matching grants.
-            - There is chance that if a task runs longer than the delete time it could skip a grant
-                - While this can be made to be statistically very low, it's possible
-
-        another prefix that acts as delete markers for each page
-        when deleted put a delete in the other prefix so the hole can be filled
-        check if the latest page is less then just add to the latest page and delete the older delete markers
-
-        OBV there are still race conditions here but it's pretty minimal
-        check if there are any holes, delete hole obj then start your add
-        PLUS race conditions just lead to extra objects in the page, which is better than less in the long run. 
-        Where as in the separate tagging structure race conditions to lead to less or more than page size. 
-
-        list objects are ordered by utf-8 binary order
-        When listing grants it doesn't matter the order
-        Delete doesn't matter the order
-        Adding order matters if there are no holes, we would like to only check the first page
-        If we do like 8 digits for page num and start backwards, we should always get the "latest" page first when listing objects
-        start at page  9999 9999 or 16 digits if that's not enough. 
-
-        Add something to the class for max_pages, default is 16
         """
         grant = self._check_uuid(grant=grant, generate_uuid=True)
         actions = [a.value for a in grant.actions]
         actions.sort()
-        filter_key = f"grants/{effect}/by_resource_type/{grant.resource_type}/{"-".join(actions)}/"
+        filter_key = f"grants/{effect}/by_resource_type/{grant.resource_type}/{"-".join(actions)}"
         store_task = asyncio.create_task(
             self._s3_client.put_object(
                 **{
@@ -207,55 +172,19 @@ class S3Storage(StorageBackend):
                 }
             )
         )
-        # First find the highest page num
-        highest_page = 0
-        pagey = self._s3_client.get_paginator("list_objects_v2")
-        async for page in pagey.paginate(
-            **{
-                **self._list_objects_kwargs,
-                "Bucket": self._bucket, 
-                "Delimiter": "/",
-                "Prefix": filter_key + "pages/"
-            }
-        ):
-            for o in page['Contents']:
-                page_num = int(o['Key'].split("/")[-1])
-                if page_num > highest_page:
-                    highest_page = page_num
-            
-        # Then see if there needs to be another page
-        # but this is not going to work indefinitely
-        # if things are deleted there is no way to go back and fill them
-        # you have to just insert new objects in the less than full pages
-        # keep tags on the dirs? then we need to maintain page objects. 
-        # I don't think that will matter, we don't need to delete
-        # them.....
-        
-        # separate the page "dirs" from the page counts with tags
-        filter_key += f"{highest_page}/"
-        async for page in pagey.paginate(
-            **{
-                **self._list_objects_kwargs,
-                "Bucket": self._bucket, 
-                "Delimiter": "/",
-                "Prefix": filter_key
-            }
-        ):  
-            pass
-
-
-
-        ref_task = asyncio.create_task(
+        lookup_task = asyncio.create_task(
             self._s3_client.put_object(
                 **{
                     **self._put_object_kwargs,
                     "Body": "",
                     "Bucket": self._bucket,
-                    "Key": filter_key
+                    "Key": f"{filter_key}/{grant.uuid}"
                 }
             )
         )
+        await asyncio.gather(store_task, lookup_task)
 
+        return grant
 
 
     async def delete_grant(self, effect: GrantEffect, uuid: str) -> None:
@@ -273,8 +202,52 @@ class S3Storage(StorageBackend):
         authzee.exceptions.MethodNotImplementedError
             ``StorageBackend`` sub-classes *may* implement this method if ``async`` is supported.
         """
-        raise exceptions.MethodNotImplementedError()
-        
+        key = f"grants/{effect.value}/by_uuid/{uuid}.json"
+        grant_resp = await self._s3_client.get_object(
+            **{
+                **self._get_object_kwargs,
+                "Bucket": self._bucket,
+                "Key": key
+            }
+        )
+        grant = Grant.model_validate_json(await grant_resp['Body'].read())
+        actions = [a.value for a in grant.actions]
+        actions.sort()
+        filter_key = f"grants/{effect}/by_resource_type/{grant.resource_type}/{"-".join(actions)}"
+        store_task = asyncio.create_task(
+            self._s3_client.delete_object(
+                **{
+                    **self._delete_object_kwargs,
+                    "Bucket": self._bucket,
+                    "Key": key
+                }
+            )
+        )
+        lookup_task = asyncio.create_task(
+            self._s3_client.delete_object(
+                **{
+                    **self._delete_object_kwargs,
+                    "Bucket": self._bucket,
+                    "Key": f"{filter_key}/{uuid}"
+                }
+            )
+        )
+        await asyncio.gather(store_task, lookup_task)
+
+        return grant
+
+
+    def _ref_to_model(self, page_ref: str) -> S3PageRef:
+        return S3PageRef.model_validate_json(
+            base64.b64decode(
+                page_ref
+            ).decode("ascii")
+        )
+
+
+    def _model_to_ref(self, s3_ref: S3PageRef) -> str:
+        return base64.b64encode(s3_ref.model_dump_json()).decode("ascii")
+
 
     async def get_raw_grants_page(
         self,
@@ -322,7 +295,165 @@ class S3Storage(StorageBackend):
         authzee.exceptions.MethodNotImplementedError
             ``StorageBackend`` sub-classes must implement this method.
         """
-        raise exceptions.MethodNotImplementedError()
+        prefix = f"{self._prefix}/grants/{effect}/"
+        s3_ref = None
+        list_kwargs = {}
+        if page_ref is not None:
+            s3_ref = self._ref_to_model(page_ref=page_ref)
+
+        # if no filters then just list Lookup
+        # if resource type then list over all action combos fo resource type
+        # if action, then find which resource type has that ResourceAction
+        #      list over the resource type and find a matching action
+        #     if action then it doesn't matter about type because action is unique to type
+        if (
+            resource_type is None
+            and resource_action is None
+        ):
+            # if no filters list from the lookup table
+            prefix += "by_uuid/"
+            list_kwargs = {
+                **self._list_objects_kwargs,
+                "Bucket": self._bucket,
+                "Prefix": prefix,
+            }
+            if s3_ref is not None:
+                list_kwargs['ContinuationToken'] = s3_ref.s3_next_token
+            
+            obj_page = await self._s3_client.list_objects_v2(
+                **list_kwargs
+            )
+            next_s3_ref = S3PageRef(
+                prefix=ob['Key'],
+                s3_next_token=obj_page.get("NextContinuationToken", None)
+            )
+
+            return RawGrantsPage(
+                raw_grants=obj_page,
+                next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
+            )
+
+        elif (
+            resource_type is not None
+            and resource_action is None
+        ):
+            # filter by resource type only
+            prefix += f"by_resource_type/{resource_type}/"
+            list_kwargs = {
+                **self._list_objects_kwargs,
+                "Bucket": self._bucket,
+                "Prefix": prefix
+            }
+            if s3_ref is not None:
+                list_kwargs['ContinuationToken'] = s3_ref.s3_next_token
+
+            obj_page = await self._s3_client.list_objects_v2(
+                **list_kwargs
+            )
+            next_s3_ref = S3PageRef(
+                prefix=prefix,
+                s3_next_token=obj_page.get("NextContinuationToken", None)
+            )
+
+            return RawGrantsPage(
+                raw_grants=obj_page,
+                next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
+            )
+
+        # if resource action is not None, it doesn't matter what resource type is
+        # since actions only map to one resource type
+        else:
+            if resource_type is None:
+                resource_type  = self._action_to_rt[resource_action]
+
+            prefix += f"by_resource_type/{resource_type}/"
+            if s3_ref is None:
+                ap_pager = self._s3_client.get_paginator("list_objects_v2")
+                async for page in ap_pager.paginate(
+                    **{
+                        **self._list_objects_kwargs,
+                        "Bucket": self._bucket,
+                        "Prefix": prefix,
+                        "Delimiter": "/"
+                    }
+                ):
+                    for ob in page['Contents']:
+                        action_strs = ob['Key'].split("/")[-2].split("-")
+                        if str(resource_action) in action_strs:
+                            obj_page = await self._s3_client.list_objects_v2(
+                                **{
+                                    **self._list_objects_kwargs,
+                                    "Bucket": self._bucket,
+                                    "Prefix": ob['Key']
+                                }
+                            )
+                            next_s3_ref = S3PageRef(
+                                prefix=ob['Key'],
+                                s3_next_token=obj_page.get("NextContinuationToken", None)
+                            )
+
+                            return RawGrantsPage(
+                                raw_grants=obj_page,
+                                next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
+                            )
+            else:
+                if s3_ref.s3_next_token is None:
+                    # if the next is none then we need to find the next actions prefix
+                    ap_pager = self._s3_client.get_paginator("list_objects_v2")
+                    async for page in ap_pager.paginate(
+                        **{
+                            **self._list_objects_kwargs,
+                            "Bucket": self._bucket,
+                            "Prefix": prefix,
+                            "Delimiter": "/",
+                            "StartAfter": s3_ref.prefix # start 
+                        }
+                    ):
+                        for ob in page['Contents']:
+                            action_strs = ob['Key'].split("/")[-2].split("-")
+                            if str(resource_action) in action_strs:
+                                obj_page = await self._s3_client.list_objects_v2(
+                                    **{
+                                        **self._list_objects_kwargs,
+                                        "Bucket": self._bucket,
+                                        "Prefix": ob['Key']
+                                    }
+                                )
+                                next_s3_ref = S3PageRef(
+                                    prefix=ob['Key'],
+                                    s3_next_token=obj_page.get("NextContinuationToken", None)
+                                )
+
+                                return RawGrantsPage(
+                                    raw_grants=obj_page,
+                                    next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
+                                )
+                else:
+                    # else we just run the next token
+                    prefix = s3_ref.prefix
+                    obj_page = await self._s3_client.list_objects_v2(
+                        **{
+                            **self._list_objects_kwargs,
+                            "Bucket": self._bucket,
+                            "Prefix": s3_ref.prefix,
+                            "ContinuationToken": s3_ref.s3_next_token
+                        }
+                    )
+                    next_s3_ref = S3PageRef(
+                        prefix=ob['Key'],
+                        s3_next_token=obj_page.get("NextContinuationToken", None)
+                    )
+
+                    return RawGrantsPage(
+                        raw_grants=obj_page,
+                        next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
+                    )
+            
+        # If any case is not caught we have nothing left to return
+        return RawGrantsPage(
+            raw_grants=None,
+            next_page_ref=None
+        )  
     
 
     async def normalize_raw_grants_page(
@@ -347,45 +478,6 @@ class S3Storage(StorageBackend):
             ``StorageBackend`` sub-classes must implement this method.
         """
         raise exceptions.MethodNotImplementedError()
-    
-
-    async def get_page_ref_page(self, page_ref: str) -> PageRefsPage:
-        """Get a page of page references for parallel pagination. 
-
-        Parameters
-        ----------
-        effect : GrantEffect
-            The effect of the grant.
-        resource_type : Optional[Type[BaseModel]], optional
-            Filter by resource type.
-            By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
-            Filter by `ResourceAction``. 
-            By default no filter is applied.
-        page_size : Optional[int], optional
-            The suggested page size to return. 
-            There is no guarantee of how much data will be returned if any.
-            The default is set on the storage backend. 
-        page_ref : str
-            Page reference for the next page of page references.
-
-        Returns
-        -------
-        PageRefsPage
-            Page of page references.
-        """
-        if self.parallel_pagination is True:
-            raise exceptions.MethodNotImplementedError(
-                (
-                    "There is an error in the storage backend!"
-                    "This storage backend has marked parallel_pagination as true "
-                    "but it has not implemented the required methods!"
-                )
-            )
-        else:
-            raise exceptions.ParallelPaginationNotSupported(
-                "This storage backend does not support parallel pagination."
-            )
     
     
     async def create_flag(self) -> StorageFlag:

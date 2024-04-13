@@ -220,10 +220,7 @@ class SQLStorage(StorageBackend):
             db_grant = result.scalars().unique().one_or_none()
             if db_grant is None:
                 raise exceptions.GrantDoesNotExistError(
-                    "{} Grant with UUID: '{}' does not exist.".format(
-                        effect.value,
-                        uuid
-                    )
+                    f"{effect.value} Grant with UUID: '{uuid}' does not exist."
                 )
 
             await session.delete(db_grant)

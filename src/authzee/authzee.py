@@ -99,19 +99,13 @@ class Authzee:
             for p_resource in authz.parent_resource_types:
                 if p_resource not in self._resource_types:
                     raise exceptions.InitializationError(
-                        "The parent resource '{}' in ResourceAuthz '{}' is not registered.".format(
-                            p_resource,
-                            authz.__class__.__name__
-                        )
+                        f"The parent resource '{p_resource}' in ResourceAuthz '{authz.__class__.__name__}' is not registered."
                     )
 
             for c_resource in authz.child_resource_types:
                 if c_resource not in self._resource_types:
                     raise exceptions.InitializationError(
-                        "The child resource '{}' in ResourceAuthz '{}' is not registered.".format(
-                            c_resource,
-                            authz.__class__.__name__
-                        )
+                        f"The child resource '{c_resource}' in ResourceAuthz '{authz.__class__.__name__}' is not registered."
                     )
 
         await self._storage_backend.initialize(
@@ -204,12 +198,12 @@ class Authzee:
         """
         if identity_type in self._identity_types:
             raise exceptions.IdentityRegistrationError(
-                "Identity type '{}' is already registered with Authzee".format(identity_type)
+                f"Identity type '{identity_type}' is already registered with Authzee"
             )
         
         if identity_type.__name__ in self._identity_type_names:
             raise exceptions.IdentityRegistrationError(
-                "Identity with name '{}' is already registered with Authzee".format(identity_type.__name__)
+                f"Identity with name '{identity_type.__name__}' is already registered with Authzee"
             )
         
         self._identity_types.add(identity_type)
@@ -245,24 +239,20 @@ class Authzee:
                     break
             
             raise exceptions.ResourceAuthzRegistrationError(
-                "ResourceAction '{}' is already registered with the '{}' ResourceAuthz".format(
-                    resource_authz.actions.__name__,
-                    registered_resource_authz.__name__
+                (
+                    f"ResourceAction '{resource_authz.resource_action_type.__name__}' is already registered "
+                    f"with the '{registered_resource_authz.__name__}' ResourceAuthz"
                 )
             )
 
         if resource_authz.resource_type in self._resource_types:
             raise exceptions.ResourceAuthzRegistrationError(
-                "Resource Model '{}' is already registered with Authzee".format(
-                    resource_authz.resource
-                )
+                f"Resource Model '{resource_authz.resource_type}' is already registered with Authzee"
             )
 
         if resource_authz.resource_type.__name__ in self._resource_type_names:
             raise exceptions.ResourceAuthzRegistrationError(
-                "Resource Model with name '{}' is already registered with Authzee".format(
-                    resource_authz.resource
-                )
+                f"Resource Model with name '{resource_authz.resource_type}' is already registered with Authzee"
             )
         
         self._resource_types.add(resource_authz.resource_type)
@@ -842,7 +832,7 @@ class Authzee:
         parent_resources_by_type = {parent_type.__name__: [] for parent_type in self._resource_to_authz_lookup[resource_type].parent_resource_types}
         for parent_resource in parent_resources:
             parent_type = type(parent_resource)
-            parent_resources_by_type[parent_type.__name__].append(json.loads(parent_resource.json()))
+            parent_resources_by_type[parent_type.__name__].append(parent_resource.model_dump(mode="json"))
         
         child_resources_by_type = {child_type.__name__: [] for child_type in self._resource_to_authz_lookup[resource_type].child_resource_types}
         for child_resource in child_resources:
@@ -850,16 +840,16 @@ class Authzee:
             if child_type.__name__ not in child_resources_by_type:
                 child_resources_by_type[child_type.__name__] = []
             
-            child_resources_by_type[child_type.__name__].append(json.loads(child_resource.json()))
+            child_resources_by_type[child_type.__name__].append(child_resource.model_dump(mode="json"))
 
         identities_by_type = {identity_name: [] for identity_name in self._identity_type_names}
         for identity in identities:
             identity_type = type(identity)
-            identities_by_type[identity_type.__name__].append(json.loads(identity.json()))
+            identities_by_type[identity_type.__name__].append(identity.model_dump(mode="json"))
         
         jmespath_data = {
             "identities": identities_by_type,
-            "resource": json.loads(resource.json()),
+            "resource": resource.model_dump(mode="json"),
             "resource_type": type(resource).__name__,
             "resource_action": str(resource_action),
             "parent_resources": parent_resources_by_type,
@@ -901,7 +891,7 @@ class Authzee:
         parent_resources_by_type = {parent_type.__name__: [] for parent_type in self._resource_to_authz_lookup[resource_type].parent_resource_types}
         for parent_resource in parent_resources:
             parent_type = type(parent_resource)
-            parent_resources_by_type[parent_type.__name__].append(json.loads(parent_resource.json()))
+            parent_resources_by_type[parent_type.__name__].append(parent_resource.model_dump(mode="json"))
         
         child_resources_by_type = {child_type.__name__: [] for child_type in self._resource_to_authz_lookup[resource_type].child_resource_types}
         for child_resource in child_resources:
@@ -909,12 +899,12 @@ class Authzee:
             if child_type.__name__ not in child_resources_by_type:
                 child_resources_by_type[child_type.__name__] = []
             
-            child_resources_by_type[child_type.__name__].append(json.loads(child_resource.json()))
+            child_resources_by_type[child_type.__name__].append(child_resource.model_dump(mode="json"))
 
         identities_by_type = {identity_name: [] for identity_name in self._identity_type_names}
         for identity in identities:
             identity_type = type(identity)
-            identities_by_type[identity_type.__name__].append(json.loads(identity.json()))
+            identities_by_type[identity_type.__name__].append(identity.model_dump(mode="json"))
         
         jmespath_data = {
             "identities": identities_by_type,
@@ -926,7 +916,7 @@ class Authzee:
         data_entries = []
         for resource in resources:
             new_jmespath_data = copy.deepcopy(jmespath_data)
-            new_jmespath_data['resource'] = json.loads(resource.json())
+            new_jmespath_data['resource'] = resource.model_dump(mode="json")
             data_entries.append(new_jmespath_data)
 
         return data_entries
@@ -970,43 +960,31 @@ class Authzee:
             parent_type = type(parent_resource)
             if parent_type not in self._resource_types:
                 raise exceptions.InputVerificationError(
-                    "Parent resource type '{}' is not a registered resource.".format(
-                        parent_type.__name__
-                    )
+                    f"Parent resource type '{parent_type.__name__}' is not a registered resource."
                 )
             
-            if type(self._resource_to_authz_lookup[parent_type]) not in resource_authz_inst._parent_authz_types:
+            if parent_type not in resource_authz_inst.parent_resource_types:
                 raise exceptions.InputVerificationError(
-                    "Resource type '{}' is not a registered parent resource type of '{}'".format(
-                        parent_type.__name__,
-                        resource_type.__name__
-                    )
+                    f"Resource type '{parent_type.__name__}' is not a registered parent resource type of '{resource_type.__name__}'"
                 )
         
         for child_resource in child_resources:
             child_type = type(child_resource)
             if child_type not in self._resource_types:
                 raise exceptions.InputVerificationError(
-                    "Parent resource type '{}' is not a registered resource.".format(
-                        child_type.__name__
-                    )
+                    f"Parent resource type '{child_type.__name__}' is not a registered resource."
                 )
             
-            if type(self._resource_to_authz_lookup[child_type]) not in resource_authz_inst._child_authz_types:
+            if child_type not in resource_authz_inst.child_resource_types:
                 raise exceptions.InputVerificationError(
-                    "Resource type '{}' is not a registered child resource type of '{}'".format(
-                        child_type.__name__,
-                        resource_type.__name__
-                    )
+                    f"Resource type '{child_type.__name__}' is not a registered child resource type of '{resource_type.__name__}'" 
                 )
 
         for identity in identities:
             identity_type = type(identity)
             if identity_type not in self._identity_types:
                 raise exceptions.InputVerificationError(
-                    "Identity type '{}' is not registered".format(
-                        identity_type.__name__
-                    )
+                    f"Identity type '{identity_type.__name__}' is not registered"
                 )
 
 
@@ -1042,9 +1020,7 @@ class Authzee:
         for resource in resources:
             if isinstance(resource, resource_type) is False:
                 raise exceptions.InputVerificationError(
-                    "All resources must be of the same type: {} is not of type {}".format(
-                        resource, resource_type
-                    )
+                    f"All resources must be of the same type: '{resource}' is not of type '{resource_type}'."
                 )
         
         self._verify_auth_args(
@@ -1072,9 +1048,7 @@ class Authzee:
         resource_type = grant.resource_type
         if resource_type not in self._resource_types:
             raise exceptions.InputVerificationError(
-                "Resource type '{}' is not a part of any registered ResourceAuthzs.".format(
-                    resource_type.__name__
-                )
+                f"Resource type '{resource_type.__name__}' is not a part of any registered ResourceAuthzs."
             )
         
         if len(grant.actions) < 1:
@@ -1085,17 +1059,12 @@ class Authzee:
             resource_action_type = type(resource_action)
             if resource_action_type not in self._resource_action_types:
                 raise exceptions.InputVerificationError(
-                    "ResourceAction type '{}' is not registered.".format(
-                        resource_action_type.__name__
-                    )
+                    f"ResourceAction type '{resource_action_type.__name__}' is not registered."
                 )
 
             if resource_action_type != resource_authz_inst.resource_action_type:
                 raise exceptions.InputVerificationError(
-                    "The '{}' resource action does not apply to the '{}' resource type.".format(
-                        resource_action,
-                        resource_type.__name__
-                    )
+                    "The '{resource_action}' resource action does not apply to the '{resource_type.__name__}' resource type."
                 )
 
 
@@ -1121,27 +1090,20 @@ class Authzee:
         if resource_type is not None:
             if resource_type not in self._resource_types:
                 raise exceptions.InputVerificationError(
-                    "Resource type '{}' is not a part of any registered ResourceAuthzs.".format(
-                        resource_type.__name__
-                    )
+                    f"Resource type '{resource_type.__name__}' is not a part of any registered ResourceAuthzs."
                 )
 
         if resource_action is not None:
             resource_action_type = type(resource_action)
             if resource_action_type not in self._resource_action_types:
                 raise exceptions.InputVerificationError(
-                    "ResourceAction type '{}' is not registered.".format(
-                        resource_action_type.__name__
-                    )
+                    f"ResourceAction type '{resource_action_type.__name__}' is not registered."
                 )
 
             resource_authz_inst = self._resource_to_authz_lookup[resource_type]
             if resource_action_type != resource_authz_inst.resource_action_type:
                 raise exceptions.InputVerificationError(
-                    "The '{}' resource action type does not apply to the '{}' resource type.".format(
-                        resource_action_type,
-                        resource_type.__name__
-                    )
+                    f"The '{resource_action_type}' resource action type does not apply to the '{resource_type.__name__}' resource type."
                 )
 
 
@@ -1160,5 +1122,7 @@ class Authzee:
             Error with grant effect type.
         """
         if type(effect) != GrantEffect:
-            raise exceptions.InputVerificationError("Must use a GrantEffect, but '{}' was given.".format(effect)) 
+            raise exceptions.InputVerificationError(
+                f"Must use a GrantEffect, but '{effect}' was given."
+            )
 
