@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Dict, Optional, Set, Type, Union
 from typing_extensions import Annotated
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_serializer, validator
 
 from authzee.resource_action import ResourceAction
 
@@ -23,6 +23,11 @@ class Grant(BaseModel):
     ] # store as json string
     storage_id: Optional[str] = None # Leave as a string so storage can decide what it wants
     uuid: Optional[str] = None
+
+
+    @field_serializer("resource_type")
+    def resource_type_serialize(rt: Type[BaseModel]) -> str:
+        return rt.__name__
 
 
     @validator("actions")

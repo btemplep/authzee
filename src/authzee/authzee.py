@@ -127,10 +127,9 @@ class Authzee:
 
     
     async def shutdown(self) -> None:
-        """Early clean up of resources for authzee.
+        """Clean up of resources for the authzee app.
 
-        If for some reason you don't want the authzee app to last the life of the program,
-        you can clean up the heavier resources with this function. 
+        Should be called on program shutdown to clean up async connections etc.
 
         Examples
         --------

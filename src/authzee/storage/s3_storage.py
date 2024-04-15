@@ -28,7 +28,7 @@ from authzee.storage_flag import StorageFlag
 
 class S3PageRef(BaseModel):
         prefix: str
-        s3_next_token: str
+        s3_next_token: Union[str, None]
 
 
 class S3Storage(StorageBackend):
@@ -87,6 +87,8 @@ class S3Storage(StorageBackend):
         )
         self._aes = AsyncExitStack()
         self._action_to_rt: Dict[ResourceAction, BaseModel] = {}
+        self._name_to_rt: Dict[str, BaseModel] = {}
+        self._rt_to_action: Dict[BaseModel, ResourceAction] = {}
 
 
     async def initialize(
@@ -116,6 +118,8 @@ class S3Storage(StorageBackend):
         for authz in self._resource_authzs:
             for action in authz.resource_action_type:
                 self._action_to_rt[action] = authz.resource_type
+                self._name_to_rt[authz.resource_type.__name__] = authz.resource_type
+                self._rt_to_action[authz.resource_type] = authz.resource_action_type
         
     
     async def shutdown(self) -> None:
@@ -161,14 +165,15 @@ class S3Storage(StorageBackend):
         grant = self._check_uuid(grant=grant, generate_uuid=True)
         actions = [a.value for a in grant.actions]
         actions.sort()
-        filter_key = f"grants/{effect}/by_resource_type/{grant.resource_type}/{"-".join(actions)}"
+        acts = "-".join(actions)
+        filter_key = f"{self._prefix}/grants/{effect}/by_resource_type/{grant.resource_type.__name__}/{acts}"
         store_task = asyncio.create_task(
             self._s3_client.put_object(
                 **{
                     **self._put_object_kwargs,
                     "Body": grant.model_dump_json(),
                     "Bucket": self._bucket,
-                    "Key": f"grants/{effect.value}/by_uuid/{grant.uuid}.json"
+                    "Key": f"{self._prefix}/grants/{effect}/by_uuid/{grant.uuid}.json"
                 }
             )
         )
@@ -202,18 +207,12 @@ class S3Storage(StorageBackend):
         authzee.exceptions.MethodNotImplementedError
             ``StorageBackend`` sub-classes *may* implement this method if ``async`` is supported.
         """
-        key = f"grants/{effect.value}/by_uuid/{uuid}.json"
-        grant_resp = await self._s3_client.get_object(
-            **{
-                **self._get_object_kwargs,
-                "Bucket": self._bucket,
-                "Key": key
-            }
-        )
-        grant = Grant.model_validate_json(await grant_resp['Body'].read())
+        key = f"{self._prefix}/grants/{effect}/by_uuid/{uuid}.json"
+        grant = await self._get_grant(effect=effect, uuid=uuid)
         actions = [a.value for a in grant.actions]
         actions.sort()
-        filter_key = f"grants/{effect}/by_resource_type/{grant.resource_type}/{"-".join(actions)}"
+        acts = "-".join(actions)
+        filter_key = f"{self._prefix}/grants/{effect}/by_resource_type/{grant.resource_type.__name__}/{acts}"
         store_task = asyncio.create_task(
             self._s3_client.delete_object(
                 **{
@@ -246,7 +245,24 @@ class S3Storage(StorageBackend):
 
 
     def _model_to_ref(self, s3_ref: S3PageRef) -> str:
-        return base64.b64encode(s3_ref.model_dump_json()).decode("ascii")
+        return base64.b64encode(
+            s3_ref.model_dump_json().encode("ascii")
+        ).decode("ascii")
+    
+
+    async def _get_grant(self, effect: GrantEffect, uuid: str) -> Grant:
+        grant_ob = await self._s3_client.get_object(
+            **self._get_object_kwargs,
+            Bucket=self._bucket,
+            Key=f"{self._prefix}/grants/{effect}/by_uuid/{uuid}.json"
+        )
+        body = await grant_ob['Body'].read()
+        body = json.loads(body)
+        body['resource_type'] = self._name_to_rt[body['resource_type']]
+        action_type = self._rt_to_action[body['resource_type']]
+        body['actions'] = set([action_type[a] for a in body['actions']])
+
+        return Grant(**body)
 
 
     async def get_raw_grants_page(
@@ -301,11 +317,6 @@ class S3Storage(StorageBackend):
         if page_ref is not None:
             s3_ref = self._ref_to_model(page_ref=page_ref)
 
-        # if no filters then just list Lookup
-        # if resource type then list over all action combos fo resource type
-        # if action, then find which resource type has that ResourceAction
-        #      list over the resource type and find a matching action
-        #     if action then it doesn't matter about type because action is unique to type
         if (
             resource_type is None
             and resource_action is None
@@ -323,14 +334,21 @@ class S3Storage(StorageBackend):
             obj_page = await self._s3_client.list_objects_v2(
                 **list_kwargs
             )
-            next_s3_ref = S3PageRef(
-                prefix=ob['Key'],
-                s3_next_token=obj_page.get("NextContinuationToken", None)
-            )
+            obj_page['authzee_effect'] = effect.value
+            cont_token = obj_page.get("NextContinuationToken", None)
+            if cont_token is None:
+                next_page_ref = None
+            else:
+                next_page_ref = self._model_to_ref(
+                    S3PageRef(
+                        prefix=prefix,
+                        s3_next_token=cont_token
+                    )
+                )
 
             return RawGrantsPage(
                 raw_grants=obj_page,
-                next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
+                next_page_ref=next_page_ref
             )
 
         elif (
@@ -338,7 +356,7 @@ class S3Storage(StorageBackend):
             and resource_action is None
         ):
             # filter by resource type only
-            prefix += f"by_resource_type/{resource_type}/"
+            prefix += f"by_resource_type/{resource_type.__name__}/"
             list_kwargs = {
                 **self._list_objects_kwargs,
                 "Bucket": self._bucket,
@@ -350,14 +368,21 @@ class S3Storage(StorageBackend):
             obj_page = await self._s3_client.list_objects_v2(
                 **list_kwargs
             )
-            next_s3_ref = S3PageRef(
-                prefix=prefix,
-                s3_next_token=obj_page.get("NextContinuationToken", None)
-            )
+            obj_page['authzee_effect'] = effect.value
+            cont_token = obj_page.get("NextContinuationToken", None)
+            if cont_token is None:
+                next_page_ref = None
+            else:
+                next_page_ref = self._model_to_ref(
+                    S3PageRef(
+                        prefix=prefix,
+                        s3_next_token=cont_token
+                    )
+                )
 
             return RawGrantsPage(
                 raw_grants=obj_page,
-                next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
+                next_page_ref=next_page_ref
             )
 
         # if resource action is not None, it doesn't matter what resource type is
@@ -366,7 +391,7 @@ class S3Storage(StorageBackend):
             if resource_type is None:
                 resource_type  = self._action_to_rt[resource_action]
 
-            prefix += f"by_resource_type/{resource_type}/"
+            prefix += f"by_resource_type/{resource_type.__name__}/"
             if s3_ref is None:
                 ap_pager = self._s3_client.get_paginator("list_objects_v2")
                 async for page in ap_pager.paginate(
@@ -377,18 +402,23 @@ class S3Storage(StorageBackend):
                         "Delimiter": "/"
                     }
                 ):
-                    for ob in page['Contents']:
-                        action_strs = ob['Key'].split("/")[-2].split("-")
-                        if str(resource_action) in action_strs:
+                    if "CommonPrefixes" not in page:
+                        break
+
+                    for p in page['CommonPrefixes']:
+                        cp: str = p['Prefix']
+                        action_strs = cp.split("/")[-2].split("-")
+                        if resource_action.value in action_strs:
                             obj_page = await self._s3_client.list_objects_v2(
                                 **{
                                     **self._list_objects_kwargs,
                                     "Bucket": self._bucket,
-                                    "Prefix": ob['Key']
+                                    "Prefix": cp
                                 }
                             )
+                            obj_page['authzee_effect'] = effect.value
                             next_s3_ref = S3PageRef(
-                                prefix=ob['Key'],
+                                prefix=cp,
                                 s3_next_token=obj_page.get("NextContinuationToken", None)
                             )
 
@@ -409,18 +439,23 @@ class S3Storage(StorageBackend):
                             "StartAfter": s3_ref.prefix # start 
                         }
                     ):
-                        for ob in page['Contents']:
-                            action_strs = ob['Key'].split("/")[-2].split("-")
-                            if str(resource_action) in action_strs:
+                        if "CommonPrefixes" not in page:
+                            break
+
+                        for p in page['CommonPrefixes']:
+                            cp: str = p['Prefix']
+                            action_strs = cp.split("/")[-2].split("-")
+                            if resource_action.value in action_strs:
                                 obj_page = await self._s3_client.list_objects_v2(
                                     **{
                                         **self._list_objects_kwargs,
                                         "Bucket": self._bucket,
-                                        "Prefix": ob['Key']
+                                        "Prefix": cp
                                     }
                                 )
+                                obj_page['authzee_effect'] = effect.value
                                 next_s3_ref = S3PageRef(
-                                    prefix=ob['Key'],
+                                    prefix=cp,
                                     s3_next_token=obj_page.get("NextContinuationToken", None)
                                 )
 
@@ -430,7 +465,6 @@ class S3Storage(StorageBackend):
                                 )
                 else:
                     # else we just run the next token
-                    prefix = s3_ref.prefix
                     obj_page = await self._s3_client.list_objects_v2(
                         **{
                             **self._list_objects_kwargs,
@@ -439,8 +473,9 @@ class S3Storage(StorageBackend):
                             "ContinuationToken": s3_ref.s3_next_token
                         }
                     )
+                    obj_page['authzee_effect'] = effect.value
                     next_s3_ref = S3PageRef(
-                        prefix=ob['Key'],
+                        prefix=s3_ref.prefix,
                         s3_next_token=obj_page.get("NextContinuationToken", None)
                     )
 
@@ -477,7 +512,29 @@ class S3Storage(StorageBackend):
         authzee.exceptions.MethodNotImplementedError
             ``StorageBackend`` sub-classes must implement this method.
         """
-        raise exceptions.MethodNotImplementedError()
+        if (
+            raw_grants_page.raw_grants is None
+            or "Contents" not in raw_grants_page.raw_grants
+        ):
+            return GrantsPage(grants=[], next_page_ref=raw_grants_page.next_page_ref)
+        
+        effect = GrantEffect[raw_grants_page.raw_grants['authzee_effect']]
+        tasks = []
+        for ob in raw_grants_page.raw_grants['Contents']:
+            tasks.append(
+                self._get_grant(
+                    effect=effect,
+                    # split key to get the UUID, split again to remove file extension if present.
+                    uuid=ob['Key'].split("/")[-1].split(".")[0] 
+                )
+            )
+
+        return GrantsPage(
+            grants=await asyncio.gather(*tasks),
+            next_page_ref=raw_grants_page.next_page_ref
+        )
+
+        
     
     
     async def create_flag(self) -> StorageFlag:
@@ -588,7 +645,7 @@ class S3Storage(StorageBackend):
                 {
                     **self._delete_object_kwargs,
                     "Bucket": self._bucket,
-                    "Key": "{self._prefix}/flags/{uuid}.json"
+                    "Key": f"{self._prefix}/flags/{uuid}.json"
                 }
             )
         except botocore.exceptions.ClientError as exc:
