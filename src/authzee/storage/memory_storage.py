@@ -81,7 +81,9 @@ class MemoryStorage(StorageBackend):
                 self._deny_grants_lookup.pop(uuid)
                 return 
 
-        raise exceptions.GrantDoesNotExistError("{} Grant with UUID '{}' does not exist.".format(effect.value, uuid))
+        raise exceptions.GrantDoesNotExistError(
+            f"{effect.value} Grant with UUID '{uuid}' does not exist.")
+
 
     async def get_raw_grants_page(
         self, 
@@ -115,7 +117,7 @@ class MemoryStorage(StorageBackend):
             grants = [grant for grant in grants if grant.resource_type == resource_type]
         
         if resource_action is not None:
-            grants = [grant for grant in grants if resource_action in grant.resource_actions]
+            grants = [grant for grant in grants if resource_action in grant.actions]
         
         return RawGrantsPage(
             raw_grants=grants,
@@ -141,11 +143,7 @@ class MemoryStorage(StorageBackend):
         StorageFlag
             New storage flag. 
         """
-        new_flag = StorageFlag(
-            uuid=str(uuid.uuid4()),
-            is_set=False,
-            created_at=datetime.datetime.now(tz=datetime.timezone.utc)
-        )
+        new_flag = StorageFlag()
         self._flags_lookup[new_flag.uuid] = new_flag
 
         return copy.deepcopy(new_flag)

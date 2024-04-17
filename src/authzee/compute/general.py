@@ -14,22 +14,24 @@ def grant_matches(
     jmespath_options: Union[jmespath.Options, None]
 ) -> bool:
     import json
-    logger.debug("JMESPath Data: {}".format(json.dumps(jmespath_data, indent=4)))
-    logger.debug("JMESPath Expression: {}".format(grant.jmespath_expression))
+    logger.debug(f"JMESPath Data: {json.dumps(jmespath_data, indent=4)}")
+    logger.debug(f"JMESPath Expression: {grant.expression}")
+    jmespath_data['context'] = grant.context
     try:
         result = jmespath.search(
-            grant.jmespath_expression, 
+            grant.expression, 
             jmespath_data, 
             options=jmespath_options
         )
-        logger.debug("JMESPath Expression Value: {}".format(result))
+        logger.debug(f"JMESPath Expression Value: {result}")
     except jmespath.exceptions.JMESPathError as error:
-        logger.debug("JMESPath Search error: {}".format(error))
+        logger.debug(f"JMESPath Search error: {error}")
         return False
 
-    logger.debug("JMESPath result == result_match: {}".format(result == grant.result_match))
+    jmespath_data.pop("context")
+    logger.debug(f"JMESPath result == equality: {result == grant.equality}")
 
-    return result == grant.result_match
+    return result == grant.equality
 
 
 def authorize_many_grants(

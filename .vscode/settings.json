@@ -1,6 +1,7 @@
 {
     "autoDocstring.docstringFormat": "numpy",
     "cSpell.words": [
+        "aioboto",
         "aiosqlite",
         "argnames",
         "argvalues",
@@ -10,6 +11,7 @@
         "autoclass",
         "automodule",
         "beatdrop",
+        "botocore",
         "caplog",
         "croniter",
         "dataclass",
@@ -37,6 +39,7 @@
         "modindex",
         "Multiprocess",
         "noindex",
+        "pagey",
         "Pickler",
         "pids",
         "processpoolexecutor",

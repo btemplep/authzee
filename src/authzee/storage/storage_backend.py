@@ -196,7 +196,8 @@ class StorageBackend:
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
         page_ref : Optional[str], optional
-            The reference to the next page that is returned in ``RawGrantsPage``.
+            The reference to the next page that is returned in ``RawGrantsPage``, 
+            or one of the page references from ``StorageBackend.get_page_ref_page()`` (if parallel pagination is supported.) .
             By default this will return the first page.
 
         Returns
@@ -236,11 +237,30 @@ class StorageBackend:
         raise exceptions.MethodNotImplementedError()
     
 
-    async def get_page_ref_page(self, page_ref: str) -> PageRefsPage:
+    async def get_page_ref_page(
+        self,
+        effect: GrantEffect,
+        resource_type: Optional[Type[BaseModel]] = None,
+        resource_action: Optional[ResourceAction] = None,
+        page_size: Optional[int] = None,
+        page_ref: Optional[str] = None
+    ) -> PageRefsPage:
         """Get a page of page references for parallel pagination. 
 
         Parameters
         ----------
+        effect : GrantEffect
+            The effect of the grant.
+        resource_type : Optional[Type[BaseModel]], optional
+            Filter by resource type.
+            By default no filter is applied.
+        resource_action : Optional[ResourceAction], optional
+            Filter by `ResourceAction``. 
+            By default no filter is applied.
+        page_size : Optional[int], optional
+            The suggested page size to return. 
+            There is no guarantee of how much data will be returned if any.
+            The default is set on the storage backend. 
         page_ref : str
             Page reference for the next page of page references.
 

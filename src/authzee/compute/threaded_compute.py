@@ -428,9 +428,7 @@ class ThreadedCompute(ComputeBackend):
  
 def _executor_init(jmespath_options: jmespath.Options) -> None:
     # each thread must get it's own copy of jmespath options and be able to retrieve it
-    thread_var_name = "authzee_jmespath_options_t_{}".format(
-        threading.get_ident()
-    )
+    thread_var_name = f"authzee_jmespath_options_t_{threading.get_ident()}"
     globals()[thread_var_name] = deepcopy(jmespath_options)
 
 
@@ -440,9 +438,7 @@ def _executor_authorize_deny(
     jmespath_data: Dict[str, Any],
     cancel_event: Dict[str, bool]
 ) -> bool:
-    options_var = "authzee_jmespath_options_t_{}".format(
-        threading.get_ident()
-    )
+    options_var = f"authzee_jmespath_options_t_{threading.get_ident()}"
     jmespath_options = globals()[options_var]
     loop = get_event_loop()
     grants_page = loop.run_until_complete(
@@ -471,9 +467,7 @@ def _executor_authorize_allow(
     cancel_event: Dict[str, bool],
     allow_match_event: Dict[str, bool]
 ) -> bool:
-    options_var = "authzee_jmespath_options_t_{}".format(
-        threading.get_ident()
-    )
+    options_var = f"authzee_jmespath_options_t_{threading.get_ident()}"
     jmespath_options = globals()[options_var]
     loop = get_event_loop()
     grants_page = loop.run_until_complete(
@@ -503,9 +497,7 @@ def _executor_authorize_many(
     raw_grants_page: RawGrantsPage,
     jmespath_data_entries: List[Dict[str, Any]]
 ) -> List[bool]:
-    options_var = "authzee_jmespath_options_t_{}".format(
-        threading.get_ident()
-    )
+    options_var = f"authzee_jmespath_options_t_{threading.get_ident()}"
     jmespath_options = globals()[options_var]
     loop = get_event_loop()
     grants_page = loop.run_until_complete(
@@ -524,9 +516,7 @@ def _executor_matching_grants(
     raw_grants_page: RawGrantsPage,
     jmespath_data: Dict[str, Any]
 ) -> List[Grant]:
-    options_var = "authzee_jmespath_options_t_{}".format(
-        threading.get_ident()
-    )
+    options_var = f"authzee_jmespath_options_t_{threading.get_ident()}"
     jmespath_options = globals()[options_var]
     loop = get_event_loop()
     grants_page = loop.run_until_complete(

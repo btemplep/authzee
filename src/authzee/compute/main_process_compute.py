@@ -12,7 +12,7 @@ from authzee.resource_action import ResourceAction
 
 
 class MainProcessCompute(ComputeBackend):
-    """Process grants directly.
+    """Process grants in this process.
 
     """
 
