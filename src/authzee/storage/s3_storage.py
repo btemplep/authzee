@@ -32,26 +32,31 @@ class S3PageRef(BaseModel):
 
 
 class S3Storage(StorageBackend):
-    """
+    """AWS S3 storage backend.
 
-    Stores all data in S3. (No parallel pagination :(
+    Store grants and flags as objects in an S3 bucket.
 
-    bucket-name/prefix/path/
-    - /grants/{ALLOW or DENY}/by_uuid/{grant UUID}.json
-        - holds actual object data
+    **NOTE** - Must call ``shutdown()`` on exit.
 
-    - /grants/{ALLOW or DENY}/by_resource_type/{resource type}/{ACTION1}-{ACTION2}-{ACTIONn}/{grant UUID}
-        - holds empty object but is good for filters
-
-    - /flags/{flag UUID}.json
-        - holds flags
-
-
-    catches:
-    
-    - Must call shutdown!
-
-    - aioboto3 session must auto refresh
+    Parameters
+    ----------
+    bucket : str
+        Bucket for storage.
+    prefix : str
+        Prefix for objects in the bucket.
+    aioboto3_session : Optional[aioboto3.Session], optional
+        aioboto3 ``Session`` object to create clients with.
+        By default one will be created with no arguments.
+    s3_client_kwargs : Optional[Dict[str, Any]], optional
+        Additional kwargs for when creating the S3 client, by default None
+    list_objects_kwargs : Optional[Dict[str, Any]], optional
+        Additional kwargs for calling ``list_objects_v2`` , by default None
+    get_object_kwargs : Optional[Dict[str, Any]], optional
+        Additional kwargs for calling ``get_object`` , by default None
+    put_object_kwargs : Optional[Dict[str, Any]], optional
+        Additional kwargs for calling ``put_object`` , by default None
+    delete_object_kwargs : Optional[Dict[str, Any]], optional
+        Additional kwargs for calling ``delete_object``, by default None
     """
 
     def __init__(
@@ -167,27 +172,25 @@ class S3Storage(StorageBackend):
         actions.sort()
         acts = "-".join(actions)
         filter_key = f"{self._prefix}/grants/{effect}/by_resource_type/{grant.resource_type.__name__}/{acts}"
-        store_task = asyncio.create_task(
-            self._s3_client.put_object(
-                **{
-                    **self._put_object_kwargs,
-                    "Body": grant.model_dump_json(),
-                    "Bucket": self._bucket,
-                    "Key": f"{self._prefix}/grants/{effect}/by_uuid/{grant.uuid}.json"
-                }
-            )
+        # first put the seed object before filters to avoid race conditions
+        # where a filter list is ran but the actual seed object doesn't exist yet.
+        await self._s3_client.put_object(
+            **{
+                **self._put_object_kwargs,
+                "Body": grant.model_dump_json(),
+                "Bucket": self._bucket,
+                "Key": f"{self._prefix}/grants/{effect}/by_uuid/{grant.uuid}.json"
+            }
         )
-        lookup_task = asyncio.create_task(
-            self._s3_client.put_object(
-                **{
-                    **self._put_object_kwargs,
-                    "Body": "",
-                    "Bucket": self._bucket,
-                    "Key": f"{filter_key}/{grant.uuid}"
-                }
-            )
+         # Then put filter object
+        await self._s3_client.put_object(
+            **{
+                **self._put_object_kwargs,
+                "Body": "",
+                "Bucket": self._bucket,
+                "Key": f"{filter_key}/{grant.uuid}"
+            }
         )
-        await asyncio.gather(store_task, lookup_task)
 
         return grant
 
@@ -213,6 +216,7 @@ class S3Storage(StorageBackend):
         actions.sort()
         acts = "-".join(actions)
         filter_key = f"{self._prefix}/grants/{effect}/by_resource_type/{grant.resource_type.__name__}/{acts}"
+        # When deleting a grant there is a race condition either way that is handled when normalized
         store_task = asyncio.create_task(
             self._s3_client.delete_object(
                 **{
@@ -313,52 +317,23 @@ class S3Storage(StorageBackend):
         """
         prefix = f"{self._prefix}/grants/{effect}/"
         s3_ref = None
-        list_kwargs = {}
+        list_kwargs = {**self._list_objects_kwargs}
+        if page_size is not None:
+            list_kwargs['MaxKeys'] = page_size
+
         if page_ref is not None:
             s3_ref = self._ref_to_model(page_ref=page_ref)
 
-        if (
-            resource_type is None
-            and resource_action is None
-        ):
+        if resource_action is None:
             # if no filters list from the lookup table
-            prefix += "by_uuid/"
-            list_kwargs = {
-                **self._list_objects_kwargs,
-                "Bucket": self._bucket,
-                "Prefix": prefix,
-            }
-            if s3_ref is not None:
-                list_kwargs['ContinuationToken'] = s3_ref.s3_next_token
-            
-            obj_page = await self._s3_client.list_objects_v2(
-                **list_kwargs
-            )
-            obj_page['authzee_effect'] = effect.value
-            cont_token = obj_page.get("NextContinuationToken", None)
-            if cont_token is None:
-                next_page_ref = None
-            else:
-                next_page_ref = self._model_to_ref(
-                    S3PageRef(
-                        prefix=prefix,
-                        s3_next_token=cont_token
-                    )
-                )
-
-            return RawGrantsPage(
-                raw_grants=obj_page,
-                next_page_ref=next_page_ref
-            )
-
-        elif (
-            resource_type is not None
-            and resource_action is None
-        ):
+            if resource_type is None:
+                prefix += "by_uuid/"
             # filter by resource type only
-            prefix += f"by_resource_type/{resource_type.__name__}/"
+            else:
+                prefix += f"by_resource_type/{resource_type.__name__}/"
+
             list_kwargs = {
-                **self._list_objects_kwargs,
+                **list_kwargs,
                 "Bucket": self._bucket,
                 "Prefix": prefix
             }
@@ -385,25 +360,49 @@ class S3Storage(StorageBackend):
                 next_page_ref=next_page_ref
             )
 
-        # if resource action is not None, it doesn't matter what resource type is
+        # else resource action is not None, therefore resource type is not None
         # since actions only map to one resource type
         else:
             if resource_type is None:
-                resource_type  = self._action_to_rt[resource_action]
+                resource_type = self._action_to_rt[resource_action]
 
             prefix += f"by_resource_type/{resource_type.__name__}/"
-            if s3_ref is None:
-                ap_pager = self._s3_client.get_paginator("list_objects_v2")
-                async for page in ap_pager.paginate(
+            # if we have another page on the current prefix then get that
+            if s3_ref is not None and s3_ref.s3_next_token is not None:
+                obj_page = await self._s3_client.list_objects_v2(
                     **{
-                        **self._list_objects_kwargs,
+                        **list_kwargs,
                         "Bucket": self._bucket,
-                        "Prefix": prefix,
-                        "Delimiter": "/"
+                        "Prefix": s3_ref.prefix,
+                        "ContinuationToken": s3_ref.s3_next_token
                     }
-                ):
+                )
+                obj_page['authzee_effect'] = effect.value
+                next_s3_ref = S3PageRef(
+                    prefix=s3_ref.prefix,
+                    s3_next_token=obj_page.get("NextContinuationToken", None)
+                )
+
+                return RawGrantsPage(
+                    raw_grants=obj_page,
+                    next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
+                )
+            # else no ref was passed or we need a new prefix/token
+            else:
+                prefix_list_kwargs = {
+                    **self._list_objects_kwargs,
+                    "Bucket": self._bucket,
+                    "Prefix": prefix,
+                    "Delimiter": "/"
+                }
+                # need a new prefix
+                if s3_ref is not None and s3_ref.s3_next_token is None:
+                    prefix_list_kwargs['StartAfter'] = s3_ref.prefix 
+
+                ap_pager = self._s3_client.get_paginator("list_objects_v2")
+                async for page in ap_pager.paginate(**prefix_list_kwargs):
                     if "CommonPrefixes" not in page:
-                        break
+                        continue
 
                     for p in page['CommonPrefixes']:
                         cp: str = p['Prefix']
@@ -411,7 +410,7 @@ class S3Storage(StorageBackend):
                         if resource_action.value in action_strs:
                             obj_page = await self._s3_client.list_objects_v2(
                                 **{
-                                    **self._list_objects_kwargs,
+                                    **list_kwargs,
                                     "Bucket": self._bucket,
                                     "Prefix": cp
                                 }
@@ -426,63 +425,6 @@ class S3Storage(StorageBackend):
                                 raw_grants=obj_page,
                                 next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
                             )
-            else:
-                if s3_ref.s3_next_token is None:
-                    # if the next is none then we need to find the next actions prefix
-                    ap_pager = self._s3_client.get_paginator("list_objects_v2")
-                    async for page in ap_pager.paginate(
-                        **{
-                            **self._list_objects_kwargs,
-                            "Bucket": self._bucket,
-                            "Prefix": prefix,
-                            "Delimiter": "/",
-                            "StartAfter": s3_ref.prefix # start 
-                        }
-                    ):
-                        if "CommonPrefixes" not in page:
-                            break
-
-                        for p in page['CommonPrefixes']:
-                            cp: str = p['Prefix']
-                            action_strs = cp.split("/")[-2].split("-")
-                            if resource_action.value in action_strs:
-                                obj_page = await self._s3_client.list_objects_v2(
-                                    **{
-                                        **self._list_objects_kwargs,
-                                        "Bucket": self._bucket,
-                                        "Prefix": cp
-                                    }
-                                )
-                                obj_page['authzee_effect'] = effect.value
-                                next_s3_ref = S3PageRef(
-                                    prefix=cp,
-                                    s3_next_token=obj_page.get("NextContinuationToken", None)
-                                )
-
-                                return RawGrantsPage(
-                                    raw_grants=obj_page,
-                                    next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
-                                )
-                else:
-                    # else we just run the next token
-                    obj_page = await self._s3_client.list_objects_v2(
-                        **{
-                            **self._list_objects_kwargs,
-                            "Bucket": self._bucket,
-                            "Prefix": s3_ref.prefix,
-                            "ContinuationToken": s3_ref.s3_next_token
-                        }
-                    )
-                    obj_page['authzee_effect'] = effect.value
-                    next_s3_ref = S3PageRef(
-                        prefix=s3_ref.prefix,
-                        s3_next_token=obj_page.get("NextContinuationToken", None)
-                    )
-
-                    return RawGrantsPage(
-                        raw_grants=obj_page,
-                        next_page_ref=self._model_to_ref(s3_ref=next_s3_ref)
-                    )
             
         # If any case is not caught we have nothing left to return
         return RawGrantsPage(
@@ -529,8 +471,25 @@ class S3Storage(StorageBackend):
                 )
             )
 
+        grants: List[Grant] = await asyncio.gather(*tasks, return_exceptions=True)
+        # There is a race condition when deleting grants.
+        # If the grant is listed and then deleted before normalizing we need to handle that
+        # by just removing it from the list and re-raise any other exception
+        keep_grants: List[Grant] = []
+        for grant in grants:
+            if type(grant) is Grant:
+                keep_grants.append(grant)
+
+            elif type(grant) is botocore.exceptions.ClientError:
+                # if error is about the object not existing we pass or else re-raise
+                if grant.response["Error"]["Code"] != "NoSuchKey":
+                    raise grant
+
+            else:
+                raise grant
+
         return GrantsPage(
-            grants=await asyncio.gather(*tasks),
+            grants=keep_grants,
             next_page_ref=raw_grants_page.next_page_ref
         )
 

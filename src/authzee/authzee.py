@@ -1099,6 +1099,7 @@ class Authzee:
                     f"ResourceAction type '{resource_action_type.__name__}' is not registered."
                 )
 
+        if resource_type is not None and resource_action is not None:
             resource_authz_inst = self._resource_to_authz_lookup[resource_type]
             if resource_action_type != resource_authz_inst.resource_action_type:
                 raise exceptions.InputVerificationError(
