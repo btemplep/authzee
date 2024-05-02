@@ -534,7 +534,15 @@ class Authzee:
         return await self._storage_backend.normalize_raw_grants_page(raw_grants_page=raw_grants_page)
     
 
-    async def get_page_ref_page(self, page_ref: str) -> PageRefsPage:
+    async def get_page_ref_page(
+        self, 
+        effect: GrantEffect, 
+        resource_type: Union[BaseModel, None] = None, 
+        resource_action: Union[ResourceAction, None] = None, 
+        page_size: Union[int, None] = None, 
+        refs_page_size: Union[int, None] = None,
+        page_ref: Union[str, None] = None
+    ) -> PageRefsPage:
         """Get a page of page references for parallel pagination. 
 
         **NOTE** - Not all storage backends or storage backend configurations support parallel pagination.
@@ -553,9 +561,24 @@ class Authzee:
                     print("This storage backend supports parallel pagination!")
                 else:
                     print("This storage backend doesn't support parallel pagination :(")
-
         Parameters
         ----------
+        effect : GrantEffect
+            The effect of the grant.
+        resource_type : Optional[Type[BaseModel]], optional
+            Filter by resource type.
+            By default no filter is applied.
+        resource_action : Optional[ResourceAction], optional
+            Filter by `ResourceAction``. 
+            By default no filter is applied.
+        page_size : Optional[int], optional
+            The suggested page size to return. 
+            There is no guarantee of how much data will be returned if any.
+            The default is set on the storage backend. 
+        refs_page_size: Optional[int], optional
+            The suggested page size for the page refs.
+            There is no guarantee of how much data will be returned if any.
+            The default is set on the storage backend.
         page_ref : str
             Page reference for the next page of page references.
 
@@ -567,10 +590,17 @@ class Authzee:
         Raises
         ------
         authzee.exceptions.MethodNotImplementedError
-            Sub-classes should implement this method if this storage backend supports parallel pagination. 
+            ``StorageBackend`` sub-classes must implement this method if this storage backend supports parallel pagination. 
             They must also set the ``parallel_pagination`` flag. 
         """
-        return await self._storage_backend.get_page_ref_page(page_ref=page_ref)
+        return await self._storage_backend.get_page_ref_page(
+            effect=effect,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            page_size=page_size,
+            refs_page_size=refs_page_size,
+            page_ref=page_ref
+        )
 
 
     async def list_matching_grants(

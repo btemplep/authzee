@@ -1,12 +1,14 @@
 
 __all__ = [
     "StorageBackend",
-    "MemoryStorage"
+    "MemoryStorage",
+    "ParallelMemoryStorage"
 ]
 
 from authzee.storage.storage_backend import StorageBackend
 
 from authzee.storage.memory_storage import MemoryStorage
+from authzee.storage.parallel_memory_storage import ParallelMemoryStorage
 try:
     from authzee.storage.sql_storage import SQLNextPageRef
     from authzee.storage.sql_storage import SQLStorage

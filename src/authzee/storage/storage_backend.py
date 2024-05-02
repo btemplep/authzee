@@ -238,12 +238,13 @@ class StorageBackend:
     
 
     async def get_page_ref_page(
-        self,
-        effect: GrantEffect,
-        resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
-        page_size: Optional[int] = None,
-        page_ref: Optional[str] = None
+        self, 
+        effect: GrantEffect, 
+        resource_type: Union[BaseModel, None] = None, 
+        resource_action: Union[ResourceAction, None] = None, 
+        page_size: Union[int, None] = None, 
+        refs_page_size: Union[int, None] = None,
+        page_ref: Union[str, None] = None
     ) -> PageRefsPage:
         """Get a page of page references for parallel pagination. 
 
@@ -261,6 +262,10 @@ class StorageBackend:
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
+        refs_page_size: Optional[int], optional
+            The suggested page size for the page refs.
+            There is no guarantee of how much data will be returned if any.
+            The default is set on the storage backend.
         page_ref : str
             Page reference for the next page of page references.
 
