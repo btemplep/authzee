@@ -51,7 +51,7 @@ class ComputeBackend:
         self,
         backend_locality: BackendLocality,
         supports_parallel_paging: bool,
-        use_parallel_paging: bool = True
+        use_parallel_paging: bool
     ):
         self.backend_locality = backend_locality
         self.supports_parallel_paging = supports_parallel_paging

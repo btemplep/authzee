@@ -52,7 +52,7 @@ class ThreadedCompute(ComputeBackend):
     def __init__(
             self, 
             max_workers: Optional[int] = None,
-            use_parallel_paging: bool = True
+            use_parallel_paging: bool = False
         ):
         super().__init__(
             backend_locality=BackendLocality.PROCESS,
