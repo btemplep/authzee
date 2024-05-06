@@ -1,7 +1,7 @@
 
 import copy
 import datetime
-from typing import Dict, List, Optional, Set, Type
+from typing import Dict, List, Optional, Set, Type, Union
 import uuid
 
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from authzee.backend_locality import BackendLocality
 from authzee.grant import Grant
 from authzee.grant_effect import GrantEffect
 from authzee.grants_page import GrantsPage
+from authzee.page_refs_page import PageRefsPage
 from authzee.raw_grants_page import RawGrantsPage
 from authzee.resource_action import ResourceAction
 from authzee.resource_authz import ResourceAuthz
@@ -18,10 +19,12 @@ from authzee.storage.storage_backend import StorageBackend
 from authzee.storage_flag import StorageFlag
 
 
-class MemoryStorage(StorageBackend):
-    """Storage backend for memory. 
+class ParallelMemoryStorage(StorageBackend):
+    """Test parallel storage backend for memory. 
 
     Stores grants in python native data structures. 
+
+    Offers parallel pagination for testing. 
     """
 
 
@@ -29,12 +32,11 @@ class MemoryStorage(StorageBackend):
         super().__init__(
             backend_locality=BackendLocality.PROCESS,
             default_page_size=10,
-            supports_parallel_paging=False
+            supports_parallel_paging=True
         )
-        self._allow_grants: List[Grant] = []
-        self._allow_grants_lookup: Dict[str, Grant] = {}
-        self._deny_grants: List[Grant] = []
-        self._deny_grants_lookup: Dict[str, Grant] = {}
+        self._grants: Dict[GrantEffect, Dict[str, Grant]] = {}
+        self._grants_rtype: Dict[GrantEffect, Dict[Type[BaseModel], List[str]]] = {}
+        self._grants_action: Dict[GrantEffect, Dict[ResourceAction, List[str]]] = {}
         self._flags_lookup: Dict[str, StorageFlag] = {}
 
 
@@ -44,45 +46,51 @@ class MemoryStorage(StorageBackend):
         resource_authzs: List[ResourceAuthz]
     ) -> None:
         await super().initialize(identity_types, resource_authzs)
+        self._grants[GrantEffect.ALLOW] = {}
+        self._grants[GrantEffect.DENY] = {}
+        self._grants_rtype[GrantEffect.ALLOW] = {}
+        self._grants_rtype[GrantEffect.DENY] = {}
+        self._grants_action[GrantEffect.ALLOW] = {}
+        self._grants_action[GrantEffect.DENY] = {}
+        for ra in resource_authzs:
+            self._grants_rtype[GrantEffect.ALLOW][ra.resource_type] = []
+            self._grants_rtype[GrantEffect.DENY][ra.resource_type] = []
+            for action in ra.action_type:
+                self._grants_action[GrantEffect.ALLOW][action] = []
+                self._grants_action[GrantEffect.DENY][action] = []
 
-    
+
     async def shutdown(self) -> None:
+        pass
+
+
+    async def setup(self) -> None:
         pass
     
     
     async def teardown(self) -> None:
-        self._allow_grants = []
-        self._allow_grants_lookup = {}
-        self._deny_grants = []
-        self._deny_grants_lookup = {}
-        self._flags_lookup = {}
+        pass
 
     
     async def add_grant(self, effect: GrantEffect, grant: Grant) -> Grant:
         new_grant = self._check_uuid(grant=grant, generate_uuid=True)
-        if effect is GrantEffect.ALLOW:
-            self._allow_grants.append(new_grant)
-            self._allow_grants_lookup[new_grant.uuid] = new_grant
-        elif effect is GrantEffect.DENY:
-            self._deny_grants.append(new_grant)
-            self._deny_grants_lookup[new_grant.uuid] = new_grant
+        self._grants[effect][new_grant.uuid] = new_grant
+        self._grants_rtype[effect][grant.resource_type].append(new_grant.uuid)
+        for action in new_grant.actions:
+            self._grants_action[effect][action].append(new_grant.uuid)
 
         return copy.deepcopy(new_grant)
 
 
     async def delete_grant(self, effect: GrantEffect, uuid: str) -> None:
-        if effect is GrantEffect.ALLOW:
-            if uuid in self._allow_grants_lookup:
-                self._allow_grants_lookup.pop(uuid)
-                return
-        
-        if effect is GrantEffect.DENY:
-            if uuid in self._deny_grants_lookup:
-                self._deny_grants_lookup.pop(uuid)
-                return 
+        grant = self._grants[effect].pop(uuid, None)
+        if grant is None: 
+            raise exceptions.GrantDoesNotExistError(
+                f"{effect.value} Grant with UUID '{uuid}' does not exist.")
 
-        raise exceptions.GrantDoesNotExistError(
-            f"{effect.value} Grant with UUID '{uuid}' does not exist.")
+        self._grants_rtype[effect][grant.resource_type].remove(uuid)
+        for action in grant.actions:
+            self._grants_action[effect][action].remove(uuid)
 
 
     async def get_raw_grants_page(
@@ -95,33 +103,31 @@ class MemoryStorage(StorageBackend):
     ) -> RawGrantsPage:
         if page_size is None:
             page_size = self.default_page_size
-        if effect == GrantEffect.ALLOW:
-            grants = self._allow_grants
-        elif effect == GrantEffect.DENY:
-            grants = self._deny_grants
-        
+
+        grant_keys = list(self._grants[effect].keys())
         if page_ref is None:
             start_index = 0
         else:
-            start_index = page_ref + 1
-        
-        end_index = start_index + page_size
-        page_ref = str(end_index)
-        if end_index >= len(grants) - 1:
-            end_index = None
-            page_ref = None
-
-        grants = copy.deepcopy(grants[start_index:end_index])
-        
-        if resource_type is not None:
-            grants = [grant for grant in grants if grant.resource_type == resource_type]
+            start_index = int(page_ref)
         
         if action is not None:
-            grants = [grant for grant in grants if action in grant.actions]
+            grant_keys = self._grants_action[effect][action]
+        elif resource_type is not None:
+            grant_keys = self._grants_rtype[effect][resource_type]
+        
+        end_index = start_index + page_size
+        next_start_index = end_index + 1
+        if next_start_index < len(grant_keys) - 1:
+            page_ref = str(next_start_index)
+        else:
+            page_ref = None
         
         return RawGrantsPage(
-            raw_grants=grants,
-            next_page_ref=None
+            raw_grants={
+                "effect": effect,
+                "uuids": grant_keys
+            },
+            next_page_ref=page_ref
         )
     
 
@@ -129,10 +135,61 @@ class MemoryStorage(StorageBackend):
         self,
         raw_grants_page: RawGrantsPage
     ) -> GrantsPage:
+        effect = raw_grants_page.raw_grants['effect']
+        grants = []
+        for uuid in raw_grants_page.raw_grants['uuids']:
+            try:
+                grants.append(self._grants[effect][uuid])
+            except KeyError:
+                pass
+    
         return GrantsPage(
-            grants=raw_grants_page.raw_grants,
+            grants=copy.deepcopy(grants),
             next_page_ref=raw_grants_page.next_page_ref
         )
+    
+
+    async def get_page_ref_page(
+        self, 
+        effect: GrantEffect, 
+        resource_type: Union[BaseModel, None] = None, 
+        action: Union[ResourceAction, None] = None, 
+        page_size: Union[int, None] = None, 
+        refs_page_size: Union[int, None] = None,
+        page_ref: Union[str, None] = None
+    ) -> PageRefsPage:
+        if page_size is None:
+            page_size = self.default_page_size
+        
+        if refs_page_size is None:
+            refs_page_size = self.default_page_size
+
+        if page_ref is None:
+            start_index = 0
+        else:
+            start_index = int(page_ref) 
+        
+        if action is not None:
+            grant_keys = self._grants_action[effect][action]
+        elif resource_type is not None:
+            grant_keys = self._grants_rtype[effect][resource_type]
+        else:
+            grant_keys = list(self._grants[effect].keys())
+
+        page_refs = []
+        next_page_ref = None
+        for page_start in range(start_index, len(grant_keys), page_size):
+            if len(page_refs) < refs_page_size:
+                page_refs.append(str(page_start))
+            else:
+                next_page_ref = str(page_start)
+                break
+        
+        return PageRefsPage(
+            page_refs=page_refs,
+            next_page_ref=next_page_ref
+        )
+        
     
 
     async def create_flag(self) -> StorageFlag:

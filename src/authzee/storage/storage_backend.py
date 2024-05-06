@@ -43,7 +43,7 @@ class StorageBackend:
     
     Optional async methods:
         - ``get_page_ref_page`` - For parallel pagination.  Retrieve a page of page references. 
-            Set ``parallel_pagination`` flag if this is implemented.
+            Set ``supports_parallel_paging`` flag if this is implemented.
 
     No error checking should be needed for validation of resources, resource_types etc. That should all be handled by ``Authzee``.
 
@@ -59,7 +59,7 @@ class StorageBackend:
         This parameter should not be exposed on the child class.
     default_page_size : int
         For methods that accept ``page_size``, this will be used as the default.
-    parallel_pagination : bool
+    supports_parallel_paging : bool
         Flag for if this storage backend support parallel pagination. 
         If it does then it must implement the ``get_page_ref_page`` async method.
         This parameter should not be exposed as a parameter on the child class.
@@ -70,12 +70,12 @@ class StorageBackend:
         *, 
         backend_locality: BackendLocality,
         default_page_size: int, 
-        parallel_pagination: bool,
+        supports_parallel_paging: bool,
         **kwargs
     ):
         self.backend_locality = backend_locality
         self.default_page_size = default_page_size
-        self.parallel_pagination = parallel_pagination
+        self.supports_parallel_paging = supports_parallel_paging
         self.kwargs = kwargs
         self.initialize_kwargs = {}
 
@@ -168,7 +168,7 @@ class StorageBackend:
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
+        action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
     ) -> RawGrantsPage:
@@ -188,7 +188,7 @@ class StorageBackend:
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         page_size : Optional[int], optional
@@ -238,12 +238,13 @@ class StorageBackend:
     
 
     async def get_page_ref_page(
-        self,
-        effect: GrantEffect,
-        resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
-        page_size: Optional[int] = None,
-        page_ref: Optional[str] = None
+        self, 
+        effect: GrantEffect, 
+        resource_type: Union[BaseModel, None] = None, 
+        action: Union[ResourceAction, None] = None, 
+        page_size: Union[int, None] = None, 
+        refs_page_size: Union[int, None] = None,
+        page_ref: Union[str, None] = None
     ) -> PageRefsPage:
         """Get a page of page references for parallel pagination. 
 
@@ -254,13 +255,17 @@ class StorageBackend:
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         page_size : Optional[int], optional
             The suggested page size to return. 
             There is no guarantee of how much data will be returned if any.
             The default is set on the storage backend. 
+        refs_page_size: Optional[int], optional
+            The suggested page size for the page refs.
+            There is no guarantee of how much data will be returned if any.
+            The default is set on the storage backend.
         page_ref : str
             Page reference for the next page of page references.
 
@@ -273,13 +278,13 @@ class StorageBackend:
         ------
         authzee.exceptions.MethodNotImplementedError
             ``StorageBackend`` sub-classes must implement this method if this storage backend supports parallel pagination. 
-            They must also set the ``parallel_pagination`` flag. 
+            They must also set the ``supports_parallel_paging`` flag. 
         """
-        if self.parallel_pagination is True:
+        if self.supports_parallel_paging is True:
             raise exceptions.MethodNotImplementedError(
                 (
                     "There is an error in the storage backend!"
-                    "This storage backend has marked parallel_pagination as true "
+                    "This storage backend has marked supports_parallel_paging as true "
                     "but it has not implemented the required methods!"
                 )
             )

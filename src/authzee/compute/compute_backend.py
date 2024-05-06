@@ -36,21 +36,26 @@ class ComputeBackend:
         The backend locality this instance of the compute backend supports.
         See ``authzee.backend_locality.BackendLocality`` for more info on what the localites mean.
         This parameter should not be exposed on the child class.
-    parallel_pagination : bool
+    supports_parallel_paging : bool
         Flag for if this compute backend supports parallel pagination if the storage backend does. 
         If ``True``, the compute backend must support getting pages in parallel from the storage backend, 
         and effectively using that functionality in the ``authorize``, ``authorize_many``, and ``get_matching_grants_page`` methods.
         This parameter should not be exposed as a parameter on the child class.
+    use_parallel_paging: bool, default: True
+        Use parallel paging for storage operations if supported.
+        Sub-classes must check if this and ``supports_parallel_pagination`` are ``True`` to use parallel pagination when set.
     """
 
 
     def __init__(
         self,
         backend_locality: BackendLocality,
-        parallel_pagination: bool
+        supports_parallel_paging: bool,
+        use_parallel_paging: bool
     ):
         self.backend_locality = backend_locality
-        self.parallel_pagination = parallel_pagination
+        self.supports_parallel_paging = supports_parallel_paging
+        self.use_parallel_paging = use_parallel_paging
 
 
     async def initialize(
@@ -105,7 +110,7 @@ class ComputeBackend:
     async def authorize(
         self, 
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
     ) -> bool:
@@ -121,7 +126,7 @@ class ComputeBackend:
         ----------
         resource_type : BaseModel
             The resource type to compare grants to.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to compare grants to.
         jmespath_data : Dict[str, Any]
             JMESPath data that the grants will be computed with.
@@ -145,7 +150,7 @@ class ComputeBackend:
     async def authorize_many(
         self, 
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data_entries: List[Dict[str, Any]],
         page_size: Optional[int] = None,
     ) -> List[bool]:
@@ -161,7 +166,7 @@ class ComputeBackend:
         ----------
         resource_type : BaseModel
             The resource type to compare grants to.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to compare grants to.
         jmespath_data_entries : List[Dict[str, Any]]
             List of JMESPath data that the grants will be computed with.
@@ -187,7 +192,7 @@ class ComputeBackend:
         self, 
         effect: GrantEffect,
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
@@ -205,7 +210,7 @@ class ComputeBackend:
             The effect of the grant.
         resource_type : BaseModel
             The resource type to compare grants to.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to compare grants to. 
         jmespath_data : Dict[str, Any]
             JMESPath data that the grants will be computed with.

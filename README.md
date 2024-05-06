@@ -160,15 +160,15 @@ class BalloonStringActions(ResourceAction):
 
 BalloonAuthz = ResourceAuthz(
     resource_type=Balloon,
-    resource_action_type=BalloonAction,
-    parent_resource_types=set(),
-    child_resource_types={BalloonString}
+    action_type=BalloonAction,
+    parent_types=set(),
+    child_types={BalloonString}
 )
 BalloonStringAuthz = ResourceAuthz(
     resource_type=BalloonString,
-    resource_action_type=BalloonStringAction,
-    parent_resource_types={Balloon},
-    child_resource_types=set()
+    action_type=BalloonStringAction,
+    parent_types={Balloon},
+    child_types=set()
 )
 ```
 
@@ -264,9 +264,9 @@ Example of normalized request data:
         "color": "green",
         "size": 12.27
     },
-    "resource_action": "BalloonAction.CreateBalloon",
-    "parent_resources": {},
-    "child_resources": {
+    "action": "BalloonAction.CreateBalloon",
+    "parents": {},
+    "children": {
         "BalloonString": [
             {
                 "color": "purple",
@@ -290,8 +290,8 @@ The data for this is normalized as follows:
 - Any identities passed will be serialized and added to the array of their respective identity types. 
 - `resource_type` is the class name of the resource type model for the request.
 - `resource` is the serialized resource model for the request
-- `resource_action` is the full name of the action for the request. `<class name>.<enum member>`
-- `parent_resources` and `child_resources` are JSON objects that include all of the parent and child resource types class names as keys, and the value of each is an array.
+- `action` is the full name of the action for the request. `<class name>.<enum member>`
+- `parents` and `children` are JSON objects that include all of the parent and child resource types class names as keys, and the value of each is an array.
 - Any child or parent resources will be serialized and added to the array of their respective parent or child resource types. 
 - `context` - additional data provided by the grant.  
 
@@ -454,15 +454,15 @@ class BalloonStringAction(ResourceAction):
 
 BalloonAuthz = ResourceAuthz(
     resource_type=Balloon,
-    resource_action_type=BalloonAction,
-    parent_resource_types=set(),
-    child_resource_types={BalloonString}
+    action_type=BalloonAction,
+    parent_types=set(),
+    child_types={BalloonString}
 )
 BalloonStringAuthz = ResourceAuthz(
     resource_type=BalloonString,
-    resource_action_type=BalloonStringAction,
-    parent_resource_types={Balloon},
-    child_resource_types=set()
+    action_type=BalloonStringAction,
+    parent_types={Balloon},
+    child_types=set()
 )
 
 # Create a compute and storage backend
@@ -590,9 +590,9 @@ if __name__ == "__main__":
         # Authorize a request
         authorized = await authzee_app.authorize(
             resource=my_balloon,
-            resource_action=BalloonAction.CreateBalloon,
-            parent_resources=[],
-            child_resources=[],
+            action=BalloonAction.CreateBalloon,
+            parents=[],
+            children=[],
             identities=identities
         )
         print(authorized) # True
@@ -606,9 +606,9 @@ if __name__ == "__main__":
                     size=100.8
                 )
             ],
-            resource_action=BalloonAction.CreateBalloon,
-            parent_resources=[],
-            child_resources=[],
+            action=BalloonAction.CreateBalloon,
+            parents=[],
+            children=[],
             identities=identities
         )
         print(authorized_many) # [True, False]
@@ -617,9 +617,9 @@ if __name__ == "__main__":
         matching_grants_iter = authzee_app.list_matching_grants(
             effect=GrantEffect.ALLOW,
             resource=my_balloon,
-            resource_action=BalloonAction.CreateBalloon,
-            parent_resources=[],
-            child_resources=[],
+            action=BalloonAction.CreateBalloon,
+            parents=[],
+            children=[],
             identities=identities
         )
         async for grant in matching_grants_iter:
@@ -629,9 +629,9 @@ if __name__ == "__main__":
         matching_grants_page = await authzee_app.get_matching_grants_page(
             effect=GrantEffect.ALLOW,
             resource=my_balloon,
-            resource_action=BalloonAction.CreateBalloon,
-            parent_resources=[],
-            child_resources=[],
+            action=BalloonAction.CreateBalloon,
+            parents=[],
+            children=[],
             identities=identities
         )
         for grant in matching_grants_page.grants:

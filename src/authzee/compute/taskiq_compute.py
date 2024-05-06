@@ -71,9 +71,9 @@ class TaskiqCompute(ComputeBackend):
                         color="green",
                         size=1.2
                     ),
-                    resource_action=BalloonAction.CreateBalloon,
-                    parent_resources=[],
-                    child_resources=[],
+                    action=BalloonAction.CreateBalloon,
+                    parents=[],
+                    children=[],
                     identities=[
                         ADGroup(cn="MYGroup")
                     ]
@@ -152,7 +152,8 @@ class TaskiqCompute(ComputeBackend):
         
         super().__init__(
             backend_locality=locality,
-            parallel_pagination=False
+            supports_parallel_paging=False,
+            use_parallel_paging=False
         )
 
 
@@ -238,7 +239,7 @@ class TaskiqCompute(ComputeBackend):
     async def authorize(
         self, 
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
     ) -> bool:
@@ -254,7 +255,7 @@ class TaskiqCompute(ComputeBackend):
         ----------
         resource_type : BaseModel
             The resource type to compare grants to.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to compare grants to.
         jmespath_data : Dict[str, Any]
             JMESPath data that the grants will be computed with.
@@ -273,7 +274,7 @@ class TaskiqCompute(ComputeBackend):
         )
         kwargs = {
             "resource_type": resource_type,
-            "resource_action": resource_action,
+            "action": action,
             "jmespath_data": jmespath_data,
             "page_size": page_size,
             "page_ref": None,
@@ -305,7 +306,7 @@ class TaskiqCompute(ComputeBackend):
     async def authorize_many(
         self, 
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data_entries: List[Dict[str, Any]],
         page_size: Optional[int] = None,
     ) -> List[bool]:
@@ -321,7 +322,7 @@ class TaskiqCompute(ComputeBackend):
         ----------
         resource_type : BaseModel
             The resource type to compare grants to.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to compare grants to.
         jmespath_data_entries : List[Dict[str, Any]]
             List of JMESPath data that the grants will be computed with.
@@ -342,7 +343,7 @@ class TaskiqCompute(ComputeBackend):
         """
         kwargs = {
             "resource_type": resource_type,
-            "resource_action": resource_action,
+            "action": action,
             "jmespath_data_entries": jmespath_data_entries,
             "page_size": page_size,
             "page_ref": None,
@@ -369,7 +370,7 @@ class TaskiqCompute(ComputeBackend):
         self, 
         effect: GrantEffect,
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
@@ -387,7 +388,7 @@ class TaskiqCompute(ComputeBackend):
             The effect of the grant.
         resource_type : BaseModel
             The resource type to compare grants to.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to compare grants to. 
         jmespath_data : Dict[str, Any]
             JMESPath data that the grants will be computed with.
@@ -412,7 +413,7 @@ class TaskiqCompute(ComputeBackend):
         kwargs = {
             "effect": effect,
             "resource_type": resource_type,
-            "resource_action": resource_action,
+            "action": action,
             "jmespath_data": jmespath_data,
             "page_size": page_size,
             "page_ref": page_ref
@@ -451,7 +452,7 @@ async def _authorize_task(
     task_timeout: float = context.state.az_task_timeout
     kwargs = _kwargs_loads(kwp)
     resource_type: BaseModel = kwargs['resource_type']
-    resource_action: ResourceAction = kwargs['resource_action']
+    action: ResourceAction = kwargs['action']
     jmespath_data: Dict[str, Any] = kwargs['jmespath_data']
     page_size: Union[int, None] = kwargs['page_size']
     page_ref: Union[str, None] = kwargs['page_ref']
@@ -475,7 +476,7 @@ async def _authorize_task(
         raw_grants = await storage_backend.get_raw_grants_page(
             effect=GrantEffect.DENY,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )
@@ -487,7 +488,7 @@ async def _authorize_task(
                 _kwargs_dumps(
                     **{
                         "resource_type": resource_type,
-                        "resource_action": resource_action,
+                        "action": action,
                         "jmespath_data": jmespath_data,
                         "page_size": page_size,
                         "page_ref": raw_grants.next_page_ref,
@@ -520,7 +521,7 @@ async def _authorize_task(
         raw_grants = await storage_backend.get_raw_grants_page(
             effect=GrantEffect.ALLOW,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )
@@ -530,7 +531,7 @@ async def _authorize_task(
                     _kwargs_dumps(
                         **{
                             "resource_type": resource_type,
-                            "resource_action": resource_action,
+                            "action": action,
                             "jmespath_data": jmespath_data,
                             "page_size": page_size,
                             "page_ref": raw_grants.next_page_ref,
@@ -573,7 +574,7 @@ async def _authorize_many_task(
     task_timeout: float = context.state.az_task_timeout
     kwargs = _kwargs_loads(kwp)
     resource_type: BaseModel = kwargs['resource_type']
-    resource_action: ResourceAction = kwargs['resource_action']
+    action: ResourceAction = kwargs['action']
     jmespath_data_entries: List[Dict[str, Any]] = kwargs['jmespath_data_entries']
     page_size: Union[int, None] = kwargs['page_size']
     page_ref: Union[str, None] = kwargs['page_ref']
@@ -583,7 +584,7 @@ async def _authorize_many_task(
         raw_grants = await storage_backend.get_raw_grants_page(
             effect=GrantEffect.DENY,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )
@@ -595,7 +596,7 @@ async def _authorize_many_task(
                 _kwargs_dumps(
                     **{
                         "resource_type": resource_type,
-                        "resource_action": resource_action,
+                        "action": action,
                         "jmespath_data_entries": jmespath_data_entries,
                         "page_size": page_size,
                         "page_ref": raw_grants.next_page_ref,
@@ -638,7 +639,7 @@ async def _authorize_many_task(
         raw_grants = await storage_backend.get_raw_grants_page(
             effect=GrantEffect.ALLOW,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )
@@ -648,7 +649,7 @@ async def _authorize_many_task(
                     _kwargs_dumps(
                         **{
                             "resource_type": resource_type,
-                            "resource_action": resource_action,
+                            "action": action,
                             "jmespath_data_entries": jmespath_data_entries,
                             "page_size": page_size,
                             "page_ref": raw_grants.next_page_ref,
@@ -704,14 +705,14 @@ async def _get_matching_grants_page_task(
     kwargs = _kwargs_loads(kwp)
     effect: GrantEffect = kwargs['effect']
     resource_type: BaseModel = kwargs['resource_type']
-    resource_action: ResourceAction = kwargs['resource_action']
+    action: ResourceAction = kwargs['action']
     jmespath_data: Dict[str, Any] = kwargs['jmespath_data']
     page_size: Union[int, None] = kwargs['page_size']
     page_ref: Union[str, None] = kwargs['page_ref']
     raw_grants = await storage_backend.get_raw_grants_page(
         effect=effect,
         resource_type=resource_type,
-        resource_action=resource_action,
+        action=action,
         page_size=page_size,
         page_ref=page_ref
     )

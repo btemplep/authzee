@@ -140,25 +140,25 @@ class AuthzeeSync:
     async def authorize(
         self,
         resource: BaseModel,
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
     ) -> bool:
         """Authorize an entity with the given ``identities`` to perform the
-        ``resource_action`` on the ``resource`` that has ``parent_resources``
-        and ``child_resources``.
+        ``action`` on the ``resource`` that has ``parents``
+        and ``children``.
 
         Parameters
         ----------
         resource : BaseModel
             The resource model to authorize against.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to authorize against.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             The resource's parent resource models to authorize against.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             The resource's child resource models to authorize against. 
         identities : List[BaseModel]
             The entities identities to authorize.
@@ -186,9 +186,9 @@ class AuthzeeSync:
         return self._async_run(
             self._authzee_app.authorize(
                 resource=resource,
-                resource_action=resource_action,
-                parent_resources=parent_resources,
-                child_resources=child_resources,
+                action=action,
+                parents=parents,
+                children=children,
                 identities=identities,
                 page_size=page_size
             )
@@ -198,25 +198,25 @@ class AuthzeeSync:
     async def authorize_many(
         self,
         resources: List[BaseModel],
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
     ) -> List[bool]:
         """Authorize an entity with the given ``identities`` to perform the
-        ``resource_action`` on the ``resource`` that has ``parent_resources``
-        and ``child_resources``.
+        ``action`` on the ``resource`` that has ``parents``
+        and ``children``.
 
         Parameters
         ----------
         resources : List[BaseModel]
             The resource models to authorize against.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to authorize against.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             The resource's parent resource models to authorize against.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             The resource's child resource models to authorize against. 
         identities : List[BaseModel]
             The entities identities to authorize.
@@ -244,9 +244,9 @@ class AuthzeeSync:
         return self._async_run(
             self._authzee_app.authorize_many(
                 resources=resources,
-                resource_action=resource_action,
-                parent_resources=parent_resources,
-                child_resources=child_resources,
+                action=action,
+                parents=parents,
+                children=children,
                 identities=identities,
                 page_size=page_size
             )
@@ -257,7 +257,7 @@ class AuthzeeSync:
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
+        action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
     ) -> Iterator[Grant]:
         """List Grants.
@@ -269,7 +269,7 @@ class AuthzeeSync:
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         page_size : Optional[int], optional
@@ -296,7 +296,7 @@ class AuthzeeSync:
         a_iter = self._authzee_app.list_grants(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size
         )
         try:
@@ -310,7 +310,7 @@ class AuthzeeSync:
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
+        action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
     ) -> GrantsPage:
@@ -328,7 +328,7 @@ class AuthzeeSync:
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         page_size : Optional[int], optional
@@ -362,7 +362,7 @@ class AuthzeeSync:
             self._authzee_app.get_grants_page(
                 effect=effect,
                 resource_type=resource_type,
-                resource_action=resource_action,
+                action=action,
                 page_size=page_size,
                 page_ref=page_ref
             )
@@ -373,9 +373,9 @@ class AuthzeeSync:
         self,
         effect: GrantEffect,
         resource: BaseModel,
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
     ) -> Iterator[Grant]:
@@ -387,11 +387,11 @@ class AuthzeeSync:
             Grant effect.
         resource : BaseModel
             Resource model.
-        resource_action : ResourceAction
+        action : ResourceAction
             Resource action.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             Parent resource models.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             Child resource models.
         identities : List[BaseModel]
             Identity models.
@@ -419,9 +419,9 @@ class AuthzeeSync:
         a_iter = self._authzee_app.list_matching_grants(
             effect=effect,
             resource=resource,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities,
             page_size=page_size
         )
@@ -436,9 +436,9 @@ class AuthzeeSync:
         self,
         effect: GrantEffect,
         resource: BaseModel,
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
@@ -457,7 +457,7 @@ class AuthzeeSync:
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         jmespath_data : Dict[str, Any]
@@ -491,9 +491,9 @@ class AuthzeeSync:
             self._authzee_app.get_matching_grants_page(
                 effect=effect,
                 resource=resource,
-                resource_action=resource_action,
-                parent_resources=parent_resources,
-                child_resources=child_resources,
+                action=action,
+                parents=parents,
+                children=children,
                 identities=identities,
                 page_size=page_size,
                 page_ref=page_ref

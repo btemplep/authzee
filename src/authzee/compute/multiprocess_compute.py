@@ -53,7 +53,8 @@ class MultiprocessCompute(ComputeBackend):
     ):
         super().__init__(
             backend_locality=BackendLocality.SYSTEM,
-            parallel_pagination=False
+            supports_parallel_paging=False,
+            use_parallel_paging=False
         )
         self._max_workers = max_workers
         if self._max_workers is None:
@@ -118,7 +119,7 @@ class MultiprocessCompute(ComputeBackend):
     async def authorize(
         self, 
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None
     ) -> bool:
@@ -134,7 +135,7 @@ class MultiprocessCompute(ComputeBackend):
         ----------
         resource_type : BaseModel
             The resource type to compare grants to.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to compare grants to.
         jmespath_data : Dict[str, Any]
             JMESPath data that the grants will be computed with.
@@ -168,7 +169,7 @@ class MultiprocessCompute(ComputeBackend):
                         _executor_grant_page_matches_deny,
                         effect=GrantEffect.DENY,
                         resource_type=resource_type,
-                        resource_action=resource_action,
+                        action=action,
                         page_size=page_size,
                         page_ref=next_page_ref,
                         jmespath_data=jmespath_data,
@@ -204,7 +205,7 @@ class MultiprocessCompute(ComputeBackend):
                         _executor_grant_page_matches_allow,
                         effect=GrantEffect.ALLOW,
                         resource_type=resource_type,
-                        resource_action=resource_action,
+                        action=action,
                         page_size=page_size,
                         page_ref=next_page_ref,
                         jmespath_data=jmespath_data,
@@ -262,7 +263,7 @@ class MultiprocessCompute(ComputeBackend):
     async def authorize_many(
         self, 
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data_entries: List[Dict[str, Any]],
         page_size: Optional[int] = None
     ) -> List[bool]:
@@ -278,7 +279,7 @@ class MultiprocessCompute(ComputeBackend):
         ----------
         resource_type : BaseModel
             The resource type to compare grants to.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to compare grants to.
         jmespath_data_entries : List[Dict[str, Any]]
             List of JMESPath data that the grants will be computed with.
@@ -310,7 +311,7 @@ class MultiprocessCompute(ComputeBackend):
                         _executor_authorize_many,
                         effect=GrantEffect.DENY,
                         resource_type=resource_type,
-                        resource_action=resource_action,
+                        action=action,
                         page_size=page_size,
                         page_ref=next_page_ref,
                         jmespath_data_entries=jmespath_data_entries,
@@ -340,7 +341,7 @@ class MultiprocessCompute(ComputeBackend):
                         _executor_authorize_many,
                         effect=GrantEffect.ALLOW,
                         resource_type=resource_type,
-                        resource_action=resource_action,
+                        action=action,
                         page_size=page_size,
                         page_ref=next_page_ref,
                         jmespath_data_entries=jmespath_data_entries,
@@ -375,7 +376,7 @@ class MultiprocessCompute(ComputeBackend):
         self, 
         effect: GrantEffect,
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
@@ -395,7 +396,7 @@ class MultiprocessCompute(ComputeBackend):
             The effect of the grant.
         resource_type : BaseModel
             The resource type to compare grants to.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to compare grants to.
         jmespath_data : Dict[str, Any]
             JMESPath data that the grants will be computed with.
@@ -432,7 +433,7 @@ class MultiprocessCompute(ComputeBackend):
                         _executor_matching_grants,
                         effect=effect,
                         resource_type=resource_type,
-                        resource_action=resource_action,
+                        action=action,
                         page_size=page_size,
                         page_ref=next_page_ref,
                         jmespath_data=jmespath_data,
@@ -480,7 +481,7 @@ def _executor_init(
 def _executor_grant_page_matches_deny(
     effect: GrantEffect,
     resource_type: Type[BaseModel],
-    resource_action: ResourceAction,
+    action: ResourceAction,
     page_size: int,
     page_ref: Union[str, None],
     jmespath_data: Dict[str, Any],
@@ -494,7 +495,7 @@ def _executor_grant_page_matches_deny(
         authzee_storage.get_raw_grants_page(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )
@@ -531,7 +532,7 @@ def _executor_grant_page_matches_deny(
 def _executor_grant_page_matches_allow(
     effect: GrantEffect,
     resource_type: Type[BaseModel],
-    resource_action: ResourceAction,
+    action: ResourceAction,
     page_size: int,
     page_ref: Union[str, None],
     jmespath_data: Dict[str, Any],
@@ -546,7 +547,7 @@ def _executor_grant_page_matches_allow(
         authzee_storage.get_raw_grants_page(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )
@@ -584,7 +585,7 @@ def _executor_grant_page_matches_allow(
 def _executor_authorize_many(
     effect: GrantEffect,
     resource_type: Type[BaseModel],
-    resource_action: ResourceAction,
+    action: ResourceAction,
     page_size: int,
     page_ref: Union[str, None],
     jmespath_data_entries: List[Dict[str, Any]],
@@ -597,7 +598,7 @@ def _executor_authorize_many(
         authzee_storage.get_raw_grants_page(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )
@@ -617,7 +618,7 @@ def _executor_authorize_many(
 def _executor_matching_grants(
     effect: GrantEffect,
     resource_type: Type[BaseModel],
-    resource_action: ResourceAction,
+    action: ResourceAction,
     page_size: int,
     page_ref: Union[str, None],
     jmespath_data: Dict[str, Any],
@@ -630,7 +631,7 @@ def _executor_matching_grants(
         authzee_storage.get_raw_grants_page(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )
