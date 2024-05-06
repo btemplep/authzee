@@ -82,7 +82,7 @@ class S3Storage(StorageBackend):
         super().__init__(
             backend_locality=BackendLocality.NETWORK,
             default_page_size=1000,
-            parallel_pagination=True,
+            supports_parallel_paging=False,
             bucket=bucket,
             prefix=prefix,
             aioboto3_session=aioboto3_session,
@@ -121,10 +121,10 @@ class S3Storage(StorageBackend):
             self._aioboto3_session.client("s3", **self._s3_client_kwargs)
         )
         for authz in self._resource_authzs:
-            for action in authz.resource_action_type:
+            for action in authz.action_type:
                 self._action_to_rt[action] = authz.resource_type
                 self._name_to_rt[authz.resource_type.__name__] = authz.resource_type
-                self._rt_to_action[authz.resource_type] = authz.resource_action_type
+                self._rt_to_action[authz.resource_type] = authz.action_type
         
     
     async def shutdown(self) -> None:
@@ -273,7 +273,7 @@ class S3Storage(StorageBackend):
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
+        action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
     ) -> RawGrantsPage:
@@ -293,7 +293,7 @@ class S3Storage(StorageBackend):
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         page_size : Optional[int], optional
@@ -324,7 +324,7 @@ class S3Storage(StorageBackend):
         if page_ref is not None:
             s3_ref = self._ref_to_model(page_ref=page_ref)
 
-        if resource_action is None:
+        if action is None:
             # if no filters list from the lookup table
             if resource_type is None:
                 prefix += "by_uuid/"
@@ -364,7 +364,7 @@ class S3Storage(StorageBackend):
         # since actions only map to one resource type
         else:
             if resource_type is None:
-                resource_type = self._action_to_rt[resource_action]
+                resource_type = self._action_to_rt[action]
 
             prefix += f"by_resource_type/{resource_type.__name__}/"
             # if we have another page on the current prefix then get that
@@ -407,7 +407,7 @@ class S3Storage(StorageBackend):
                     for p in page['CommonPrefixes']:
                         cp: str = p['Prefix']
                         action_strs = cp.split("/")[-2].split("-")
-                        if resource_action.value in action_strs:
+                        if action.value in action_strs:
                             obj_page = await self._s3_client.list_objects_v2(
                                 **{
                                     **list_kwargs,

@@ -32,7 +32,7 @@ class ParallelMemoryStorage(StorageBackend):
         super().__init__(
             backend_locality=BackendLocality.PROCESS,
             default_page_size=10,
-            parallel_pagination=True
+            supports_parallel_paging=True
         )
         self._grants: Dict[GrantEffect, Dict[str, Grant]] = {}
         self._grants_rtype: Dict[GrantEffect, Dict[Type[BaseModel], List[str]]] = {}
@@ -55,12 +55,16 @@ class ParallelMemoryStorage(StorageBackend):
         for ra in resource_authzs:
             self._grants_rtype[GrantEffect.ALLOW][ra.resource_type] = []
             self._grants_rtype[GrantEffect.DENY][ra.resource_type] = []
-            for action in ra.resource_action_type:
+            for action in ra.action_type:
                 self._grants_action[GrantEffect.ALLOW][action] = []
                 self._grants_action[GrantEffect.DENY][action] = []
 
 
     async def shutdown(self) -> None:
+        pass
+
+
+    async def setup(self) -> None:
         pass
     
     
@@ -73,25 +77,27 @@ class ParallelMemoryStorage(StorageBackend):
         self._grants[effect][new_grant.uuid] = new_grant
         self._grants_rtype[effect][grant.resource_type].append(new_grant.uuid)
         for action in new_grant.actions:
-            self._grants_action[effect][action].append(grant.uuid)
+            self._grants_action[effect][action].append(new_grant.uuid)
 
         return copy.deepcopy(new_grant)
 
 
     async def delete_grant(self, effect: GrantEffect, uuid: str) -> None:
-        ga = self._grants_action[effect].pop(uuid, None)
-        gr = self._grants_rtype[effect].pop(uuid, None)
-        g = self._grants[effect].pop(uuid, None)
-        if ga is None or gr is None or g is None: 
+        grant = self._grants[effect].pop(uuid, None)
+        if grant is None: 
             raise exceptions.GrantDoesNotExistError(
                 f"{effect.value} Grant with UUID '{uuid}' does not exist.")
+
+        self._grants_rtype[effect][grant.resource_type].remove(uuid)
+        for action in grant.actions:
+            self._grants_action[effect][action].remove(uuid)
 
 
     async def get_raw_grants_page(
         self, 
         effect: GrantEffect, 
         resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
+        action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
     ) -> RawGrantsPage:
@@ -104,8 +110,8 @@ class ParallelMemoryStorage(StorageBackend):
         else:
             start_index = int(page_ref)
         
-        if resource_action is not None:
-            grant_keys = self._grants_action[effect][resource_action]
+        if action is not None:
+            grant_keys = self._grants_action[effect][action]
         elif resource_type is not None:
             grant_keys = self._grants_rtype[effect][resource_type]
         
@@ -131,7 +137,7 @@ class ParallelMemoryStorage(StorageBackend):
     ) -> GrantsPage:
         effect = raw_grants_page.raw_grants['effect']
         grants = []
-        for uuid in raw_grants_page.raw_grants:
+        for uuid in raw_grants_page.raw_grants['uuids']:
             try:
                 grants.append(self._grants[effect][uuid])
             except KeyError:
@@ -147,7 +153,7 @@ class ParallelMemoryStorage(StorageBackend):
         self, 
         effect: GrantEffect, 
         resource_type: Union[BaseModel, None] = None, 
-        resource_action: Union[ResourceAction, None] = None, 
+        action: Union[ResourceAction, None] = None, 
         page_size: Union[int, None] = None, 
         refs_page_size: Union[int, None] = None,
         page_ref: Union[str, None] = None
@@ -163,8 +169,8 @@ class ParallelMemoryStorage(StorageBackend):
         else:
             start_index = int(page_ref) 
         
-        if resource_action is not None:
-            grant_keys = self._grants_action[effect][resource_action]
+        if action is not None:
+            grant_keys = self._grants_action[effect][action]
         elif resource_type is not None:
             grant_keys = self._grants_rtype[effect][resource_type]
         else:

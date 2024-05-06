@@ -29,7 +29,7 @@ class MemoryStorage(StorageBackend):
         super().__init__(
             backend_locality=BackendLocality.PROCESS,
             default_page_size=10,
-            parallel_pagination=False
+            supports_parallel_paging=False
         )
         self._allow_grants: List[Grant] = []
         self._allow_grants_lookup: Dict[str, Grant] = {}
@@ -89,7 +89,7 @@ class MemoryStorage(StorageBackend):
         self, 
         effect: GrantEffect, 
         resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
+        action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
     ) -> RawGrantsPage:
@@ -116,8 +116,8 @@ class MemoryStorage(StorageBackend):
         if resource_type is not None:
             grants = [grant for grant in grants if grant.resource_type == resource_type]
         
-        if resource_action is not None:
-            grants = [grant for grant in grants if resource_action in grant.actions]
+        if action is not None:
+            grants = [grant for grant in grants if action in grant.actions]
         
         return RawGrantsPage(
             raw_grants=grants,

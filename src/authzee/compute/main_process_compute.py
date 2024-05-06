@@ -19,7 +19,8 @@ class MainProcessCompute(ComputeBackend):
     def __init__(self):
         super().__init__(
             backend_locality=BackendLocality.PROCESS,
-            parallel_pagination=False
+            supports_parallel_paging=False, 
+            use_parallel_paging=False
         )
 
 
@@ -34,7 +35,7 @@ class MainProcessCompute(ComputeBackend):
     async def authorize(
         self, 
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None
     ) -> bool:
@@ -44,7 +45,7 @@ class MainProcessCompute(ComputeBackend):
             raw_grants_page = await self._storage_backend.get_raw_grants_page(
                 effect=GrantEffect.DENY,
                 resource_type=resource_type,
-                resource_action=resource_action,
+                action=action,
                 page_size=page_size,
                 page_ref=next_page_ref
             )
@@ -68,7 +69,7 @@ class MainProcessCompute(ComputeBackend):
             raw_grants_page = await self._storage_backend.get_raw_grants_page(
                 effect=GrantEffect.ALLOW,
                 resource_type=resource_type,
-                resource_action=resource_action,
+                action=action,
                 page_size=page_size,
                 page_ref=next_page_ref
             )
@@ -92,7 +93,7 @@ class MainProcessCompute(ComputeBackend):
     async def authorize_many(
         self, 
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data_entries: List[Dict[str, Any]],
         page_size: Optional[int] = None
     ) -> List[bool]:
@@ -103,7 +104,7 @@ class MainProcessCompute(ComputeBackend):
             raw_grants_page = await self._storage_backend.get_raw_grants_page(
                 effect=GrantEffect.DENY,
                 resource_type=resource_type,
-                resource_action=resource_action,
+                action=action,
                 page_size=page_size,
                 page_ref=next_page_ref
             )
@@ -131,7 +132,7 @@ class MainProcessCompute(ComputeBackend):
             raw_grants_page = await self._storage_backend.get_raw_grants_page(
                 effect=GrantEffect.ALLOW,
                 resource_type=resource_type,
-                resource_action=resource_action,
+                action=action,
                 page_size=page_size,
                 page_ref=next_page_ref
             )
@@ -160,7 +161,7 @@ class MainProcessCompute(ComputeBackend):
         self, 
         effect: GrantEffect,
         resource_type: Type[BaseModel],
-        resource_action: ResourceAction,
+        action: ResourceAction,
         jmespath_data: Dict[str, Any],
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
@@ -169,7 +170,7 @@ class MainProcessCompute(ComputeBackend):
         raw_grants = await self._storage_backend.get_raw_grants_page(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )

@@ -24,14 +24,14 @@ class ResourceTypeDB(Base):
 class ResourceActionDB(Base):
     __tablename__ = "resource_action"
 
-    resource_action: Mapped[str] = mapped_column(primary_key=True) # should be a string of the form ResourceAction.MyAction
+    action: Mapped[str] = mapped_column(primary_key=True) # should be a string of the form ResourceAction.MyAction
 
 
 allow_grant_action_association = Table(
     "allow_grant_action_association",
     Base.metadata,
     Column("allow_grant_storage_id", ForeignKey("allow_grant.storage_id"), primary_key=True),
-    Column("resource_action", ForeignKey("resource_action.resource_action"), primary_key=True),
+    Column("action", ForeignKey("resource_action.action"), primary_key=True),
 )
 
 
@@ -58,7 +58,7 @@ deny_grant_action_association = Table(
     "deny_grant_action_association",
     Base.metadata,
     Column("deny_grant_storage_id", ForeignKey("deny_grant.storage_id"), primary_key=True),
-    Column("resource_action", ForeignKey("resource_action.resource_action"), primary_key=True),
+    Column("action", ForeignKey("resource_action.action"), primary_key=True),
 )
 
 

@@ -68,7 +68,7 @@ class SQLStorage(StorageBackend):
         super().__init__(
             backend_locality=locality,
             default_page_size=default_page_size,
-            parallel_pagination=False,
+            supports_parallel_paging=False,
             sqlalchemy_async_engine_kwargs=sqlalchemy_async_engine_kwargs
         )
         self._sqlalchemy_async_engine_kwargs = sqlalchemy_async_engine_kwargs
@@ -98,11 +98,11 @@ class SQLStorage(StorageBackend):
             authz.resource_type.__name__: authz.resource_type for authz in resource_authzs
         }
         self._resource_action_type_lookup: Dict[str, Type[ResourceAction]] = {
-            authz.resource_action_type.__name__: authz.resource_action_type.__name__ for authz in resource_authzs
+            authz.action_type.__name__: authz.action_type.__name__ for authz in resource_authzs
         }
         self._resource_action_lookup: Dict[str, ResourceAction] = {}
         for authz in resource_authzs:
-            for action in authz.resource_action_type:
+            for action in authz.action_type:
                 self._resource_action_lookup[str(action)] = action
         
         self._engine = create_async_engine(**self._sqlalchemy_async_engine_kwargs)
@@ -147,7 +147,7 @@ class SQLStorage(StorageBackend):
                 session.add(ResourceTypeDB(resource_type=rt_str))
             
             for ra_str in self._resource_action_lookup:
-                session.add(ResourceActionDB(resource_action=ra_str))
+                session.add(ResourceActionDB(action=ra_str))
             
             await session.commit()
     
@@ -172,7 +172,7 @@ class SQLStorage(StorageBackend):
             resource_action_strs = {str(action) for action in grant.actions}
             result = await session.execute(
                 select(ResourceActionDB).where(
-                    ResourceActionDB.resource_action.in_(resource_action_strs)
+                    ResourceActionDB.action.in_(resource_action_strs)
                 )
             )
             re_actions = set(result.scalars().fetchall())
@@ -231,7 +231,7 @@ class SQLStorage(StorageBackend):
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
+        action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
     ) -> RawGrantsPage:
@@ -251,7 +251,7 @@ class SQLStorage(StorageBackend):
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         page_size : Optional[int], optional
@@ -282,10 +282,10 @@ class SQLStorage(StorageBackend):
                     grant_table.resource_type == resource_type.__name__
                 )
             
-            if resource_action is not None:
+            if action is not None:
                 filters.append(
                     grant_table.actions.any(
-                        ResourceActionDB.resource_action == str(resource_action)
+                        ResourceActionDB.action == str(action)
                     )
                 )
 
@@ -335,7 +335,7 @@ class SQLStorage(StorageBackend):
                     description=db_grant.description,
                     resource_type=self._resource_type_lookup[db_grant.resource_type],
                     actions={
-                        self._resource_action_lookup[action.resource_action] for action in db_grant.actions
+                        self._resource_action_lookup[action.action] for action in db_grant.actions
                     },
                     expression=db_grant.expression,
                     context=db_grant.context,

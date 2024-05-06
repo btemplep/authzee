@@ -96,13 +96,13 @@ class Authzee:
 
         """
         for authz in self._authzs:
-            for p_resource in authz.parent_resource_types:
+            for p_resource in authz.parent_types:
                 if p_resource not in self._resource_types:
                     raise exceptions.InitializationError(
                         f"The parent resource '{p_resource}' in ResourceAuthz '{authz.__class__.__name__}' is not registered."
                     )
 
-            for c_resource in authz.child_resource_types:
+            for c_resource in authz.child_types:
                 if c_resource not in self._resource_types:
                     raise exceptions.InitializationError(
                         f"The child resource '{c_resource}' in ResourceAuthz '{authz.__class__.__name__}' is not registered."
@@ -229,17 +229,17 @@ class Authzee:
             from authzee import Authzee
 
         """
-        if resource_authz.resource_action_type in self._resource_action_types:
+        if resource_authz.action_type in self._resource_action_types:
             # check the other Authz it is registered with
             registered_resource_authz = None
             for raz_inst in self._authzs:
-                if raz_inst.resource_action_type == resource_authz.resource_action_type:
+                if raz_inst.action_type == resource_authz.action_type:
                     registered_resource_authz = raz_inst
                     break
             
             raise exceptions.ResourceAuthzRegistrationError(
                 (
-                    f"ResourceAction '{resource_authz.resource_action_type.__name__}' is already registered "
+                    f"ResourceAction '{resource_authz.action_type.__name__}' is already registered "
                     f"with the '{registered_resource_authz.__name__}' ResourceAuthz"
                 )
             )
@@ -256,7 +256,7 @@ class Authzee:
         
         self._resource_types.add(resource_authz.resource_type)
         self._resource_type_names.add(resource_authz.resource_type.__name__)
-        self._resource_action_types.add(resource_authz.resource_action_type)
+        self._resource_action_types.add(resource_authz.action_type)
         self._authzs.append(resource_authz)
         self._resource_to_authz_lookup[resource_authz.resource_type] = resource_authz
     
@@ -264,25 +264,25 @@ class Authzee:
     async def authorize(
         self,
         resource: BaseModel,
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
     ) -> bool:
         """Authorize an entity with the given ``identities`` to perform the
-        ``resource_action`` on the ``resource`` that has ``parent_resources``
-        and ``child_resources``.
+        ``action`` on the ``resource`` that has ``parents``
+        and ``children``.
 
         Parameters
         ----------
         resource : BaseModel
             The resource model to authorize against.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to authorize against.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             The resource's parent resource models to authorize against.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             The resource's child resource models to authorize against. 
         identities : List[BaseModel]
             The entities identities to authorize.
@@ -309,22 +309,22 @@ class Authzee:
         """
         self._verify_auth_args(
             resource=resource,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities
         )
         jmespath_data = self._generate_jmespath_data(
             resource=resource,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities
         )
 
         return await self._compute_backend.authorize(
             resource_type=type(resource),
-            resource_action=resource_action,
+            action=action,
             jmespath_data=jmespath_data,
             page_size=page_size
         )
@@ -333,25 +333,25 @@ class Authzee:
     async def authorize_many(
         self,
         resources: List[BaseModel],
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
     ) -> List[bool]:
         """Authorize an entity with the given ``identities`` to perform the
-        ``resource_action`` on the ``resource`` that has ``parent_resources``
-        and ``child_resources``.
+        ``action`` on the ``resource`` that has ``parents``
+        and ``children``.
 
         Parameters
         ----------
         resources : List[BaseModel]
             The resource models to authorize against.
-        resource_action : ResourceAction
+        action : ResourceAction
             The resource action to authorize against.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             The resource's parent resource models to authorize against.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             The resource's child resource models to authorize against. 
         identities : List[BaseModel]
             The entities identities to authorize.
@@ -378,22 +378,22 @@ class Authzee:
         """
         self._verify_auth_many_args(
             resources=resources,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities
         )
         jmespath_data = self._generate_many_jmespath_data(
             resources=resources,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities
         )
 
         return await self._compute_backend.authorize_many(
             resource_type=type(resources[0]),
-            resource_action=resource_action,
+            action=action,
             jmespath_data_entries=jmespath_data,
             page_size=page_size
         )
@@ -403,7 +403,7 @@ class Authzee:
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
+        action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None
     ) -> AsyncIterator[Grant]:
         """List Grants.
@@ -415,7 +415,7 @@ class Authzee:
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         page_size : Optional[int], optional
@@ -442,7 +442,7 @@ class Authzee:
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
             resource_type=resource_type,
-            resource_action=resource_action
+            action=action
         )
         did_once = False
         next_page_ref = None
@@ -455,7 +455,7 @@ class Authzee:
             raw_grants = await self._storage_backend.get_raw_grants_page(
                 effect=effect,
                 resource_type=resource_type,
-                resource_action=resource_action,
+                action=action,
                 page_size=page_size,
                 page_ref=next_page_ref
             )
@@ -470,7 +470,7 @@ class Authzee:
         self,
         effect: GrantEffect,
         resource_type: Optional[Type[BaseModel]] = None,
-        resource_action: Optional[ResourceAction] = None,
+        action: Optional[ResourceAction] = None,
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
     ) -> GrantsPage:
@@ -488,7 +488,7 @@ class Authzee:
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         page_size : Optional[int], optional
@@ -521,12 +521,12 @@ class Authzee:
         self._verify_grant_effect(effect=effect)
         self._verify_resource_type_and_action_filter(
             resource_type=resource_type,
-            resource_action=resource_action
+            action=action
         )
         raw_grants_page = await self._storage_backend.get_raw_grants_page(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             page_ref=page_ref
         )
@@ -538,7 +538,7 @@ class Authzee:
         self, 
         effect: GrantEffect, 
         resource_type: Union[BaseModel, None] = None, 
-        resource_action: Union[ResourceAction, None] = None, 
+        action: Union[ResourceAction, None] = None, 
         page_size: Union[int, None] = None, 
         refs_page_size: Union[int, None] = None,
         page_ref: Union[str, None] = None
@@ -547,7 +547,7 @@ class Authzee:
 
         **NOTE** - Not all storage backends or storage backend configurations support parallel pagination.
         You cannot be certain until the ``initialization`` method is called and complete. 
-        Then you can check the ``parallel_pagination`` flag on the storage backend to see if it is supported. 
+        Then you can check the ``supports_parallel_paging`` flag on the storage backend to see if it is supported. 
 
         .. code-block:: python
 
@@ -557,7 +557,7 @@ class Authzee:
 
             async def init():
                 await authzee_app.initialize()
-                if storage_backend.parallel_pagination is True:
+                if storage_backend.supports_parallel_paging is True:
                     print("This storage backend supports parallel pagination!")
                 else:
                     print("This storage backend doesn't support parallel pagination :(")
@@ -568,7 +568,7 @@ class Authzee:
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         page_size : Optional[int], optional
@@ -591,12 +591,12 @@ class Authzee:
         ------
         authzee.exceptions.MethodNotImplementedError
             ``StorageBackend`` sub-classes must implement this method if this storage backend supports parallel pagination. 
-            They must also set the ``parallel_pagination`` flag. 
+            They must also set the ``supports_parallel_paging`` flag. 
         """
         return await self._storage_backend.get_page_ref_page(
             effect=effect,
             resource_type=resource_type,
-            resource_action=resource_action,
+            action=action,
             page_size=page_size,
             refs_page_size=refs_page_size,
             page_ref=page_ref
@@ -607,9 +607,9 @@ class Authzee:
         self,
         effect: GrantEffect,
         resource: BaseModel,
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None
     ) -> AsyncIterator[Grant]:
@@ -621,11 +621,11 @@ class Authzee:
             Grant effect.
         resource : BaseModel
             Resource model.
-        resource_action : ResourceAction
+        action : ResourceAction
             Resource action.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             Parent resource models.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             Child resource models.
         identities : List[BaseModel]
             Identity models.
@@ -653,16 +653,16 @@ class Authzee:
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
             resource=resource,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities
         )
         jmespath_data = self._generate_jmespath_data(
             resource=resource,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities
         )
         did_once = False
@@ -676,7 +676,7 @@ class Authzee:
             grants_page = await self._compute_backend.get_matching_grants_page(
                 effect=effect,
                 resource_type=type(resource),
-                resource_action=resource_action,
+                action=action,
                 jmespath_data=jmespath_data,
                 page_size=page_size,
                 page_ref=next_page_ref
@@ -691,9 +691,9 @@ class Authzee:
         self,
         effect: GrantEffect,
         resource: BaseModel,
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel],
         page_size: Optional[int] = None,
         page_ref: Optional[str] = None
@@ -712,7 +712,7 @@ class Authzee:
         resource_type : Optional[Type[BaseModel]], optional
             Filter by resource type.
             By default no filter is applied.
-        resource_action : Optional[ResourceAction], optional
+        action : Optional[ResourceAction], optional
             Filter by `ResourceAction``. 
             By default no filter is applied.
         jmespath_data : Dict[str, Any]
@@ -745,23 +745,23 @@ class Authzee:
         self._verify_grant_effect(effect=effect)
         self._verify_auth_args(
             resource=resource,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities
         )
         jmespath_data = self._generate_jmespath_data(
             resource=resource,
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities
         )
 
         return await self._compute_backend.get_matching_grants_page(
             effect=effect,
             resource_type=type(resource),
-            resource_action=resource_action,
+            action=action,
             jmespath_data=jmespath_data,
             page_size=page_size,
             page_ref=page_ref
@@ -832,9 +832,9 @@ class Authzee:
     def _generate_jmespath_data(
         self,
         resource: BaseModel,
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel],
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel],
+        children: List[BaseModel],
         identities: List[BaseModel],
     ) -> Dict[str, Any]:
         """Generate JMESPath data.
@@ -843,11 +843,11 @@ class Authzee:
         ----------
         resource : BaseModel
             Resource model.
-        resource_action : ResourceAction
+        action : ResourceAction
             Resource Action.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             Parent resource models.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             Child resource models.
         identities : List[BaseModel]
             Identity models.
@@ -858,13 +858,13 @@ class Authzee:
             The JMESPath data. 
         """
         resource_type = type(resource)
-        parent_resources_by_type = {parent_type.__name__: [] for parent_type in self._resource_to_authz_lookup[resource_type].parent_resource_types}
-        for parent_resource in parent_resources:
+        parent_resources_by_type = {parent_type.__name__: [] for parent_type in self._resource_to_authz_lookup[resource_type].parent_types}
+        for parent_resource in parents:
             parent_type = type(parent_resource)
             parent_resources_by_type[parent_type.__name__].append(parent_resource.model_dump(mode="json"))
         
-        child_resources_by_type = {child_type.__name__: [] for child_type in self._resource_to_authz_lookup[resource_type].child_resource_types}
-        for child_resource in child_resources:
+        child_resources_by_type = {child_type.__name__: [] for child_type in self._resource_to_authz_lookup[resource_type].child_types}
+        for child_resource in children:
             child_type = type(child_resource)
             if child_type.__name__ not in child_resources_by_type:
                 child_resources_by_type[child_type.__name__] = []
@@ -880,9 +880,9 @@ class Authzee:
             "identities": identities_by_type,
             "resource": resource.model_dump(mode="json"),
             "resource_type": type(resource).__name__,
-            "resource_action": str(resource_action),
-            "parent_resources": parent_resources_by_type,
-            "child_resources": child_resources_by_type
+            "action": str(action),
+            "parents": parent_resources_by_type,
+            "children": child_resources_by_type
         }
 
         return jmespath_data
@@ -891,9 +891,9 @@ class Authzee:
     def _generate_many_jmespath_data(
         self,
         resources: List[BaseModel],
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel],
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel],
+        children: List[BaseModel],
         identities: List[BaseModel],
     ) -> List[Dict[str, Any]]:
         """Generate JMESPath data.
@@ -902,11 +902,11 @@ class Authzee:
         ----------
         resources : List[BaseModel]
             Resource models.
-        resource_action : ResourceAction
+        action : ResourceAction
             Resource Action.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             Parent resource models.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             Child resource models.
         identities : List[BaseModel]
             Identity models.
@@ -917,13 +917,13 @@ class Authzee:
             List of JMESPath data for the request. 
         """
         resource_type = type(resources[0])
-        parent_resources_by_type = {parent_type.__name__: [] for parent_type in self._resource_to_authz_lookup[resource_type].parent_resource_types}
-        for parent_resource in parent_resources:
+        parent_resources_by_type = {parent_type.__name__: [] for parent_type in self._resource_to_authz_lookup[resource_type].parent_types}
+        for parent_resource in parents:
             parent_type = type(parent_resource)
             parent_resources_by_type[parent_type.__name__].append(parent_resource.model_dump(mode="json"))
         
-        child_resources_by_type = {child_type.__name__: [] for child_type in self._resource_to_authz_lookup[resource_type].child_resource_types}
-        for child_resource in child_resources:
+        child_resources_by_type = {child_type.__name__: [] for child_type in self._resource_to_authz_lookup[resource_type].child_types}
+        for child_resource in children:
             child_type = type(child_resource)
             if child_type.__name__ not in child_resources_by_type:
                 child_resources_by_type[child_type.__name__] = []
@@ -938,9 +938,9 @@ class Authzee:
         jmespath_data = {
             "identities": identities_by_type,
             "resource_type": type(resources[0]).__name__,
-            "resource_action": str(resource_action),
-            "parent_resources": parent_resources_by_type,
-            "child_resources": child_resources_by_type
+            "action": str(action),
+            "parents": parent_resources_by_type,
+            "children": child_resources_by_type
         }
         data_entries = []
         for resource in resources:
@@ -954,9 +954,9 @@ class Authzee:
     def _verify_auth_args(
         self,
         resource: BaseModel,
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel]
     ) -> None:
         """Verify the authorization args.
@@ -965,11 +965,11 @@ class Authzee:
         ----------
         resource : BaseModel
             Resource model to verify.
-        resource_action : ResourceAction
+        action : ResourceAction
             Resource Action to verify.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             Parent resource models to verify.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             Child resource models to verify.
         identities : List[BaseModel]
             Identity models to verify.
@@ -982,29 +982,29 @@ class Authzee:
         resource_type = type(resource)
         self._verify_resource_type_and_action_filter(
             resource_type=resource_type,
-            resource_action=resource_action
+            action=action
         )
         resource_authz_inst = self._resource_to_authz_lookup[resource_type]
-        for parent_resource in parent_resources:
+        for parent_resource in parents:
             parent_type = type(parent_resource)
             if parent_type not in self._resource_types:
                 raise exceptions.InputVerificationError(
                     f"Parent resource type '{parent_type.__name__}' is not a registered resource."
                 )
             
-            if parent_type not in resource_authz_inst.parent_resource_types:
+            if parent_type not in resource_authz_inst.parent_types:
                 raise exceptions.InputVerificationError(
                     f"Resource type '{parent_type.__name__}' is not a registered parent resource type of '{resource_type.__name__}'"
                 )
         
-        for child_resource in child_resources:
+        for child_resource in children:
             child_type = type(child_resource)
             if child_type not in self._resource_types:
                 raise exceptions.InputVerificationError(
                     f"Parent resource type '{child_type.__name__}' is not a registered resource."
                 )
             
-            if child_type not in resource_authz_inst.child_resource_types:
+            if child_type not in resource_authz_inst.child_types:
                 raise exceptions.InputVerificationError(
                     f"Resource type '{child_type.__name__}' is not a registered child resource type of '{resource_type.__name__}'" 
                 )
@@ -1020,9 +1020,9 @@ class Authzee:
     def _verify_auth_many_args(
         self,
         resources: List[BaseModel],
-        resource_action: ResourceAction,
-        parent_resources: List[BaseModel], 
-        child_resources: List[BaseModel],
+        action: ResourceAction,
+        parents: List[BaseModel], 
+        children: List[BaseModel],
         identities: List[BaseModel]
     ) -> None:
         """Verify the authorization args for many resource calls.
@@ -1031,11 +1031,11 @@ class Authzee:
         ----------
         resources : List[BaseModel]
             Resource models to verify.
-        resource_action : ResourceAction
+        action : ResourceAction
             Resource Action to verify.
-        parent_resources : List[BaseModel]
+        parents : List[BaseModel]
             Parent resource models to verify.
-        child_resources : List[BaseModel]
+        children : List[BaseModel]
             Child resource models to verify.
         identities : List[BaseModel]
             Identity models to verify.
@@ -1054,9 +1054,9 @@ class Authzee:
         
         self._verify_auth_args(
             resource=resources[0],
-            resource_action=resource_action,
-            parent_resources=parent_resources,
-            child_resources=child_resources,
+            action=action,
+            parents=parents,
+            children=children,
             identities=identities
         )
 
@@ -1084,23 +1084,23 @@ class Authzee:
             raise exceptions.InputVerificationError("A set of at least one resource action must be given in a grant.")
         
         resource_authz_inst = self._resource_to_authz_lookup[resource_type]
-        for resource_action in grant.actions:
-            resource_action_type = type(resource_action)
-            if resource_action_type not in self._resource_action_types:
+        for action in grant.actions:
+            action_type = type(action)
+            if action_type not in self._resource_action_types:
                 raise exceptions.InputVerificationError(
-                    f"ResourceAction type '{resource_action_type.__name__}' is not registered."
+                    f"ResourceAction type '{action_type.__name__}' is not registered."
                 )
 
-            if resource_action_type != resource_authz_inst.resource_action_type:
+            if action_type != resource_authz_inst.action_type:
                 raise exceptions.InputVerificationError(
-                    "The '{resource_action}' resource action does not apply to the '{resource_type.__name__}' resource type."
+                    "The '{action}' resource action does not apply to the '{resource_type.__name__}' resource type."
                 )
 
 
     def _verify_resource_type_and_action_filter(
         self, 
         resource_type: Union[Type[BaseModel], None], 
-        resource_action: Union[ResourceAction, None]
+        action: Union[ResourceAction, None]
     ) -> None:
         """Verify resource type and resource action filters
 
@@ -1108,7 +1108,7 @@ class Authzee:
         ----------
         resource_type : Union[Type[BaseModel], None]
             Resource type model to verify, or None
-        resource_action : Union[ResourceAction, None]
+        action : Union[ResourceAction, None]
             Resource Action type model to verify, or None
 
         Raises
@@ -1122,18 +1122,18 @@ class Authzee:
                     f"Resource type '{resource_type.__name__}' is not a part of any registered ResourceAuthzs."
                 )
 
-        if resource_action is not None:
-            resource_action_type = type(resource_action)
-            if resource_action_type not in self._resource_action_types:
+        if action is not None:
+            action_type = type(action)
+            if action_type not in self._resource_action_types:
                 raise exceptions.InputVerificationError(
-                    f"ResourceAction type '{resource_action_type.__name__}' is not registered."
+                    f"ResourceAction type '{action_type.__name__}' is not registered."
                 )
 
-        if resource_type is not None and resource_action is not None:
+        if resource_type is not None and action is not None:
             resource_authz_inst = self._resource_to_authz_lookup[resource_type]
-            if resource_action_type != resource_authz_inst.resource_action_type:
+            if action_type != resource_authz_inst.action_type:
                 raise exceptions.InputVerificationError(
-                    f"The '{resource_action_type}' resource action type does not apply to the '{resource_type.__name__}' resource type."
+                    f"The '{action_type}' resource action type does not apply to the '{resource_type.__name__}' resource type."
                 )
 
 
