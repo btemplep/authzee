@@ -3,19 +3,34 @@
 <!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
 <img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/logo.svg" alt="Authzee Logo" width="300">
 
-Authzee is a highly expressive grant-based authorization framework that is async, extensible, and scalable. 
+Authzee is a highly expressive grant-based authorization engine. 
 
-Authzee was originally developed with a focus on authorization for existing infrastructure 
-like AD users, AD roles, AWS roles etc. Users, roles, groups and other identities are not stored in authzee. 
 
-Authzee supports **ABAC** (Attribute Based Access Control) and **ACL** (Access Control List) style authorization.
-It does not support self-contained **RBAC** (Role Based Access Control) since roles are not stored in authzee.
-The relationships between users, roles, and groups is deferred to external systems.
-Authzee is not **ReBAC** based, but supports many of the ideas.  Tying users to specific actions on specific resources,
-and expressions to authorize. Note that this can be done on a user by user basis but authzee is more compute intense than 
-other options.
+It is designed to offer:
+- Scalability
+- Extensibility
+- Separation of authorization and application logic
+- Built on top of tested and reliable technology with specification
+- Add authorization to existing infrastructure and code with ease
+- Fine grained and expressive access
+- **ACL** - Access Control List
+- **RBAC** - Role-Based Access Control
+- **ABAC** - Attribute-Based Access Control
+- **ReBAC** - Relationship-Bases Access Control kind of
+- Ultra expressive to create very fined grained controls that are more maintainable
 
-For prod ready, large scale **ReBAC** check out [authzed](https://authzed.com/).
+
+TABLE of contents
+
+## Full Example
+
+## Definitions
+
+## Tutorial
+
+### Follow definitions but in more detail
+
+
 
 - [Installation](#installation)
 - [Tutorial](#tutorial)
