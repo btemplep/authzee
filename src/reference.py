@@ -158,7 +158,7 @@ _error_base_schema = {
     "type": "object",
     "additionalProperties": False,
     "required": [
-        "type",
+        "error_type",
         "message",
         "critical",
     ],
@@ -498,16 +498,25 @@ def evaluate(
     search: Callable[[str, AnyJSON], AnyJSON],
     report_jmespath_errors: bool
 ) -> Dict[str, List[Dict[str, AnyJSON]]]: 
-    applicables = []
-    errors = []
+    result = {
+        "completed": True,
+        "grants": [],
+        "errors": []
+    }
     for g in grants:
-        if request['action'] in g or len(g['actions']) == 0:
+        if request['action'] in g["actions"] or len(g['actions']) == 0:
             try:
-                if g['equality'] == search(g['query'], request):
-                    applicables.append(g)
+                if g['equality'] == search(
+                    g['query'], 
+                            {
+                        "request": request,
+                        "grant": g
+                    }
+                ):
+                    result['grants'].append(g)
             except jmespath.exceptions.JMESPathError as error:
                 if report_jmespath_errors is True:
-                    errors.append(
+                    result['errors'].append(
                         {
                             "error_type": "jmespath",
                             "message": str(error),
@@ -515,11 +524,7 @@ def evaluate(
                         }
                     )
     
-    return {
-        "completed": True,
-        "grants": applicables,
-        "errors": errors
-    }
+    return result
 
 
 def authorize(
@@ -543,7 +548,10 @@ def authorize(
         try:
             result = search(
                 g['query'], 
-                request
+                {
+                    "request": request,
+                    "grant": g
+                }
             )
             if result == g['equality']:
                 return {
@@ -574,8 +582,11 @@ def authorize(
     for g in allow_grants:
         try:
             result = search(
-                expression=g['query'], 
-                data=request
+                g['query'], 
+                {
+                    "request": request,
+                    "grant": g
+                }
             )
             if result == g['equality']:
                 return {
