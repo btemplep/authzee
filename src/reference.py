@@ -29,7 +29,7 @@ __all__ = [
 
 import copy
 import json
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Literal, Union
 
 import jmespath
 import jmespath.exceptions
@@ -110,11 +110,11 @@ _grant_base_schema = {
         "effect",
         "actions",
         "query",
+        "query_validation",
         "equality",
         "data",
         "context_schema",
-        "validate_context",
-        "invalid_context_deny"
+        "context_validation"
     ],
     "properties": {
         "effect": {
@@ -135,6 +135,20 @@ _grant_base_schema = {
             "type": "string",
             "description": "JMESPath query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
         },
+        "query_validation": {
+            "type": "string",
+            "description": (
+                "Set how the query errors are treated. "
+                "'validate' - Query errors cause the grant to be inapplicable to the request.  "
+                "'error' - Includes the 'validate' setting checks, and also adds errors to the result.  "
+                "'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
+            ),
+            "enum": [
+                "validate",
+                "error",
+                "critical"
+            ]
+        },
         "equality": {
             "type": _any_types,
             "description": "Expected value for they query to return.  If the query result matches this value the grant is a considered applicable to the request."
@@ -144,13 +158,21 @@ _grant_base_schema = {
             "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
         },
         "context_schema": _schema_schema, # schema for a schema must be of type object at a base
-        "validate_context": {
-            "type": "boolean",
-            "description": "The request context is first validated against this schema. If it is invalid the grant is considered not applicable."
-        },
-        "invalid_context_deny": {
-            "type": "boolean",
-            "description": "The request context is first validated against this schema. If it is invalid, this is considered a deny.  Overrides the validate_context field."
+        "context_validation": {
+            "type": "string",
+            "description": (
+                "Set how the request context is validated against the grant context schema.  "
+                "'none' - there is no validation.  "
+                "'validate' - Context is validated and if the context is invalid, the grant is not applicable to the request.  "
+                "'error' - Includes the 'validate' setting checks, and also adds errors to the result.  "
+                "'critical' Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
+            ),
+            "enum": [
+                "none",
+                "validate",
+                "error",
+                "critical"
+            ]
         }
     }
 }
@@ -201,14 +223,14 @@ _authorize_response_base_schema = {
         },
         "completed": {
             "type": "boolean",
-            "description": "The workflow completed or an error cause an early exit."
+            "description": "The workflow completed."
         },
         "grant": {
             "oneOf": [
                 _grant_base_schema,
-                {"type": None}
+                {"type": "null"}
             ],
-            "description": "Grant that was responsible for the authorization decision, if applicable."
+            # "description": "Grant that was responsible for the authorization decision, if applicable."
         },
         "message": {
             "type": "string",
@@ -232,7 +254,7 @@ _evaluate_response_base_schema = {
     "properties": {
         "completed": {
             "type": "boolean",
-            "description": "The workflow completed or an error cause an early exit."
+            "description": "The workflow completed."
         },
         "grants": {
             "type": "array",
@@ -358,15 +380,12 @@ def generate_schemas(
     identity_defs: List[Dict[str, AnyJSON]],
     resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
-    result = {
-        "schemas": {
-            "grant": copy.deepcopy(_grant_base_schema),
-            "error": copy.deepcopy(_error_base_schema),
-            "request": copy.deepcopy(_request_base_schema),
-            "authorize_response": copy.deepcopy(_authorize_response_base_schema),
-            "evaluate": copy.deepcopy(_evaluate_response_base_schema)
-        },
-        "errors": []
+    schemas = {
+        "grant": copy.deepcopy(_grant_base_schema),
+        "error": copy.deepcopy(_error_base_schema),
+        "request": copy.deepcopy(_request_base_schema),
+        "authorize": copy.deepcopy(_authorize_response_base_schema),
+        "evaluate": copy.deepcopy(_evaluate_response_base_schema)
     }
     # grant schema
     actions = set()
@@ -376,22 +395,22 @@ def generate_schemas(
 
     enum_action_schema = copy.deepcopy(_action_schema)
     enum_action_schema["enum"] = list(actions)
-    result['schemas']['grant']['properties']['actions']['items'] = enum_action_schema
+    schemas['grant']['properties']['actions']['items'] = enum_action_schema
 
     # error schema
     one_of_grant = [
-        result['schemas']['grant'],
-        {"type": None}
+        schemas['grant'],
+        {"type": "null"}
     ]
-    # result['schemas']['error']['properties']['grant']['oneOf'] = one_of_grant
+    # schemas['error']['properties']['grant']['oneOf'] = one_of_grant
 
     # authorize response schema
-    result['schemas']['authorize_response']['properties']['grant']['oneOf'] = one_of_grant
-    result['schemas']['authorize_response']['properties']['errors']['items'] = result['schemas']['error']
+    schemas['authorize']['properties']['grant']['oneOf'] = one_of_grant
+    schemas['authorize']['properties']['errors']['items'] = schemas['error']
 
     # evaluate response schema
-    result['schemas']['evaluate']['properties']['grants']['items'] = result['schemas']['grant']
-    result['schemas']['evaluate']['properties']['errors']['items'] = result['schemas']['error']
+    schemas['evaluate']['properties']['grants']['items'] = schemas['grant']
+    schemas['evaluate']['properties']['errors']['items'] = schemas['error']
 
     # request schema
     request_schema = copy.deepcopy(_request_base_schema)
@@ -445,9 +464,9 @@ def generate_schemas(
         
         request_schema['anyOf'].append(rt_request_schema)
     
-    result['schemas']['request'] = request_schema
+    schemas['request'] = request_schema
 
-    return result
+    return schemas
 
 
 def validate_grants(grants: List[Dict[str, AnyJSON]], schema: Dict[str, AnyJSON]) -> Dict[str, AnyJSON]:
@@ -492,11 +511,79 @@ def validate_request(request: Dict[str, AnyJSON], schema: Dict[str, AnyJSON]) ->
     }         
 
 
+def _evaluate_one(
+    request: Dict[str, AnyJSON], 
+    grant: Dict[str, AnyJSON],
+    search: Callable[[str, AnyJSON], AnyJSON],
+    context_validation: Literal["grant", "none", "validate", "error", "critical"],
+    query_validation: Literal["grant", "validate", "error", "critical"]
+):
+    result = {
+        "critical": False,
+        "applicable": False,
+        "errors": []
+    }
+    if request['action'] in grant["actions"] or len(grant['actions']) == 0:
+        c_val = grant['context_validation'] if context_validation == "grant" else context_validation
+        if c_val != "none":
+            try:
+                jsonschema.validate(request['context'], grant['context_schema'])
+            except jsonschema.exceptions.ValidationError as exc:
+                c_val = grant['context_validation'] if context_validation == "grant" else context_validation
+                is_c_val_crit = c_val == "critical"
+                if (
+                    c_val == "error"
+                    or is_c_val_crit is True
+                ):
+                    result['errors'].append(
+                        {
+                            "error_type": "context",
+                            "message": str(exc),
+                            "critical": is_c_val_crit
+                        }
+                    )
+                    if is_c_val_crit is True:
+                        result['critical'] = True
+                        
+                        return result
+
+        try:
+            if grant['equality'] == search(
+                grant['query'], 
+                {
+                    "request": request,
+                    "grant": grant
+                }
+            ):
+                result['applicable'] = True
+        except jmespath.exceptions.JMESPathError as exc:
+            q_val = grant['query_validation'] if query_validation == "grant" else query_validation
+            is_q_val_crit = q_val == "critical"
+            if (
+                q_val == "error"
+                or is_q_val_crit is True
+            ):
+                result['errors'].append(
+                    {
+                        "error_type": "jmespath",
+                        "message": str(exc),
+                        "critical": is_q_val_crit
+                    }
+                )
+                if is_q_val_crit is True:
+                    result['critical'] = True
+                    
+                    return result
+    
+    return result
+
+
 def evaluate(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
     search: Callable[[str, AnyJSON], AnyJSON],
-    report_jmespath_errors: bool
+    query_validation: Literal["grant", "validate", "error", "critical"],
+    context_validation: Literal["grant", "none", "validate", "error", "critical"]
 ) -> Dict[str, List[Dict[str, AnyJSON]]]: 
     result = {
         "completed": True,
@@ -504,35 +591,23 @@ def evaluate(
         "errors": []
     }
     for g in grants:
-        if request['action'] in g["actions"] or len(g['actions']) == 0:
-            try:
-                if g['equality'] == search(
-                    g['query'], 
-                            {
-                        "request": request,
-                        "grant": g
-                    }
-                ):
-                    result['grants'].append(g)
-            except jmespath.exceptions.JMESPathError as error:
-                if report_jmespath_errors is True:
-                    result['errors'].append(
-                        {
-                            "error_type": "jmespath",
-                            "message": str(error),
-                            "critical": False
-                        }
-                    )
-    
+        g_eval = _evaluate_one(request, g, search, context_validation, query_validation)
+        result['errors'] += g_eval['errors']
+        if g_eval['critical'] is True:
+            result['completed'] = False
+
+            return result 
+
+        elif g_eval['applicable'] is True:
+            result['grants'].append(g)
+
     return result
 
 
 def authorize(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON],
-    report_jmespath_errors: bool,
-    jmespath_error_abort: bool
+    search: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     errors = []
     allow_grants = []
@@ -545,74 +620,46 @@ def authorize(
                 deny_grants.append(g)
     
     for g in deny_grants:
-        try:
-            result = search(
-                g['query'], 
-                {
-                    "request": request,
-                    "grant": g
-                }
-            )
-            if result == g['equality']:
-                return {
-                    "authorized": False,
-                    "completed": True,
-                    "grant": g,
-                    "message": f"The deny grant is applicable to the request. Therefore, the request is not authorized.",
-                    "errors": errors
-                }
-        except jmespath.exceptions.JMESPathError as exc:
-            if report_jmespath_errors is True:
-                errors.append(
-                    {
-                        "error_type": "jmespath",
-                        "message": f"Grant: {g} caused a JMESPath error: {exc}",
-                        "critical": jmespath_error_abort
-                    }
-                )
-            if jmespath_error_abort is True:
-                return {
-                    "authorized": False,
-                    "completed": False,
-                    "grant": g,
-                    "message": f"A JMESPath error has occurred and abort on error is enabled. {exc}",
-                    "errors": errors
-                }
+        g_eval = _evaluate_one(request, g, search, "grant", "grant")
+        errors += g_eval['errors']
+        if g_eval['critical'] is True:
+            return {
+                "authorized": False,
+                "completed": False,
+                "grant": g,
+                "message": "A critical error has occurred. Therefore, the request is not authorized.",
+                "errors": errors
+            }
+        
+        if g_eval['applicable'] is True:
+            return {
+                "authorized": False,
+                "completed": True,
+                "grant": g,
+                "message": "A deny grant is applicable to the request. Therefore, the request is not authorized.",
+                "errors": errors
+            }
     
     for g in allow_grants:
-        try:
-            result = search(
-                g['query'], 
-                {
-                    "request": request,
-                    "grant": g
-                }
-            )
-            if result == g['equality']:
-                return {
-                    "authorized": True,
-                    "completed": True,
-                    "grant": g,
-                    "message": f"The allow grant is applicable to the request. There are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-                    "errors": errors
-                }
-        except jmespath.exceptions.JMESPathError as error:
-            if report_jmespath_errors is True:
-                errors.append(
-                    {
-                        "error_type": "jmespath",
-                        "message": f"Grant: {g} caused a JMESPath error: {exc}",
-                        "critical": jmespath_error_abort
-                    }
-                )
-            if jmespath_error_abort is True:
-                return {
-                    "authorized": False,
-                    "completed": False,
-                    "grant": g,
-                    "message": f"A JMESPath error has occurred and abort on error is enabled. {exc}",
-                    "errors": errors
-                }
+        g_eval = _evaluate_one(request, g, search, "grant", "grant")
+        errors += g_eval['errors']
+        if g_eval['critical'] is True:
+            return {
+                "authorized": True,
+                "completed": False,
+                "grant": g,
+                "message": "A critical error has occurred. Therefore, the request is not authorized.",
+                "errors": errors
+            }
+        
+        if g_eval['applicable'] is True:
+            return {
+                "authorized": True,
+                "completed": True,
+                "grant": g,
+                "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+                "errors": errors
+            }
     
     return {
         "authorized": False,
@@ -629,7 +676,8 @@ def evaluate_workflow(
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
     search: Callable[[str, AnyJSON], AnyJSON],
-    report_jmespath_errors: bool
+    query_validation: Literal["grant", "validate", "error", "critical"],
+    context_validation: Literal["grant", "none", "validate", "error", "critical"]
 ):
     def_val = validate_definitions(
         identity_defs,
@@ -646,7 +694,6 @@ def evaluate_workflow(
         identity_defs,
         resource_defs
     )
-    
     grant_val = validate_grants(grants, schemas['grant'])
     if grant_val['valid'] is False:
         return {
@@ -663,7 +710,7 @@ def evaluate_workflow(
             "errors": request_val['errors']
         }
 
-    return evaluate(request, grants, search, report_jmespath_errors)
+    return evaluate(request, grants, search, query_validation, context_validation)
 
 
 def authorize_workflow(
@@ -671,9 +718,7 @@ def authorize_workflow(
     resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON],
-    report_jmespath_errors: bool,
-    jmespath_error_abort: bool
+    search: Callable[[str, AnyJSON], AnyJSON]
 ):
     def_val = validate_definitions(
         identity_defs,
@@ -713,5 +758,5 @@ def authorize_workflow(
             "errors": request_val['errors']
         }
 
-    return authorize(request, grants, search, report_jmespath_errors, jmespath_error_abort)
+    return authorize(request, grants, search)
 
