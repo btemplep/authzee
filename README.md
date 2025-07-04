@@ -25,9 +25,40 @@ TABLE of contents
 
 ## Full Example
 
+One complete simple example. Explain pieces in line with the json or code
+
+
 ## Definitions
 
+- **Workflow** - A standardized series of steps to complete a specific function in Authzee.
+- **Resource** - An object representing a resource to authorize for.
+    - Like Balloon, BalloonString, BalloonStore
+- **Action** -  An action the can be applied to a resource to authorize on.
+    - Like Balloon:ListBaloons, Balloon:PopBalloon
+- **Resource Definition** - Defines a type resource for Authzee. 
+    - Resource type
+    - Resource schema
+    - Resource actions
+- **Calling Entity** -  The user, service account, principal etc that in question when initiating a workflow with Authzee.
+- **Identity** - An object representing a type of identity for a calling entity.
+    - Like ADUser, AWSRole, EntraGroup
+- **Identity Definition** - Defines an identity type for Authzee. 
+    - Identity Type
+    - Identity Schema
+- **Request** - An object representing the "request" for a workflow.  An Authzee request is consists of a calling entity trying to perform a specific action on a specific resource.  Request data comes in a specific format that includes:
+    - Calling entity identities
+    - Resource to access 
+    - Action to perform on the resource
+    -  Optionally
+    - Related resources 
+    - Context - free form data
+-  **Grant** - An object representing a enacted authorization rule.  In a workflow, grants are evaluated against the request data to see if they are applicable to the request.  A grant is applicable to a request if the evaluated result is equal to the grant's equality value.
+    - Effect - 
+    - Allow - if the evaluated grant is applicable to the request then the request
+
 ## Tutorial
+
+All pieces from the full example broken down into sections with further explanations.
 
 ### Follow definitions but in more detail
 

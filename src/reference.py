@@ -40,22 +40,26 @@ import jsonschema.exceptions
 AnyJSON = Union[bool, str, int, float, None, list, dict]
 _any_types = ["array", "boolean", "integer", "null", "number", "object", "string"]
 _type_schema = {
+    "title": "Authzee Type",
+    "description": "A unique name to identity this type.",
     "type": "string",
     "pattern": "^[A-Za-z0-9_]*$",
     "minLength": 1,
-    "maxLength": 256,
-    "description": "A unique name to identity this type."
+    "maxLength": 256
 }
 _action_schema = {
+    "title": "Resource Action",
+    "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common.",
     "type": "string",
     "pattern": "^[A-Za-z0-9_.:-]*$",
     "minLength": 1,
-    "maxLength": 512,
-    "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common.",
+    "maxLength": 512
 }
 _schema_schema = jsonschema.Draft202012Validator.META_SCHEMA
 
 identity_definition_schema = {
+    "title": "Identity Definition",
+    "description": "An identity definition.  Defines a type of identity to use with Authzee.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -68,6 +72,8 @@ identity_definition_schema = {
     }
 }
 resource_definition_schema = {
+    "title": "Resource Definition",
+    "description": "An resource definition.  Defines a type of resource to use with Authzee.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -104,6 +110,8 @@ resource_definition_schema = {
     }
 }
 _grant_base_schema = {
+    "title": "Grant",
+    "description": "A grant is an object representing a enacted authorization rule.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -176,26 +184,120 @@ _grant_base_schema = {
         }
     }
 }
-_error_base_schema = {
+_context_error_base_schema = {
+    "title": "Context Error",
+    "description": "Error when the request context is not valid against the expected context for the grant.",
     "type": "object",
     "additionalProperties": False,
     "required": [
-        "error_type",
+        "message",
+        "critical",
+        "grant"
+    ],
+    "properties": {
+        "message": {
+            "type": "string",
+            "description": "Detailed message about what caused the error."
+        },
+        "critical": {
+            "type": "boolean",
+            "description": "If this error caused the the workflow to exit early."
+        },
+        "grant": {
+            "$ref": "#/$defs/grant"
+        }
+    }
+}
+_definition_error_base_schema = {
+    "title": "Definition Error",
+    "description": "Error when an identity or resource definition is not valid.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "message",
+        "critical",
+        "definition_type",
+        "definition"
+    ],
+    "properties": {
+        "message": {
+            "type": "string",
+            "description": "Detailed message about what caused the error."
+        },
+        "critical": {
+            "type": "boolean",
+            "description": "If this error caused the the workflow to exit early."
+        },
+        "definition_type": {
+            "type": "string",
+            "enum": [
+                "identity",
+                "resource"
+            ]
+        },
+        "definition": {
+            "type": _any_types
+        }
+    }
+}
+_grant_error_base_schema = {
+    "title": "Grant Error",
+    "description": "Error when an grant is not valid.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "message",
+        "critical",
+        "grant"
+    ],
+    "properties": {
+        "message": {
+            "type": "string",
+            "description": "Detailed message about what caused the error."
+        },
+        "critical": {
+            "type": "boolean",
+            "description": "If this error caused the the workflow to exit early."
+        },
+        "grant": {
+            "type": _any_types
+        }
+    }
+}
+_jmespath_error_base_schema = {
+    "title": "JMESPath Error",
+    "description": "Error when a JMESPath query for a grant produces an error.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "message",
+        "critical",
+        "grant"
+    ],
+    "properties": {
+        "message": {
+            "type": "string",
+            "description": "Detailed message about what caused the error."
+        },
+        "critical": {
+            "type": "boolean",
+            "description": "If this error caused the the workflow to exit early."
+        },
+        "grant": {
+            "$ref": "#/$defs/grant"
+        }
+    }
+}
+_request_error_base_schema = {
+    "title": "Workflow Request Error",
+    "description": "Error when a request is not valid.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
         "message",
         "critical",
     ],
     "properties": {
-        "error_type": {
-            "type": "string",
-            "enum": [
-                "context", # include the grant that caused the error
-                "definition", # include definition that caused the error
-                "grant", # include the grant that caused the error
-                "jmespath", # include the grant that caused the error
-                "request" # Doesn't need any extra info besides the error message
-            ],
-            "description": "Source of the error."
-        },
         "message": {
             "type": "string",
             "description": "Detailed message about what caused the error."
@@ -206,7 +308,54 @@ _error_base_schema = {
         }
     }
 }
+_errors_base_schema = {
+    "title": "Workflow Errors",
+    "description": "Errors returned from Authzee workflows.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "context",
+        "definition",
+        "grant",
+        "jmespath",
+        "request"
+    ],
+    "properties": {
+        "context": {
+            "type": "array",
+            "items": _context_error_base_schema
+        },
+        "definition": {
+            "type": "array",
+            "items": _definition_error_base_schema
+        },
+        "grant": {
+            "type": "array",
+            "items": _grant_error_base_schema
+        },
+        "jmespath": {
+            "type": "array",
+            "items": _jmespath_error_base_schema
+        },
+        "request": {
+            "type": "array",
+            "items": _request_error_base_schema
+        }
+    },
+    # "anyOf": [
+    #     _context_error_base_schema,
+    #     _definition_error_base_schema,
+    #     _grant_error_base_schema,
+    #     _jmespath_error_base_schema,
+    #     _request_error_base_schema
+    # ],
+    "$defs": {
+        "grant": _grant_base_schema
+    }
+}
 _authorize_response_base_schema = {
+    "title": "Authorize Response",
+    "description": "Response for the authorize workflow.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -226,7 +375,7 @@ _authorize_response_base_schema = {
             "description": "The workflow completed."
         },
         "grant": {
-            "oneOf": [
+            "anyOf": [
                 _grant_base_schema,
                 {"type": "null"}
             ],
@@ -236,18 +385,15 @@ _authorize_response_base_schema = {
             "type": "string",
             "description": "Details about why the request was authorized or not."
         },
-        "errors": {
-            "type": "array",
-            "description": "Errors that occurred when running the authorize workflow.",
-            "items": _error_base_schema
-        }
+        "errors": _errors_base_schema
     }
 }
 _evaluate_response_base_schema = {
+    "title": "Evaluate Response",
+    "description": "Response for the evaluate workflow.",
     "type": "object",
     "additionalProperties": False,
     "required": [
-        
         "grants",
         "errors"
     ],
@@ -258,17 +404,20 @@ _evaluate_response_base_schema = {
         },
         "grants": {
             "type": "array",
-            "items": _grant_base_schema,
+            "items": {
+                "$ref": "#/$defs/grant"
+            },
             "description": "List of grants that are applicable to the request."
         },
-        "errors": {
-            "type": "array",
-            "items": _error_base_schema,
-            "details": "Errors that occurred when running the evaluate workflow."
-        }
+        "errors": _errors_base_schema
+    },
+    "$defs": {
+        "grant": _grant_base_schema
     }
 }
 _request_base_schema = {
+    "title": "Workflow Request",
+    "description": "Request for an Authzee workflow.",
     "anyOf": [],
     "$defs": {
         "context": {
@@ -288,6 +437,8 @@ _request_base_schema = {
     }
 }
 _resource_request_base_schema = {
+    "title": "",
+    "description": "",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -333,17 +484,19 @@ def validate_definitions(
             else:
                 errors.append(
                     {
-                        "error_type": "definition",
                         "message": f"Identity types must be unique. '{id_def['identity_type']}' is present more than once.",
-                        "critical": True
+                        "critical": True,
+                        "definition_type": "identity",
+                        "definition": id_def
                     }
                 )
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
-                    "error_type": "definition",
                     "message": f"Identity definition schema was not valid. Definition: {json.dumps(id_def)} Schema Error: {exc}'",
-                    "critical": True
+                    "critical": True,
+                    "definition_type": "identity",
+                    "definition": id_def
                 }
             )
 
@@ -356,17 +509,19 @@ def validate_definitions(
             else:
                 errors.append(
                     {
-                        "error_type": "definition",
                         "message": f"Resource types must be unique. '{r_def['resource_type']}' is present more than once.",
-                        "critical": True
+                        "critical": True,
+                        "definition_type": "resource",
+                        "definition": r_def
                     }
                 )
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
-                    "error_type": "definition",
-                    "message": f"Resource definition was not valid. Definition: {json.dumps(r_def)} Schema Error: {exc}'",
-                    "critical": True
+                    "message": f"Resource definition was not valid. Schema Error: {exc}'",
+                    "critical": True,
+                    "definition_type": "resource",
+                    "definition": r_def
                 }
             )
 
@@ -382,10 +537,10 @@ def generate_schemas(
 ) -> Dict[str, AnyJSON]:
     schemas = {
         "grant": copy.deepcopy(_grant_base_schema),
-        "error": copy.deepcopy(_error_base_schema),
+        "errors": copy.deepcopy(_errors_base_schema),
         "request": copy.deepcopy(_request_base_schema),
-        "authorize": copy.deepcopy(_authorize_response_base_schema),
-        "evaluate": copy.deepcopy(_evaluate_response_base_schema)
+        "evaluate": copy.deepcopy(_evaluate_response_base_schema),
+        "authorize": copy.deepcopy(_authorize_response_base_schema)
     }
     # grant schema
     actions = set()
@@ -398,19 +553,20 @@ def generate_schemas(
     schemas['grant']['properties']['actions']['items'] = enum_action_schema
 
     # error schema
-    one_of_grant = [
+    schemas['errors']['$defs']['grant'] = schemas['grant']
+
+    # evaluate response schema
+    workflow_errors_schema = copy.deepcopy(schemas['errors'])
+    workflow_errors_schema.pop("$defs")
+    schemas['evaluate']['properties']['errors'] = workflow_errors_schema
+
+    # authorize response schema
+    schemas['authorize']['properties']['grant']['oneOf'] = [
         schemas['grant'],
         {"type": "null"}
     ]
-    # schemas['error']['properties']['grant']['oneOf'] = one_of_grant
+    schemas['authorize']['properties']['errors'] = workflow_errors_schema
 
-    # authorize response schema
-    schemas['authorize']['properties']['grant']['oneOf'] = one_of_grant
-    schemas['authorize']['properties']['errors']['items'] = schemas['error']
-
-    # evaluate response schema
-    schemas['evaluate']['properties']['grants']['items'] = schemas['grant']
-    schemas['evaluate']['properties']['errors']['items'] = schemas['error']
 
     # request schema
     request_schema = copy.deepcopy(_request_base_schema)
@@ -424,6 +580,8 @@ def generate_schemas(
     type_to_def = {d['resource_type']: d for d in resource_defs}
     for r_type, r_def in type_to_def.items():
         rt_request_schema = copy.deepcopy(_resource_request_base_schema)
+        rt_request_schema['title'] = f"'{r_type}' Resource Type Workflow Request"
+        rt_request_schema['description'] = f"'{r_type}' resource type request for an Authzee workflow."
         rt_request_schema['properties']['action']['enum'] = r_def['actions']
         rt_request_schema['properties']['resource_type']['const'] = r_type
         request_schema['$defs'][r_type] = r_def['schema']
@@ -477,9 +635,9 @@ def validate_grants(grants: List[Dict[str, AnyJSON]], schema: Dict[str, AnyJSON]
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
-                    "error_type": "grant",
-                    "message": f"The grant is not valid for grant schema. Grant: {g} Error: {exc}" ,
-                    "critical": True
+                    "message": f"The grant is not valid." ,
+                    "critical": True,
+                    "grant": g
                 }
             )
     
@@ -498,7 +656,6 @@ def validate_request(request: Dict[str, AnyJSON], schema: Dict[str, AnyJSON]) ->
             "valid": False,
             "errors": [
                 {
-                    "error_type": "request",
                     "message": f"The request is not valid for the request schema: {exc}",
                     "critical": True
                 }
@@ -521,7 +678,13 @@ def _evaluate_one(
     result = {
         "critical": False,
         "applicable": False,
-        "errors": []
+        "errors": {
+            "context": [],
+            "definition": [],
+            "grant": [],
+            "jmespath": [],
+            "request": []
+        }
     }
     if request['action'] in grant["actions"] or len(grant['actions']) == 0:
         c_val = grant['context_validation'] if context_validation == "grant" else context_validation
@@ -537,7 +700,6 @@ def _evaluate_one(
                 ):
                     result['errors'].append(
                         {
-                            "error_type": "context",
                             "message": str(exc),
                             "critical": is_c_val_crit
                         }
@@ -565,7 +727,6 @@ def _evaluate_one(
             ):
                 result['errors'].append(
                     {
-                        "error_type": "jmespath",
                         "message": str(exc),
                         "critical": is_q_val_crit
                     }
@@ -588,11 +749,18 @@ def evaluate(
     result = {
         "completed": True,
         "grants": [],
-        "errors": []
+        "errors": {
+            "context": [],
+            "definition": [],
+            "grant": [],
+            "jmespath": [],
+            "request": []
+        }
     }
     for g in grants:
         g_eval = _evaluate_one(request, g, search, context_validation, query_validation)
-        result['errors'] += g_eval['errors']
+        result['errors']['context'] += g_eval['errors']['context']
+        result['errors']['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
             result['completed'] = False
 
@@ -679,15 +847,23 @@ def evaluate_workflow(
     query_validation: Literal["grant", "validate", "error", "critical"],
     context_validation: Literal["grant", "none", "validate", "error", "critical"]
 ):
+    errors = {
+            "context": [],
+            "definition": [],
+            "grant": [],
+            "jmespath": [],
+            "request": []
+        }
     def_val = validate_definitions(
         identity_defs,
         resource_defs
     )
+    errors['definition'] = def_val['errors']
     if def_val['valid'] is False:
         return {
             "completed": False,
             "grants": [],
-            "errors": def_val['errors']
+            "errors": errors
         }
     
     schemas = generate_schemas(
@@ -695,19 +871,21 @@ def evaluate_workflow(
         resource_defs
     )
     grant_val = validate_grants(grants, schemas['grant'])
+    errors['grant'] = grant_val['errors']
     if grant_val['valid'] is False:
         return {
             "completed": False,
             "grants": [],
-            "errors": grant_val['errors']
+            "errors": errors
         }
 
     request_val = validate_request(request, schemas['request'])
+    errors['request'] = request_val['errors']
     if request_val['valid'] is False:
         return {
             "completed": False,
             "grants": [],
-            "errors": request_val['errors']
+            "errors": errors
         }
 
     return evaluate(request, grants, search, query_validation, context_validation)
