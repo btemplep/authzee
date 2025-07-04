@@ -131,7 +131,11 @@ _grant_base_schema = {
                 "allow",
                 "deny"
             ],
-            "description": "A applicable deny grant will always deny a request.  If no applicable deny grants, an applicable allow grant will allow a request. By default, no applicable grants requests are denied."
+            "description": (
+                "Any applicable deny grant will always cause the request to be not authorized. "
+                "If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. "
+                "If there no applicable allow or deny grants, requests are implicitly denied and not authorized."
+            )
         },
         "actions": {
             "type": "array",
@@ -350,69 +354,7 @@ _errors_base_schema = {
     #     _request_error_base_schema
     # ],
     "$defs": {
-        "grant": _grant_base_schema
-    }
-}
-_authorize_response_base_schema = {
-    "title": "Authorize Response",
-    "description": "Response for the authorize workflow.",
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "authorized",
-        "completed",
-        "grant",
-        "message",
-        "errors"
-    ],
-    "properties": {
-        "authorized": {
-            "type": "boolean",
-            "description": "true if the request is authorized.  false if it is not authorized."
-        },
-        "completed": {
-            "type": "boolean",
-            "description": "The workflow completed."
-        },
-        "grant": {
-            "anyOf": [
-                _grant_base_schema,
-                {"type": "null"}
-            ],
-            # "description": "Grant that was responsible for the authorization decision, if applicable."
-        },
-        "message": {
-            "type": "string",
-            "description": "Details about why the request was authorized or not."
-        },
-        "errors": _errors_base_schema
-    }
-}
-_evaluate_response_base_schema = {
-    "title": "Evaluate Response",
-    "description": "Response for the evaluate workflow.",
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "grants",
-        "errors"
-    ],
-    "properties": {
-        "completed": {
-            "type": "boolean",
-            "description": "The workflow completed."
-        },
-        "grants": {
-            "type": "array",
-            "items": {
-                "$ref": "#/$defs/grant"
-            },
-            "description": "List of grants that are applicable to the request."
-        },
-        "errors": _errors_base_schema
-    },
-    "$defs": {
-        "grant": _grant_base_schema
+        "grant": None # Replaced with full grant schema
     }
 }
 _request_base_schema = {
@@ -468,6 +410,73 @@ _resource_request_base_schema = {
         }
     }
 }
+_evaluate_response_base_schema = {
+    "title": "Evaluate Response",
+    "description": "Response for the evaluate workflow.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "grants",
+        "errors"
+    ],
+    "properties": {
+        "completed": {
+            "type": "boolean",
+            "description": "The workflow completed."
+        },
+        "grants": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/grant"
+            },
+            "description": "List of grants that are applicable to the request."
+        },
+        "errors": None # Replaced with full errors schema
+    },
+    "$defs": {
+        "grant": None # Replaced with full grant schema
+    }
+}
+_authorize_response_base_schema = {
+    "title": "Authorize Response",
+    "description": "Response for the authorize workflow.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "authorized",
+        "completed",
+        "grant",
+        "message",
+        "errors"
+    ],
+    "properties": {
+        "authorized": {
+            "type": "boolean",
+            "description": "true if the request is authorized.  false if it is not authorized."
+        },
+        "completed": {
+            "type": "boolean",
+            "description": "The workflow completed."
+        },
+        "grant": {
+            "description": "Grant that was responsible for the authorization decision, if applicable.",
+            "anyOf": [
+                {
+                    "$ref": "#/$defs/grant"
+                },
+                {"type": "null"}
+            ]
+        },
+        "message": {
+            "type": "string",
+            "description": "Details about why the request was authorized or not."
+        },
+        "errors": None # Replaced with full errors schema
+    },
+    "$defs": {
+        "grant": None # Replaced with full grant schema
+    }
+}
 
 
 def validate_definitions(
@@ -493,7 +502,7 @@ def validate_definitions(
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
-                    "message": f"Identity definition schema was not valid. Definition: {json.dumps(id_def)} Schema Error: {exc}'",
+                    "message": f"Identity definition schema was not valid. Schema Error: {exc}'",
                     "critical": True,
                     "definition_type": "identity",
                     "definition": id_def
@@ -559,14 +568,11 @@ def generate_schemas(
     workflow_errors_schema = copy.deepcopy(schemas['errors'])
     workflow_errors_schema.pop("$defs")
     schemas['evaluate']['properties']['errors'] = workflow_errors_schema
+    schemas['evaluate']['$defs']['grant'] = schemas['grant']
 
     # authorize response schema
-    schemas['authorize']['properties']['grant']['oneOf'] = [
-        schemas['grant'],
-        {"type": "null"}
-    ]
     schemas['authorize']['properties']['errors'] = workflow_errors_schema
-
+    schemas['authorize']['$defs']['grant'] = schemas['grant']
 
     # request schema
     request_schema = copy.deepcopy(_request_base_schema)
@@ -635,7 +641,7 @@ def validate_grants(grants: List[Dict[str, AnyJSON]], schema: Dict[str, AnyJSON]
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
-                    "message": f"The grant is not valid." ,
+                    "message": f"The grant is not valid. Schema Error: {exc}" ,
                     "critical": True,
                     "grant": g
                 }
@@ -686,56 +692,59 @@ def _evaluate_one(
             "request": []
         }
     }
-    if request['action'] in grant["actions"] or len(grant['actions']) == 0:
-        c_val = grant['context_validation'] if context_validation == "grant" else context_validation
-        if c_val != "none":
-            try:
-                jsonschema.validate(request['context'], grant['context_schema'])
-            except jsonschema.exceptions.ValidationError as exc:
-                c_val = grant['context_validation'] if context_validation == "grant" else context_validation
-                is_c_val_crit = c_val == "critical"
-                if (
-                    c_val == "error"
-                    or is_c_val_crit is True
-                ):
-                    result['errors'].append(
-                        {
-                            "message": str(exc),
-                            "critical": is_c_val_crit
-                        }
-                    )
-                    if is_c_val_crit is True:
-                        result['critical'] = True
-                        
-                        return result
-
+    if request['action'] not in grant["actions"] and len(grant['actions']) > 0:
+        return result
+    
+    c_val = grant['context_validation'] if context_validation == "grant" else context_validation
+    if c_val != "none":
         try:
-            if grant['equality'] == search(
-                grant['query'], 
-                {
-                    "request": request,
-                    "grant": grant
-                }
-            ):
-                result['applicable'] = True
-        except jmespath.exceptions.JMESPathError as exc:
-            q_val = grant['query_validation'] if query_validation == "grant" else query_validation
-            is_q_val_crit = q_val == "critical"
+            jsonschema.validate(request['context'], grant['context_schema'])
+        except jsonschema.exceptions.ValidationError as exc:
+            is_c_val_crit = c_val == "critical"
             if (
-                q_val == "error"
-                or is_q_val_crit is True
+                c_val == "error"
+                or is_c_val_crit is True
             ):
-                result['errors'].append(
+                result['errors']['context'].append(
                     {
                         "message": str(exc),
-                        "critical": is_q_val_crit
+                        "critical": is_c_val_crit,
+                        "grant": grant
                     }
                 )
-                if is_q_val_crit is True:
+                if is_c_val_crit is True:
                     result['critical'] = True
                     
-                    return result
-    
+            return result
+
+    try:
+        if grant['equality'] == search(
+            grant['query'], 
+            {
+                "request": request,
+                "grant": grant
+            }
+        ):
+            result['applicable'] = True
+    except jmespath.exceptions.JMESPathError as exc:
+        q_val = grant['query_validation'] if query_validation == "grant" else query_validation
+        is_q_val_crit = q_val == "critical"
+        if (
+            q_val == "error"
+            or is_q_val_crit is True
+        ):
+            result['errors']['jmespath'].append(
+                {
+                    "message": str(exc),
+                    "critical": is_q_val_crit,
+                    "grant": grant
+                }
+            )
+            if is_q_val_crit is True:
+                result['critical'] = True
+                
+        # return right after this anyway
+
     return result
 
 
@@ -777,7 +786,13 @@ def authorize(
     grants: List[Dict[str, AnyJSON]],
     search: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
-    errors = []
+    errors =  {
+        "context": [],
+        "definition": [],
+        "grant": [],
+        "jmespath": [],
+        "request": []
+    }
     allow_grants = []
     deny_grants = []
     for g in grants:
@@ -789,7 +804,8 @@ def authorize(
     
     for g in deny_grants:
         g_eval = _evaluate_one(request, g, search, "grant", "grant")
-        errors += g_eval['errors']
+        errors['context'] += g_eval['errors']['context']
+        errors['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
             return {
                 "authorized": False,
@@ -810,10 +826,11 @@ def authorize(
     
     for g in allow_grants:
         g_eval = _evaluate_one(request, g, search, "grant", "grant")
-        errors += g_eval['errors']
+        errors['context'] += g_eval['errors']['context']
+        errors['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
             return {
-                "authorized": True,
+                "authorized": False,
                 "completed": False,
                 "grant": g,
                 "message": "A critical error has occurred. Therefore, the request is not authorized.",
@@ -848,12 +865,12 @@ def evaluate_workflow(
     context_validation: Literal["grant", "none", "validate", "error", "critical"]
 ):
     errors = {
-            "context": [],
-            "definition": [],
-            "grant": [],
-            "jmespath": [],
-            "request": []
-        }
+        "context": [],
+        "definition": [],
+        "grant": [],
+        "jmespath": [],
+        "request": []
+    }
     def_val = validate_definitions(
         identity_defs,
         resource_defs
@@ -898,42 +915,51 @@ def authorize_workflow(
     request: Dict[str, AnyJSON],
     search: Callable[[str, AnyJSON], AnyJSON]
 ):
+    errors = {
+        "context": [],
+        "definition": [],
+        "grant": [],
+        "jmespath": [],
+        "request": []
+    }
     def_val = validate_definitions(
         identity_defs,
         resource_defs
     )
+    errors['definition'] = def_val['errors']
     if def_val['valid'] is False:
         return {
             "authorized": False,
             "grant": None,
-            "message": "",
+            "message": "One or more identity and/or resource definitions are not valid. Therefore, the request is not authorized.",
             "completed": False,
-            "errors": def_val['errors']
+            "errors": errors
         }
     
     schemas = generate_schemas(
         identity_defs,
         resource_defs
     )
-    
     grant_val = validate_grants(grants, schemas['grant'])
+    errors['grant'] = grant_val['errors']
     if grant_val['valid'] is False:
         return {
             "authorized": False,
             "grant": None,
-            "message": "",
+            "message": "One or more grants are not valid.  Therefore, the request is not authorized.",
             "completed": False,
-            "errors": grant_val['errors']
+            "errors": errors
         }
 
     request_val = validate_request(request, schemas['request'])
+    errors['request'] = request_val['errors']
     if request_val['valid'] is False:
         return {
             "authorized": False,
             "grant": None,
-            "message": "",
+            "message": "The request is not valid. Therefore the request is not authorized.",
             "completed": False,
-            "errors": request_val['errors']
+            "errors": errors
         }
 
     return authorize(request, grants, search)
