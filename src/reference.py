@@ -149,10 +149,11 @@ _grant_base_schema = {
         },
         "query_validation": {
             "type": "string",
+            "title": "Grant-Level Query Validation Setting",
             "description": (
-                "Set how the query errors are treated. "
-                "'validate' - Query errors cause the grant to be inapplicable to the request.  "
-                "'error' - Includes the 'validate' setting checks, and also adds errors to the result.  "
+                "Grant-level query validation setting. Set how the query errors are treated. "
+                "'validate' - Query errors cause the grant to be inapplicable to the request. "
+                "'error' - Includes the 'validate' setting checks, and also adds errors to the result. "
                 "'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
             ),
             "enum": [
@@ -172,11 +173,12 @@ _grant_base_schema = {
         "context_schema": _schema_schema, # schema for a schema must be of type object at a base
         "context_validation": {
             "type": "string",
+            "title": "Grant-Level Context Validation",
             "description": (
-                "Set how the request context is validated against the grant context schema.  "
+                "Grant-level context validation setting. Set how the request context is validated against the grant context schema. "
                 "'none' - there is no validation.  "
-                "'validate' - Context is validated and if the context is invalid, the grant is not applicable to the request.  "
-                "'error' - Includes the 'validate' setting checks, and also adds errors to the result.  "
+                "'validate' - Context is validated and if the context is invalid, the grant is not applicable to the request. "
+                "'error' - Includes the 'validate' setting checks, and also adds errors to the result. "
                 "'critical' Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
             ),
             "enum": [
@@ -362,6 +364,29 @@ _request_base_schema = {
     "description": "Request for an Authzee workflow.",
     "anyOf": [],
     "$defs": {
+        "identities": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [],
+            "properties": {}
+        },
+        "query_validation": {
+            "type": "string",
+            "title": "Request-Level Query Validation Setting",
+            "description": (
+                "Request-level query validation setting. Overrides grant-level settings for query validation. Set how the query errors are treated. "
+                "'grant' - Use the grant level query validation setting. "
+                "'validate' - Query errors cause the grant to be inapplicable to the request. "
+                "'error' - Includes the 'validate' setting checks, and also adds errors to the result. "
+                "'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
+            ),
+            "enum": [
+                "grant",
+                "validate",
+                "error",
+                "critical"
+            ]
+        },
         "context": {
             "type": "object",
             "patternProperties": {
@@ -370,11 +395,24 @@ _request_base_schema = {
                 }
             }
         },
-        "identities": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [],
-            "properties": {}
+        "context_validation": {
+            "type": "string",
+            "title": "Request-Level Context Validation",
+            "description": (
+                "Request-level context validation setting. Overrides grant-level settings for context validation. Set how the request context is validated against the grant context schema. "
+                "'grant' - Use the grant level context validation setting. "
+                "'none' - There is no validation.  "
+                "'validate' - Context is validated and if the context is invalid, the grant is not applicable to the request.  "
+                "'error' - Includes the 'validate' setting checks, and also adds errors to the result.  "
+                "'critical' Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
+            ),
+            "enum": [
+                "grant",
+                "none",
+                "validate",
+                "error",
+                "critical"
+            ]
         }
     }
 }
@@ -390,7 +428,9 @@ _resource_request_base_schema = {
         "resource",
         "parents",
         "children",
-        "context"
+        "query_validation",
+        "context",
+        "context_validation"
     ],
     "properties": {
         "identities": {
@@ -405,8 +445,14 @@ _resource_request_base_schema = {
         "resource": {}, # this changes based on resource type - obj
         "parents": {}, # changes based on resource type. Must include all Parent types - object of arrays
         "children": {}, # changes based on resource type. Must include all Child types - object of arrays
+        "query_validation": {
+            "$ref": "#/$defs/query_validation"
+        },
         "context": {
             "$ref": "#/$defs/context"
+        },
+        "context_validation": {
+            "$ref": "#/$defs/context_validation"
         }
     }
 }
@@ -677,9 +723,7 @@ def validate_request(request: Dict[str, AnyJSON], schema: Dict[str, AnyJSON]) ->
 def _evaluate_one(
     request: Dict[str, AnyJSON], 
     grant: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON],
-    context_validation: Literal["grant", "none", "validate", "error", "critical"],
-    query_validation: Literal["grant", "validate", "error", "critical"]
+    search: Callable[[str, AnyJSON], AnyJSON]
 ):
     result = {
         "critical": False,
@@ -695,7 +739,7 @@ def _evaluate_one(
     if request['action'] not in grant["actions"] and len(grant['actions']) > 0:
         return result
     
-    c_val = grant['context_validation'] if context_validation == "grant" else context_validation
+    c_val = grant['context_validation'] if request['context_validation'] == "grant" else request['context_validation']
     if c_val != "none":
         try:
             jsonschema.validate(request['context'], grant['context_schema'])
@@ -727,7 +771,7 @@ def _evaluate_one(
         ):
             result['applicable'] = True
     except jmespath.exceptions.JMESPathError as exc:
-        q_val = grant['query_validation'] if query_validation == "grant" else query_validation
+        q_val = grant['query_validation'] if request['query_validation'] == "grant" else request['query_validation']
         is_q_val_crit = q_val == "critical"
         if (
             q_val == "error"
@@ -751,9 +795,7 @@ def _evaluate_one(
 def evaluate(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON],
-    query_validation: Literal["grant", "validate", "error", "critical"],
-    context_validation: Literal["grant", "none", "validate", "error", "critical"]
+    search: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, List[Dict[str, AnyJSON]]]: 
     result = {
         "completed": True,
@@ -767,7 +809,7 @@ def evaluate(
         }
     }
     for g in grants:
-        g_eval = _evaluate_one(request, g, search, context_validation, query_validation)
+        g_eval = _evaluate_one(request, g, search)
         result['errors']['context'] += g_eval['errors']['context']
         result['errors']['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
@@ -803,7 +845,7 @@ def authorize(
                 deny_grants.append(g)
     
     for g in deny_grants:
-        g_eval = _evaluate_one(request, g, search, "grant", "grant")
+        g_eval = _evaluate_one(request, g, search)
         errors['context'] += g_eval['errors']['context']
         errors['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
@@ -825,7 +867,7 @@ def authorize(
             }
     
     for g in allow_grants:
-        g_eval = _evaluate_one(request, g, search, "grant", "grant")
+        g_eval = _evaluate_one(request, g, search)
         errors['context'] += g_eval['errors']['context']
         errors['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
@@ -860,9 +902,7 @@ def evaluate_workflow(
     resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON],
-    query_validation: Literal["grant", "validate", "error", "critical"],
-    context_validation: Literal["grant", "none", "validate", "error", "critical"]
+    search: Callable[[str, AnyJSON], AnyJSON]
 ):
     errors = {
         "context": [],
@@ -905,7 +945,7 @@ def evaluate_workflow(
             "errors": errors
         }
 
-    return evaluate(request, grants, search, query_validation, context_validation)
+    return evaluate(request, grants, search)
 
 
 def authorize_workflow(
