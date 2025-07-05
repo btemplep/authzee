@@ -16,7 +16,7 @@ It is designed to offer:
 - **ACL** - Access Control List
 - **RBAC** - Role-Based Access Control
 - **ABAC** - Attribute-Based Access Control
-- **ReBAC** - Relationship-Bases Access Control kind of
+- **ReBAC** - Relationship-Bases Access Control
 - Ultra expressive to create very fined grained controls that are highly maintainable
 - Auditable - Using the evaluate workflow you can check which grants are applicable to specific requests.
 
