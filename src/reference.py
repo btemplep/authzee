@@ -20,16 +20,18 @@ __all__ = [
     "identity_definition_schema",
     "resource_definition_schema",
     "validate_definitions",
+    "generate_schemas",
     "validate_grants",
-    "authorize",
+    "validate_request",
+    "evaluate_one"
     "evaluate",
+    "authorize",
     "evaluate_workflow",
     "authorize_workflow"
 ]
 
 import copy
-import json
-from typing import Callable, Dict, List, Literal, Union
+from typing import Callable, Dict, List, Union
 
 import jmespath
 import jmespath.exceptions
@@ -573,12 +575,35 @@ def validate_definitions(
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
-                    "message": f"Resource definition was not valid. Schema Error: {exc}'",
+                    "message": f"Resource definition was not valid. Schema Error: {exc}",
                     "critical": True,
                     "definition_type": "resource",
                     "definition": r_def
                 }
             )
+
+    for r_def in resource_defs:
+        for p_type in r_def['parent_types']:
+            if p_type not in r_types:
+                errors.append(
+                    {
+                        "message": f"Parent type '{p_type}' does not have a corresponding resource definition.",
+                        "critical": True,
+                        "definition_type": "resource",
+                        "definition": r_def
+                    }
+                )
+        
+        for c_type in r_def['child_types']:
+            if c_type not in r_types:
+                errors.append(
+                    {
+                        "message": f"Child type '{c_type}' does not have a corresponding resource definition.",
+                        "critical": True,
+                        "definition_type": "resource",
+                        "definition": r_def
+                    }
+                )
 
     return {
         "valid": False if len(errors) > 0 else True,
@@ -720,7 +745,7 @@ def validate_request(request: Dict[str, AnyJSON], schema: Dict[str, AnyJSON]) ->
     }         
 
 
-def _evaluate_one(
+def evaluate_one(
     request: Dict[str, AnyJSON], 
     grant: Dict[str, AnyJSON],
     search: Callable[[str, AnyJSON], AnyJSON]
@@ -809,7 +834,7 @@ def evaluate(
         }
     }
     for g in grants:
-        g_eval = _evaluate_one(request, g, search)
+        g_eval = evaluate_one(request, g, search)
         result['errors']['context'] += g_eval['errors']['context']
         result['errors']['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
@@ -845,7 +870,7 @@ def authorize(
                 deny_grants.append(g)
     
     for g in deny_grants:
-        g_eval = _evaluate_one(request, g, search)
+        g_eval = evaluate_one(request, g, search)
         errors['context'] += g_eval['errors']['context']
         errors['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
@@ -867,7 +892,7 @@ def authorize(
             }
     
     for g in allow_grants:
-        g_eval = _evaluate_one(request, g, search)
+        g_eval = evaluate_one(request, g, search)
         errors['context'] += g_eval['errors']['context']
         errors['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:

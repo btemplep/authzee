@@ -1,705 +1,1596 @@
-# `authzee`
+# Authzee
 
 <!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
-<img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/logo.svg" alt="Authzee Logo" width="300">
-
-Authzee is a highly expressive grant-based authorization engine. 
-
-
-It is designed to offer:
-- Scalability
-- Extensibility
-- Separation of authorization and application logic
-- Built on top of tested and reliable technology with specification
-- Add authorization to existing infrastructure and code with ease
-- Fine grained and expressive access
-- **ACL** - Access Control List
-- **RBAC** - Role-Based Access Control
-- **ABAC** - Attribute-Based Access Control
-- **ReBAC** - Relationship-Bases Access Control
-- Ultra expressive to create very fined grained controls that are highly maintainable
-- Auditable - Using the evaluate workflow you can check which grants are applicable to specific requests.
-
-
-TABLE of contents
-
-## Full Example
-
-One complete simple example. Explain pieces in line with the json or code
-
-
-## Definitions
-
-- **Workflow** - A standardized series of steps to complete a specific function in Authzee.
-- **Resource** - An object representing a resource to authorize for.
-    - Like Balloon, BalloonString, BalloonStore
-- **Action** -  An action the can be applied to a resource to authorize on.
-    - Like Balloon:ListBaloons, Balloon:PopBalloon
-- **Resource Definition** - Defines a type resource for Authzee. 
-    - Resource type
-    - Resource schema
-    - Resource actions
-- **Calling Entity** -  The user, service account, principal etc that in question when initiating a workflow with Authzee.
-- **Identity** - An object representing a type of identity for a calling entity.
-    - Like ADUser, AWSRole, EntraGroup
-- **Identity Definition** - Defines an identity type for Authzee. 
-    - Identity Type
-    - Identity Schema
-- **Request** - An object representing the "request" for a workflow.  An Authzee request is consists of a calling entity trying to perform a specific action on a specific resource.  Request data comes in a specific format that includes:
-    - Calling entity identities
-    - Resource to access 
-    - Action to perform on the resource
-    -  Optionally
-    - Related resources 
-    - Context - free form data
--  **Grant** - An object representing a enacted authorization rule.  In a workflow, grants are evaluated against the request data to see if they are applicable to the request.  A grant is applicable to a request if the evaluated result is equal to the grant's equality value.
-    - Effect - 
-    - Allow - if the evaluated grant is applicable to the request then the request
-
-## Tutorial
-
-All pieces from the full example broken down into sections with further explanations.
-
-### Follow definitions but in more detail
-
-
-
-- [Installation](#installation)
-- [Tutorial](#tutorial)
-    - [Identity](#identity)
-    - [Resource](#resource)
-    - [Resource Actions](#resource-actions)
-    - [Resource Authz](#resource-authz)
-    - [Grant](#grant)
-    - [`authzee` App](#authzee-app)
-    - [`authzee` Sync App](#authzee-sync-app)
-    - [`authzee` App Grant Management](#authzee-app-grant-management)
-    - [`authzee` App Authorization Methods](#authzee-app-authorization-methods)
-    - [`authzee` App Helper Methods](#authzee-app-helper-methods)
-- [Full Tutorial Example](#full-tutorial-example)
-- [Definitions](#definitions)
-
-
-## Installation
-
-Install from pip
-
-```text
-$ pip install authzee
-```
-
-For different compute or storage backends you may need to install extra deps. 
-
-```text
-$ pip install authzee[sql]
-```
-
-Extra dependencies:
-
-- `sql` - For `SQLStorage`. 
-
-
-## Tutorial
-
-Let's start with a simple example.  An authorization request where an entity needs to perform an action on a resource, 
-and authzee should tell us if it is allowed to or not.
-
-> **NOTE** - The tutorial here covers a basic setup, but for more details please see the Documentation(Link TBD).
-
-You can go straight to the [full code example](#full-tutorial-example), or follow along with the tutorial to get all of the definitions and smaller examples.
-
-
-### Identity
-
-Authzee expects the calling entity to be described by its identities. 
-An entity could be a person, a service user, a role etc. 
-An identity could be anything used to describe who or what an entity is.  The calling entity can have many identities. 
-Common identity types could be AD user, AD groups, AWS User, AWS Role.  A single entity could have all of these and multiples of each. 
-
-
-In Authzee actions can be limited based on identities.
-Identity models are made with pydantic.
-
-```python
-from pydantic import BaseModel
-
-class ADUser(BaseModel):
-    cn: str
-
-```
-
-
-### Resource
-
-Resources in Authzee represent resources that authorization is needed for. 
-The resource type and fields can be used in authorization.
-Resource Models are made with pydantic.
-
-```python
-from pydantic import BaseModel
-
-class Balloon(BaseModel):
-    color: str
-    size: str
-```
-
-
-### Resource Actions
-
-Resource actions are used to enumerate operations that can be performed on a resource type.
-You define resource actions as enums that are based on `authzee.ResourceAction`.
-Each resource type must have it's own set of resource actions.
-
-```python
-from enum import auto
-
-from authzee import ResourceAction
-
-class BalloonAction(ResourceAction):
-    CreateBalloon: str = auto()
-    DeleteBalloon: str = auto()
-    ListBalloons: str = auto()
-
-```
-
-### Resource Authz
-
-"Resource Authz"s are used to associate resources, resource actions, and their relationships. 
-
-Create them as a child class of `authzee.ResourceAuthz`, and fill in the default values to declare the resource type, resource action type, as well as parent and child relationships.  
-
-Authzee does not keep a a hierarchy of relationships, and defining these is purely up to you, and how you would like to authorize resources.  
-If you create a resource authz then you can set up the parent and child relationships however you want.  What Authzee will do with the defined relationships is:
-
-- check parent and child resource types against the authz
-- normalize the parent and child resources so you can query them in authorization requests
-
-```python
-from enum import auto
-from typing import Set, Type
-
-from pydantic import BaseModel, Field
-
-from authzee import ResourceAction, ResourceAuthz
-
-
-class Balloon(BaseModel):
-    color: str
-    size: float
-
-
-class BalloonAction(ResourceAction):
-    CreateBalloon: str = auto()
-    DeleteBalloon: str = auto()
-    ListBalloons: str = auto()
-
-  
-class BalloonString(BaseModel):
-    color: str
-    length: float
-
-
-class BalloonStringActions(ResourceAction):
-    CreateBalloonString: str = auto()
-    DeleteBalloonString: str = auto()
-    ListBalloonsString: str = auto()
-
-
-BalloonAuthz = ResourceAuthz(
-    resource_type=Balloon,
-    action_type=BalloonAction,
-    parent_types=set(),
-    child_types={BalloonString}
-)
-BalloonStringAuthz = ResourceAuthz(
-    resource_type=BalloonString,
-    action_type=BalloonStringAction,
-    parent_types={Balloon},
-    child_types=set()
-)
-```
-
-
-### Grant 
-
-By default everything in Authzee is unauthorized/not allowed.  
-In order to allow anything, grants must be created. 
-
-There are two types of grants denoted by their effect. 
-
-- Allow - Grants that authorize/allow matching requests.
-- Deny - Grants that deny matching requests.  Requests with a matching deny grant is always unauthorized. Even if there are matching allow grants.
-
-Grants are created with the `authzee.Grant` model, then added to the authzee app. 
+Authzee is a highly expressive grant-based authorization engine. <img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/logo.svg" alt="Authzee Logo" width="300">
+
+
+- **Scalable** - Handle complex authorization scenarios across large systems.
+- **Extensible** - Easily adapt to new identity types, resources, and authorization patterns.
+- **Separation** - Keep authorization rules separate from business code.
+- **Dependable** - Built on top of existing specifications that are widely used. JSON Schema and JMESPath standards.  Authzee has a specification and reference implementation as well.
+- **ACL** - Access Control List support
+- **RBAC** - Role-Based Access Control support
+- **ABAC** - Attribute-Based Access Control support
+- **ReBAC** - Relationship-Based Access Control support
+- **Ultra expressive** - Create very fine-grained controls that are highly maintainable
+- **Auditable** - Core auditing functionality built in from the ground up to easily perform access checks.
+- **Multi-lingual** - Uses widespread standards to make the core easy to create in any language. 
+    - The reference implementation in this repo uses python for ease of access. 
+    - The reference implementation only defines the core Authzee engine. Compute and storage implementations are handled at the SDK level for each language. 
+- **Agnostic** - Works with any identity provider and resources. New or existing. 
+
+
+## Table of Contents
+
+- [Basic Example](#basic-example)
+- [Complete Example](#complete-example)
+- [Full Specification](#full-specification)
+  - [Core Concepts](#core-concepts)
+  - [Workflow Overview](#workflow-overview)
+  - [API Reference](#api-reference)
+
+
+## Basic Example
 
 
 ```python
-from pydantic import BaseModel
+import jmespath
+from src.reference import authorize_workflow
 
-from authzee import Grant, GrantEffect
+# 1. Define who can make requests (User identity type)
+identity_definitions = [
+    {
+        "identity_type": "User", # unique identity type
+        "schema": { # JSON Schema 
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "department": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string",
+                    "pattern": "^.+@myorg.org$"
+                }
+            },
+            "required": [
+                "id",
+                "department",
+                "email"
+            ]
+        }
+    }
+]
 
+# 2. Define resources that can be accessed
+resource_definitions = [
+    {
+        "resource_type": "Balloon", # Resource types must be unique
+        "actions": [
+            "Balloon:Read", # Action types can be prefaced by a namespace - preferred so they are not shared across resources
+            "inflate", # or just plain
+            "deflate",
+            "pop",
+            "tie"
+        ],
+        "schema": { # JSON Schema
+            "type": "object", 
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "string",
+                    "enum": [
+                        "small",
+                        "medium",
+                        "large"
+                    ]
+                }
+            },
+            "required": [
+                "id",
+                "color",
+                "size"
+            ]
+        },
+        "parent_types": [], # parent resource types, if any
+        "child_types": [] # child resource types, if any
+    }
+]
 
-class Balloon(BaseModel):
-    color: str
-    size: float
+# 3. Define Grants - access rules 
+grants = [
+    {
+        "effect": "allow", # allow or deny
+        "actions": [ # any actions from your resources or empty to match all actions
+            "Balloon:Read",
+            "pop"
+        ],
+        "query": "request.identities.User[0].role == 'admin'", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>}
+        "query_validation": "none",
+        "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
+        "data": {},
+        "context_schema": {
+            "type": "object"
+        },
+        "context_validation": "none"
+    }
+]
 
-
-class BalloonAction(ResourceAction):
-    CreateBalloon: str = auto()
-    DeleteBalloon: str = auto()
-    ListBalloons: str = auto()
-
-
-new_grant = Grant(
-    name="Human friendly name",
-    description="human friendly description",
-    resource_type=Balloon, # The class resource type
-    actions={ # the set of resource actions
-        BalloonAction.CreateBalloon,
-        BalloonAction.DeleteBalloon
-    },
-    # JMESpath is the JSON query language for verifying identities and 
-    # resources, as well as their relationships
-    expression=""" 
-    contains(identities.ADUser[].cn, 'authzee_user_1')
-    && resource.color == 'blue'
-    && contains(context.allowed_sizes, resource.size)
-    """,
-    # context makes additional data available when the expression is evaluated
-    context={
-        "allowed_sizes": [
-            20.0,
-            27.0,
-            30.0
+# 4. Create an authorization request
+request = {
+    "identities": {
+        "User": [
+            {
+                "id": "balloon person",
+                "role": "admin"
+            }
         ]
     },
-    equality=True # If the result of the jmespath search query matches this, then the grant is considered a match!
+    "resource_type": "Balloon",
+    "action": "pop",
+    "resource": {
+        "id": "b123",
+        "color": "green",
+        "size": "medium"
+    },
+    "parents": {},
+    "children": {},
+    "query_validation": "grant", # optionally override grant level query validation
+    "context": {
+        "TEAM": "ABC" # free from data 
+    },
+    "context_validation": "grant" # optionally override grant level context validation
+}
+
+# 5. Check authorization
+result = authorize_workflow(
+    identity_definitions,
+    resource_definitions,
+    grants,
+    request,
+    jmespath.search
 )
+
+if result["authorized"]:
+    print("✅ Access granted!")
+else:
+    print("❌ Access denied!")
+
+# Output: ✅ Access granted!
 ```
 
-The grant above will match with:
+This basic example shows:
+- balloon person requesting to read a document
+- A grant that allows admin users to read and write documents
+- The authorization succeeds because balloon person has the admin role
 
-- resources of the `Balloon` type
-- resource actions of `CreateBalloon` or `DeleteBalloon`
+## Complete Example
 
-But what are `expression`, `context`, and `equality` for?
+Here's a complete example showing how to use Authzee 
 
-- `expression`is a JMESpath query
-- `context` is available as additional data to the request. 
-- If the JMESPath query matches `equality`, (as well as resource and actions) then the grant is a match
+```python
+import jmespath
+import jmespath.functions
+from authzee import authorize_workflow, evaluate_workflow
 
-[JMESPath](https://jmespath.org/) is a JSON query language with a complete specification. Authzee uses it as the query tool for authorizations. 
+# Step 1: Define identity types (who can make requests)
+identity_definitions = [
+    {
+        "identity_type": "User",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "department": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "department",
+                "email"
+            ]
+        }
+    },
+    {
+        "identity_type": "Group", 
+        "schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "department": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "team",
+                        "project",
+                        "department"
+                    ]
+                }
+            },
+            "required": [
+                "name",
+                "department",
+                "type"
+            ]
+        }
+    },
+    {
+        "identity_type": "Role",
+        "schema": {
+            "type": "object", 
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "level": {
+                    "type": "string",
+                    "enum": [
+                        "basic",
+                        "advanced",
+                        "admin"
+                    ]
+                }
+            },
+            "required": [
+                "name",
+                "permissions",
+                "level"
+            ]
+        }
+    }
+]
 
-The request data is normalized into a JSON object. The JMESPath query from `expression`
-is evaluated and then checked if it is an exact match of `equality`.  If so, then the grant
-is considered a match.
+# Step 2: Define resource types (what can be accessed)
+resource_definitions = [
+    {
+        "resource_type": "BalloonStore",
+        "actions": [
+            "read",
+            "manage",
+            "create_balloon"
+        ],
+        "schema": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_department": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "name",
+                "owner_department",
+                "location"
+            ]
+        },
+        "parent_types": [],
+        "child_types": [
+            "Balloon"
+        ]
+    },
+    {
+        "resource_type": "Balloon",
+        "actions": [
+            "read",
+            "inflate",
+            "deflate",
+            "pop",
+            "tie"
+        ],
+        "schema": {
+            "type": "object", 
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "string",
+                    "enum": [
+                        "small",
+                        "medium",
+                        "large"
+                    ]
+                },
+                "material": {
+                    "type": "string"
+                },
+                "owner_department": {
+                    "type": "string"
+                },
+                "inflated": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "id",
+                "color",
+                "size",
+                "material",
+                "owner_department",
+                "inflated"
+            ]
+        },
+        "parent_types": [
+            "BalloonStore"
+        ],
+        "child_types": [
+            "BalloonString"
+        ]
+    },
+    {
+        "resource_type": "BalloonString",
+        "actions": [
+            "read",
+            "cut",
+            "tie",
+            "untie"
+        ],
+        "schema": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "length": {
+                    "type": "number"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "material": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "length",
+                "color",
+                "material"
+            ]
+        },
+        "parent_types": [
+            "Balloon"
+        ],
+        "child_types": []
+    }
+]
 
-Example of normalized request data:
+# Step 3: Create authorization grants (rules)
+grants = [
+    # Allow users to read balloons in their department
+    {
+        "effect": "allow",
+        "actions": [
+            "read"
+        ],
+        "query": "request.identities.User[0].department == request.resource.owner_department",
+        "query_validation": "error",
+        "equality": True,
+        "data": {},
+        "context_schema": {
+            "type": "object"
+        },
+        "context_validation": "none"
+    },
+    
+    # Allow users with admin role to perform any action
+    {
+        "effect": "allow", 
+        "actions": [
+            "read",
+            "inflate",
+            "deflate",
+            "pop",
+            "tie"
+        ],
+        "query": "contains(request.identities.Role[*].level, 'admin')",
+        "query_validation": "error",
+        "equality": True,
+        "data": {},
+        "context_schema": {
+            "type": "object"
+        },
+        "context_validation": "none"
+    },
+    
+    # Allow members of department groups to read balloons in that department
+    {
+        "effect": "allow",
+        "actions": [
+            "read"
+        ],
+        "query": "contains(request.identities.Group[?type=='department'].department, request.resource.owner_department)",
+        "query_validation": "error", 
+        "equality": True,
+        "data": {},
+        "context_schema": {
+            "type": "object"
+        },
+        "context_validation": "none"
+    },
+    
+    # Allow inflate access if user has balloon permission in their role
+    {
+        "effect": "allow",
+        "actions": [
+            "inflate"
+        ],
+        "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+        "query_validation": "error",
+        "equality": True,
+        "data": {},
+        "context_schema": {
+            "type": "object"
+        },
+        "context_validation": "none"
+    },
+    
+    # Deny pop access for large balloons unless admin
+    {
+        "effect": "deny",
+        "actions": [
+            "pop"
+        ],
+        "query": "request.resource.size == 'large' && !contains(request.identities.Role[*].level, 'admin')",
+        "query_validation": "error",
+        "equality": True,
+        "data": {},
+        "context_schema": {
+            "type": "object"
+        },
+        "context_validation": "none"
+    }
+]
+
+# Step 4: Create an authorization request
+request = {
+    "identities": {
+        "User": [
+            {
+                "id": "user123",
+                "department": "party_planning",
+                "email": "john.doe@company.com"
+            }
+        ],
+        "Group": [
+            {
+                "name": "event-team",
+                "department": "party_planning", 
+                "type": "team"
+            },
+            {
+                "name": "party-planning-dept",
+                "department": "party_planning",
+                "type": "department"
+            }
+        ],
+        "Role": [
+            {
+                "name": "party-coordinator",
+                "permissions": [
+                    "balloon:read",
+                    "balloon:inflate",
+                    "balloon:tie"
+                ],
+                "level": "advanced"
+            }
+        ]
+    },
+    "resource_type": "Balloon",
+    "action": "inflate",
+    "resource": {
+        "id": "balloon456",
+        "color": "red",
+        "size": "medium",
+        "material": "latex",
+        "owner_department": "party_planning",
+        "inflated": False
+    },
+    "parents": {
+        "BalloonStore": [
+            {
+                "id": "store123",
+                "name": "Party Central",
+                "owner_department": "party_planning",
+                "location": "Building A"
+            }
+        ]
+    },
+    "children": {
+        "BalloonString": [
+            {
+                "id": "string1",
+                "length": 24.5,
+                "color": "white",
+                "material": "cotton"
+            }
+        ]
+    },
+    "query_validation": "grant",  # Use grant-level validation settings
+    "context": {},   # Additional context data
+    "context_validation": "grant"
+}
+
+# Optional Step 4b: Add custom JMESPath functions
+class CustomFunctions(jmespath.functions.Functions):
+    @jmespath.functions.signature({'types': ['number']}, {'types': ['number']})
+    def _func_my_add(self, x, y):
+        return x + y
+
+options = jmespath.Options(custom_functions=CustomFunctions())
+
+def my_search(expression: str, data):
+    return jmespath.search(expression, data, options)
+
+# Step 5a: Evaluate which grants are applicable (useful for auditing)
+evaluation_result = evaluate_workflow(
+    identity_definitions,
+    resource_definitions,
+    grants,
+    request,
+    jmespath.search # JMESPath search function or custom function
+)
+
+print("📋 Evaluation Results (for auditing):")
+print(f"   Completed: {evaluation_result['completed']}")
+print(f"   Applicable grants: {len(evaluation_result['grants'])}")
+for i, grant in enumerate(evaluation_result['grants']):
+    print(f"   Grant {i+1}: {grant['effect']} - {grant['query']}")
+
+# Step 5b: Make authorization decision
+authorization_result = authorize_workflow(
+    identity_definitions,
+    resource_definitions, 
+    grants,
+    request,
+    jmespath.search  # JMESPath search function or custom function
+)
+
+# Step 6: Check the result
+if authorization_result["authorized"]:
+    print(f"✅ Access granted: {authorization_result['message']}")
+    print(f"Grant responsible: {authorization_result['grant']['query'] if authorization_result['grant'] else 'None'}")
+else:
+    print(f"❌ Access denied: {authorization_result['message']}")
+
+# Print any errors that occurred during evaluation
+if any(authorization_result["errors"].values()):
+    print("\n⚠️  Errors occurred during evaluation:")
+    for error_type, errors in authorization_result["errors"].items():
+        if errors:
+            print(f"  {error_type.title()} errors: {len(errors)}")
+
+# The evaluation result will show applicable grants:
+# 📋 Evaluation Results (for auditing):
+#    Completed: True
+#    Applicable grants: 3
+#    Grant 1: allow - request.identities.User[0].department == request.resource.owner_department
+#    Grant 2: allow - contains(request.identities.Group[?type=='department'].department, request.resource.owner_department)
+#    Grant 3: allow - contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department
+
+# The authorization result will be:
+# ✅ Access granted: An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.
+# Grant responsible: contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department
+```
+
+## Full Specification
+
+### Core Concepts
+
+**Authzee** is a policy-based authorization engine that uses a schema-driven approach to define authorization rules and evaluate access control decisions. The system is built around four primary concepts:
+
+- Identity Definitions
+- Resource Definitions
+- Grants
+- Requests
+
+#### 1. Identity Definitions
+
+Identity definitions describe the types of entities that can make authorization requests. These represent "who" is trying to access resources.  Authzee generally refer's to "who" as the calling entity. Each identity type has a unique name and a JSON Schema that validates the structure and content of identity objects.
+
+**Common Identity Types:**
+- **Users**: Individual people with attributes like ID, email, department, roles
+- **Groups**: Collections of users with shared characteristics (teams, departments, projects)
+- **Roles**: Permission sets that define what actions can be performed
+- **Applications**: Systems or services that act on behalf of users
+- **API Keys**: Programmatic access tokens with associated permissions
+
+Identity definitions enable flexible representation of complex organizational structures and permission models.
+
+##### Identity Definition Schema
+
+Identity definitions are checked against a static schema. See `reference.py` for full schema.
+
+```json
+{
+    "title": "Identity Definition",
+    "description": "An identity definition. Defines a type of identity to use with Authzee.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "identity_type",
+        "schema"
+    ],
+    "properties": {
+        "identity_type": {
+            "title": "Authzee Type",
+            "description": "A unique name to identity this type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "schema": {
+            "description": "JSON Schema (Draft 2020-12) that validates identity objects of this type"
+        }
+    }
+}
+```
+
+##### Identity Definition Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `identity_type` | string | ✅ | Unique identifier for this identity type. Must be alphanumeric with underscores only. Used as a key in request identity objects. |
+| `schema` | object | ✅ | JSON Schema (Draft 2020-12) that defines the structure and validation rules for identity objects of this type. All identity instances must conform to this schema. |
+
+#### 2. Resource Definitions 
+
+Resource definitions describe the types of resources that can be accessed and what actions can be performed on them. These represent "what" is being accessed. Each resource type defines:
+
+- Available actions (read, write, delete, etc.)
+- A JSON Schema for validating resource objects
+- Hierarchical relationships with parent and child resource types
+
+**Resource Hierarchy:**
+Resources can have parent-child relationships that model real-world resource hierarchies:
+- **Parents**: Higher-level resources that contain this resource (e.g., a BalloonStore contains Balloons)
+- **Children**: Lower-level resources contained by this resource (e.g., a Balloon contains BalloonStrings)
+
+This hierarchy allows for sophisticated authorization rules that consider resource containment and inheritance.
+
+##### Resource Definition Schema
+
+Resource definitions are checked against a static schema. See `reference.py` for full schema.
+
+```json
+{
+    "title": "Resource Definition", 
+    "description": "A resource definition. Defines a type of resource to use with Authzee.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "resource_type",
+        "actions",
+        "schema",
+        "parent_types",
+        "child_types"
+    ],
+    "properties": {
+        "resource_type": {
+            "title": "Authzee Type",
+            "description": "A unique name to identity this type.",
+            "type": "string", 
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "actions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "title": "Resource Action",
+                "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common.",
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]*$", 
+                "minLength": 1,
+                "maxLength": 512
+            }
+        },
+        "schema": {
+            "description": "JSON Schema (Draft 2020-12) that validates resource objects of this type"
+        },
+        "parent_types": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "type": "string"
+            },
+            "description": "Types that are a parent of this resource. When instances of these types are passed to the request they will be checked against their schemas and against the hierarchy."
+        },
+        "child_types": {
+            "type": "array", 
+            "uniqueItems": true,
+            "items": {
+                "type": "string"
+            },
+            "description": "Types that are a child of this resource. When instances of these types are passed to the request they will be checked against their schemas and against the hierarchy."
+        }
+    }
+}
+```
+
+##### Resource Definition Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `resource_type` | string | ✅ | Unique identifier for this resource type. Must be alphanumeric with underscores only. Used to identify the resource type in authorization requests. |
+| `actions` | array | ✅ | List of unique action names that can be performed on this resource type. Actions can include dots, hyphens, colons, and underscores. Common patterns include "read", "write", "delete" or namespaced like "Balloon:inflate". |
+| `schema` | object | ✅ | JSON Schema (Draft 2020-12) that defines the structure and validation rules for resource objects of this type. All resource instances must conform to this schema. |
+| `parent_types` | array | ✅ | Array of resource type names that can be parents of this resource type. Parent resources represent containment relationships (e.g., a BalloonStore contains Balloons). Can be empty if no parents exist. |
+| `child_types` | array | ✅ | Array of resource type names that can be children of this resource type. Child resources are contained by this resource type (e.g., a Balloon contains BalloonStrings). Can be empty if no children exist. |
+
+**Resource Hierarchy Example:**
+```json
+{
+    "resource_type": "Balloon",
+    "parent_types": [
+        "BalloonStore"
+    ], 
+    "child_types": [
+        "BalloonString"
+    ]
+}
+```
+
+This means Balloons can be contained in BalloonStores, and Balloons can contain BalloonStrings. During authorization, you can include parent BalloonStores and child BalloonStrings in the request to enable hierarchy-aware authorization rules.
+
+#### 3. Grants (Authorization Rules)
+
+Grants are the core authorization policies that determine whether requests should be allowed or denied. Each grant contains:
+
+- **Effect**: Whether the grant allows or denies access
+- **Actions**: Which resource actions the grant applies to
+- **Query**: A JMESPath expression that evaluates request data
+- **Equality**: The expected result from the query for the grant to be applicable
+- **Context Schema**: Validation schema for additional request context
+- **Error Handling**: Configuration for how validation errors are treated
+
+**Grant Evaluation Logic:**
+1. **Deny grants are evaluated first** - Any applicable deny grant immediately blocks access
+2. **Allow grants are evaluated second** - An applicable allow grant permits access
+3. **Implicit deny** - If no grants are applicable, access is denied by default
+
+##### Grant Example
+
+The grant schema is generated based on the identity and resource definitions. 
+
+```json
+{
+    "effect": "allow",
+    "actions": [
+        "inflate",
+        "tie"
+    ],
+    "query": "request.identities.User[0].department == request.resource.owner_department && contains(request.identities.Role[*].permissions[], 'balloon:inflate')",
+    "query_validation": "error",
+    "equality": true,
+    "data": {
+        "rule_name": "department_balloon_access",
+        "created_by": "party_team"
+    },
+    "context_schema": {
+        "type": "object",
+        "properties": {
+            "request_source": {
+                "type": "string"
+            },
+            "timestamp": {
+                "type": "string",
+                "format": "date-time"
+            }
+        },
+        "required": [
+            "request_source"
+        ]
+    },
+    "context_validation": "validate"
+}
+```
+
+##### Grant Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `effect` | string | ✅ | Whether this grant allows or denies access. Must be either "allow" or "deny". Deny grants always take precedence over allow grants. |
+| `actions` | array | ✅ | List of resource actions this grant applies to. If empty array, applies to all actions. Must match actions defined in resource definitions. |
+| `query` | string | ✅ | JMESPath expression that evaluates the request data. Has access to `request` (the full request object) and `grant` (the current grant with its data). The top-level query data structure is: `{"request": <request_object>, "grant": <grant_object>}` |
+| `query_validation` | string | ✅ | How to handle JMESPath query errors. Options: <ul><li>`"validate"` - Query errors cause the grant to be inapplicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
+| `equality` | any | ✅ | Expected result from the query for this grant to be applicable. Can be any JSON value (boolean, string, number, object, array, null). |
+| `data` | object | ✅ | Additional data made available to the query as `grant.data`. Useful for storing metadata or values used in query evaluation. |
+| `context_schema` | object | ✅ | JSON Schema for validating the request context. Used to ensure the request has the required context data for this grant. |
+| `context_validation` | string | ✅ | How to handle context validation errors. Options: <ul><li>`"none"` - There is no validation</li><li>`"validate"` - Context is validated and if the context is invalid, the grant is not applicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
+
+#### 4. Requests
+
+Requests represent a specific authorization question: "Should this identity be allowed to perform this action on this resource?" Requests contain:
+
+- **Identities**: All identity objects associated with the request (user, groups, roles, etc.)
+- **Resource**: The target resource and its type
+- **Action**: The specific action being requested
+- **Parents/Children**: Related resources in the hierarchy
+- **Context**: Additional data for authorization decisions
+- **Validation Settings**: How errors should be handled during evaluation
+
+##### Request Example
+
+The request schema is generated based on the identity and resource definitions.
 
 ```json
 {
     "identities": {
-        "ADUser": [
+        "User": [
             {
-                "cn": "authzee_user_1"
+                "id": "user123",
+                "department": "party_planning",
+                "email": "john.doe@company.com"
             }
         ],
-        "ADGroup": []
+        "Group": [
+            {
+                "name": "balloon-specialists",
+                "department": "party_planning",
+                "type": "team"
+            }
+        ],
+        "Role": [
+            {
+                "name": "balloon-artist",
+                "permissions": [
+                    "balloon:read",
+                    "balloon:inflate",
+                    "balloon:tie"
+                ],
+                "level": "advanced"
+            }
+        ]
     },
     "resource_type": "Balloon",
+    "action": "inflate",
     "resource": {
-        "color": "green",
-        "size": 12.27
+        "id": "balloon456",
+        "color": "red",
+        "size": "large",
+        "material": "latex",
+        "owner_department": "party_planning",
+        "inflated": false
     },
-    "action": "BalloonAction.CreateBalloon",
-    "parents": {},
+    "parents": {
+        "BalloonStore": [
+            {
+                "id": "store123",
+                "name": "Party Central",
+                "owner_department": "party_planning",
+                "location": "Building A"
+            }
+        ]
+    },
     "children": {
         "BalloonString": [
             {
-                "color": "purple",
-                "length": 27
+                "id": "string1",
+                "length": 24.5,
+                "color": "white",
+                "material": "cotton"
             }
         ]
-    }, 
+    },
+    "query_validation": "error",
     "context": {
-        "allowed_sizes": [
-            20.0,
-            27.0,
-            30.0
+        "request_source": "web_ui",
+        "timestamp": "2023-12-07T10:30:00Z",
+        "event_type": "birthday_party"
+    },
+    "context_validation": "grant"
+}
+```
+
+##### Request Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `identities` | object | ✅ | Map of identity type names to arrays of identity objects. Each identity type must match a defined identity definition and conform to its schema. |
+| `resource_type` | string | ✅ | The type of resource being accessed. Must match a defined resource definition. |
+| `action` | string | ✅ | The specific action being requested on the resource. Must be one of the actions defined for the resource type. |
+| `resource` | object | ✅ | The target resource object. Must conform to the schema defined for the resource type. |
+| `parents` | object | ✅ | Map of parent resource type names to arrays of parent resource objects. Only includes types listed in the resource definition's `parent_types`. |
+| `children` | object | ✅ | Map of child resource type names to arrays of child resource objects. Only includes types listed in the resource definition's `child_types`. |
+| `query_validation` | string | ✅ | Request-level override for query validation. Options: <ul><li>`"grant"` - Use the grant level query validation setting</li><li>`"validate"` - Query errors cause the grant to be inapplicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
+| `context` | object | ✅ | Additional context data for authorization decisions. Available to grant queries as `request.context`. Structure is flexible but should match grant context schemas. |
+| `context_validation` | string | ✅ | Request-level override for context validation. Options: <ul><li>`"grant"` - Use the grant level context validation setting</li><li>`"none"` - There is no validation</li><li>`"validate"` - Context is validated and if the context is invalid, the grant is not applicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
+
+### Workflow Overview
+
+The core Authzee workflow follows these steps:
+
+1. **Define Identity and Resource Types**: Create schema definitions for your identities and resources
+2. **Validate Definitions**: Ensure all definitions are valid using `validate_definitions()`
+3. **Generate Schemas**: Create JSON schemas for grants and requests using `generate_schemas()`
+4. **Create Grants**: Define authorization rules (allow/deny policies)
+5. **Validate Grants**: Ensure grants are valid using `validate_grants()`
+6. **Create Request**: Build an authorization request
+7. **Validate Request**: Ensure the request is valid using `validate_request()`
+8. **Evaluate**: Use `authorize()` or `evaluate()` to make authorization decisions
+
+> **NOTE** - Generally, steps 1-3 only happen once. Steps 4 and 5 are only done when adding grants.  6-8 happen for each authorization.
+
+### API Reference
+
+#### Core Functions
+
+**`validate_definitions(identity_defs, resource_defs)`**
+
+Validates identity and resource definitions against their schemas.
+
+**Parameters:**
+- `identity_defs` (list): List of identity definition objects
+- `resource_defs` (list): List of resource definition objects
+
+**Returns:**
+```json
+{
+    "valid": false,
+    "errors": [
+        {
+            "message": "Identity definition schema was not valid. Schema Error: ...",
+            "critical": true,
+            "definition_type": "identity",
+            "definition": {
+                "..."
+            }
+        }
+    ]
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `valid` | boolean | Whether all definitions are valid |
+| `errors` | array | List of definition error objects |
+
+**Definition Error Object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message` | string | Detailed message about what caused the error |
+| `critical` | boolean | Whether this error prevents further processing (always true for definition errors) |
+| `definition_type` | string | Type of definition that failed ("identity" or "resource") |
+| `definition` | any | The definition object that caused the error |
+
+---
+
+**`generate_schemas(identity_defs, resource_defs)`**
+
+Generates JSON schemas for grants, requests, and responses based on your definitions.
+
+**Parameters:**
+- `identity_defs` (list): List of validated identity definition objects
+- `resource_defs` (list): List of validated resource definition objects
+
+**Returns:**
+```json
+{
+    "grant": {
+        "..."
+    },
+    "request": {
+        "..."
+    },
+    "errors": {
+        "..."
+    },
+    "evaluate": {
+        "..."
+    },
+    "authorize": {
+        "..."
+    }
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `grant` | object | JSON Schema for validating grant objects |
+| `request` | object | JSON Schema for validating request objects |
+| `errors` | object | JSON Schema for error response objects |
+| `evaluate` | object | JSON Schema for evaluate response objects |
+| `authorize` | object | JSON Schema for authorize response objects |
+
+---
+
+**`validate_grants(grants, schema)`**
+
+Validates grants against the generated grant schema.
+
+**Parameters:**
+- `grants` (list): List of grant objects to validate
+- `schema` (object): Generated grant schema from `generate_schemas()`
+
+**Returns:**
+```json
+{
+    "valid": false,
+    "errors": [
+        {
+            "message": "The grant is not valid. Schema Error: ...",
+            "critical": true,
+            "grant": {
+                "..."
+            }
+        }
+    ]
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `valid` | boolean | Whether all grants are valid |
+| `errors` | array | List of grant error objects |
+
+**Grant Error Object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message` | string | Detailed message about what caused the error |
+| `critical` | boolean | Whether this error prevents further processing (always true for grant validation errors) |
+| `grant` | any | The grant object that caused the error |
+
+---
+
+**`validate_request(request, schema)`**
+
+Validates a request against the generated request schema.
+
+**Parameters:**
+- `request` (object): Request object to validate
+- `schema` (object): Generated request schema from `generate_schemas()`
+
+**Returns:**
+```json
+{
+    "valid": false,
+    "errors": [
+        {
+            "message": "The request is not valid for the request schema: ...",
+            "critical": true
+        }
+    ]
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `valid` | boolean | Whether the request is valid |
+| `errors` | array | List of request error objects |
+
+**Request Error Object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message` | string | Detailed message about what caused the error |
+| `critical` | boolean | Whether this error prevents further processing (always true for request validation errors) |
+
+---
+
+**`evaluate(request, grants, search)`**
+
+Evaluates which grants are applicable to a request.
+
+**Parameters:**
+- `request` (object): Validated request object
+- `grants` (list): List of validated grant objects
+- `search` (function): JMESPath search function (e.g., `jmespath.search`)
+    - Accepts 2 args
+        - JMESPath query
+        - Data
+    - Uses a pointer to a function so that custom JMESPath functions can be added.
+
+**Returns:**
+```json
+{
+    "completed": true,
+    "grants": [
+        {
+            "effect": "allow",
+            "actions": [
+                "read"
+            ],
+            "query": "request.identities.User[0].department == request.resource.owner_department",
+            "equality": true,
+            "data": {},
+            "context_schema": {
+                "type": "object"
+            },
+            "context_validation": "none"
+        }
+    ],
+    "errors": {
+        "context": [],
+        "definition": [],
+        "grant": [],
+        "jmespath": [
+            {
+                "message": "Invalid JMESPath expression: ...",
+                "critical": false,
+                "grant": {
+                    "..."
+                }
+            }
+        ],
+        "request": []
+    }
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `completed` | boolean | Whether the evaluation completed without critical errors |
+| `grants` | array | List of grant objects that are applicable to the request |
+| `errors` | object | Categorized error objects that occurred during evaluation |
+
+**Errors Object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `context` | array | List of context validation error objects |
+| `definition` | array | List of definition error objects (empty for this function) |
+| `grant` | array | List of grant error objects (empty for this function) |
+| `jmespath` | array | List of JMESPath query error objects |
+| `request` | array | List of request error objects (empty for this function) |
+
+**Context Error Object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message` | string | Detailed message about the context validation failure |
+| `critical` | boolean | Whether this error caused the workflow to exit early |
+| `grant` | object | The grant object whose context schema validation failed |
+
+**JMESPath Error Object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message` | string | Detailed message about the JMESPath query error |
+| `critical` | boolean | Whether this error caused the workflow to exit early |
+| `grant` | object | The grant object whose query caused the error |
+
+---
+
+**`authorize(request, grants, search)`**
+
+Makes an authorization decision (allow/deny) based on applicable grants.
+
+**Parameters:**
+- `request` (object): Validated request object
+- `grants` (list): List of validated grant objects
+- `search` (function): JMESPath search function (e.g., `jmespath.search`)
+    - Accepts 2 args
+        - JMESPath query
+        - Data
+    - Uses a pointer to a function so that custom JMESPath functions can be added.
+
+**Returns:**
+```json
+{
+    "authorized": true,
+    "completed": true,
+    "grant": {
+        "effect": "allow",
+        "actions": [
+            "inflate"
+        ],
+        "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate')",
+        "equality": true,
+        "data": {},
+        "context_schema": {
+            "type": "object"
+        },
+        "context_validation": "none"
+    },
+    "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+    "errors": {
+        "context": [],
+        "definition": [],
+        "grant": [],
+        "jmespath": [],
+        "request": []
+    }
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `authorized` | boolean | Whether the request is authorized (true) or denied (false) |
+| `completed` | boolean | Whether the authorization completed without critical errors |
+| `grant` | object/null | Grant object responsible for the decision, or null if no applicable grants |
+| `message` | string | Human-readable explanation of the authorization decision |
+| `errors` | object | Categorized error objects that occurred during authorization (same structure as `evaluate()`) |
+
+#### Workflow Functions
+
+**`evaluate_workflow(identity_defs, resource_defs, grants, request, search)`**
+
+Complete workflow that validates everything and returns applicable grants. This function is particularly useful for auditing purposes, as it shows all grants that would apply to a request without making an authorization decision.
+
+**Parameters:**
+- `identity_defs` (list): List of identity definition objects
+- `resource_defs` (list): List of resource definition objects
+- `grants` (list): List of grant objects
+- `request` (object): Request object
+- `search` (function): JMESPath search function (e.g., `jmespath.search`)
+    - Accepts 2 args
+        - JMESPath query
+        - Data
+    - Uses a pointer to a function so that custom JMESPath functions can be added.
+
+**Workflow Steps:**
+1. **Validate Definitions** - Validates identity and resource definitions using `validate_definitions()`
+2. **Generate Schemas** - Creates JSON schemas using `generate_schemas()`
+3. **Validate Grants** - Validates grants against the generated schema using `validate_grants()`
+4. **Validate Request** - Validates the request against the generated schema using `validate_request()`
+5. **Evaluate Grants** - Runs `evaluate()` to determine which grants are applicable to the request
+
+**Returns:** Same as `evaluate()` but includes validation errors from all steps
+
+**Use Cases:**
+- **Auditing**: Determine which grants apply to specific requests for compliance reporting
+- **Testing**: Verify that grants are working as expected during development
+- **Debugging**: Understand why authorization decisions are being made
+- **Policy Analysis**: Review which grants are applicable across different scenarios
+
+---
+
+**`authorize_workflow(identity_defs, resource_defs, grants, request, search_func)`**
+
+Complete workflow that validates everything and returns authorization decision.
+
+**Parameters:**
+- `identity_defs` (list): List of identity definition objects
+- `resource_defs` (list): List of resource definition objects
+- `grants` (list): List of grant objects
+- `request` (object): Request object
+- `search_func` (function): JMESPath search function
+
+**Workflow Steps:**
+1. **Validate Definitions** - Validates identity and resource definitions using `validate_definitions()`
+2. **Generate Schemas** - Creates JSON schemas using `generate_schemas()`
+3. **Validate Grants** - Validates grants against the generated schema using `validate_grants()`
+4. **Validate Request** - Validates the request against the generated schema using `validate_request()`
+5. **Authorize Request** - Runs `authorize()` to make the final authorization decision
+
+**Returns:** Same as `authorize()` but includes validation errors from all steps
+
+## Workflow Examples
+
+### Successful Evaluate Workflow Example
+
+```json
+{
+    "completed": true,
+    "grants": [
+        {
+            "effect": "allow",
+            "actions": [
+                "read"
+            ],
+            "query": "request.identities.User[0].department == request.resource.owner_department",
+            "query_validation": "error",
+            "equality": true,
+            "data": {
+                "rule_name": "department_access"
+            },
+            "context_schema": {
+                "type": "object"
+            },
+            "context_validation": "none"
+        },
+        {
+            "effect": "allow",
+            "actions": [
+                "inflate"
+            ],
+            "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate')",
+            "query_validation": "error",  
+            "equality": true,
+            "data": {
+                "rule_name": "role_permission_access"
+            },
+            "context_schema": {
+                "type": "object"
+            },
+            "context_validation": "none"
+        }
+    ],
+    "errors": {
+        "context": [],
+        "definition": [],
+        "grant": [],
+        "jmespath": [],
+        "request": []
+    }
+}
+```
+
+### Successful Authorize Workflow Example
+
+```json
+{
+    "authorized": true,
+    "completed": true,
+    "grant": {
+        "effect": "allow",
+        "actions": [
+            "inflate"
+        ],
+        "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+        "query_validation": "error",
+        "equality": true,
+        "data": {
+            "rule_name": "department_balloon_access",
+            "created_by": "party_team"
+        },
+        "context_schema": {
+            "type": "object"
+        },
+        "context_validation": "none"
+    },
+    "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+    "errors": {
+        "context": [],
+        "definition": [],
+        "grant": [],
+        "jmespath": [],
+        "request": []
+    }
+}
+```
+
+### Workflow Examples with All Error Types
+
+#### Definition Errors Example
+
+```json
+{
+    ...
+    "errors": {
+        "context": [],
+        "definition": [
+            {
+                "message": "Identity types must be unique. 'User' is present more than once.",
+                "critical": true,
+                "definition_type": "identity",
+                "definition": {
+                    "identity_type": "User",
+                    "schema": {
+                        "type": "object"
+                    }
+                }
+            },
+            {
+                "message": "Parent type 'InvalidParent' does not have a corresponding resource definition.",
+                "critical": true,
+                "definition_type": "resource",
+                "definition": {
+                    "resource_type": "Balloon",
+                    "actions": [
+                        "read"
+                    ],
+                    "schema": {
+                        "type": "object"
+                    },
+                    "parent_types": [
+                        "InvalidParent"
+                    ],
+                    "child_types": []
+                }
+            }
+        ],
+        "grant": [],
+        "jmespath": [],
+        "request": []
+    }
+}
+```
+
+#### Grant Validation Errors Example
+
+```json
+{
+    ...
+    "errors": {
+        "context": [],
+        "definition": [],
+        "grant": [
+            {
+                "message": "The grant is not valid. Schema Error: 'invalid_action' is not one of ['read', 'inflate', 'deflate', 'pop', 'tie']",
+                "critical": true,
+                "grant": {
+                    "effect": "allow",
+                    "actions": [
+                        "invalid_action"
+                    ],
+                    "query": "true",
+                    "query_validation": "error",
+                    "equality": true,
+                    "data": {},
+                    "context_schema": {
+                        "type": "object"
+                    },
+                    "context_validation": "none"
+                }
+            }
+        ],
+        "jmespath": [],
+        "request": []
+    }
+}
+```
+
+#### Request Validation Errors Example
+
+```json
+{
+    ...
+    "errors": {
+        "context": [],
+        "definition": [],
+        "grant": [],
+        "jmespath": [],
+        "request": [
+            {
+                "message": "The request is not valid for the request schema: 'invalid_action' is not one of ['read', 'inflate', 'deflate', 'pop', 'tie']",
+                "critical": true
+            }
         ]
     }
 }
 ```
 
-The data for this is normalized as follows:
+#### JMESPath Query Errors Example
 
-- `identities` is a JSON object whose keys include all identity types, and the value of each is an array.
-- Any identities passed will be serialized and added to the array of their respective identity types. 
-- `resource_type` is the class name of the resource type model for the request.
-- `resource` is the serialized resource model for the request
-- `action` is the full name of the action for the request. `<class name>.<enum member>`
-- `parents` and `children` are JSON objects that include all of the parent and child resource types class names as keys, and the value of each is an array.
-- Any child or parent resources will be serialized and added to the array of their respective parent or child resource types. 
-- `context` - additional data provided by the grant.  
-
-The above json is used as the data in `jmespath.search()`, along with the jmespath expression from the grant used as the expression.
-
-
-### `authzee` App
-
-The central interface of authzee is with the creation of an authzee app. 
-An Authzee app requires a storage backend and a compute backend. 
-
-Available Storage Backends:
-
-- ` MemoryStorage` - In memory storage. 
-- `SQLStorage` - Store data in a SQL database - async enabled
-- `S3Storage` - AWS S3 storage.
-
-Available Compute Backends:
-
-- `MainProcessCompute` - process authorization requests synchronously in the main thread - not async
-- `MultiprocessCompute` - process authorization requests asynchronously.  Distributes work to a process pool
-- `ThreadedCompute` - Process authorization requests asynchronously.  Distributes work to a thread pool.  Note that because of the GIL, using multiple threads may actually be slightly slower than `MainProcessCompute`.  While it's not truly parallel processing, it will not block the main thread. 
-- `TaskiqCompute` - Send compute tasks to Taskiq workers (Like Celery but asyncio).
-
-```python
-from authzee import (
-    Authzee,
-    MultiprocessCompute,
-    SQLStorage
-)
-
-compute = MultiprocessCompute()
-storage = SQLStorage(
-    sqlalchemy_async_engine_kwargs={
-        "url": "sqlite+aiosqlite:///test.sqlite",
-        "echo": True
+```json
+{
+    ...
+    "errors": {
+        "context": [],
+        "definition": [],
+        "grant": [],
+        "jmespath": [
+            {
+                "message": "Invalid function name: invalid_function",
+                "critical": false,
+                "grant": {
+                    "effect": "allow",
+                    "actions": [
+                        "read"
+                    ],
+                    "query": "invalid_function(request.identities.User[0].department)",
+                    "query_validation": "error",
+                    "equality": true,
+                    "data": {},
+                    "context_schema": {
+                        "type": "object"
+                    },
+                    "context_validation": "none"
+                }
+            }
+        ],
+        "request": []
     }
-)
-authzee_app = Authzee(
-    compute_backend=compute,
-    storage_backend=storage
-)
-
+}
 ```
 
-### `authzee` Sync App
+#### Context Validation Errors Example
 
-There is also a synchronous wrapper for the Authzee app. 
-It has all of the same methods but they are synchronous. 
-
-```python
-from authzee import (
-    Authzee,
-    AuthzeeSync,
-    MultiprocessCompute,
-    SQLStorage
-)
-
-compute = MultiprocessCompute()
-storage = SQLStorage(
-    sqlalchemy_async_engine_kwargs={
-        "url": "sqlite+aiosqlite:///test.sqlite",
-        "echo": True
+```json
+{
+    ...
+    "errors": {
+        "context": [
+            {
+                "message": "'request_source' is a required property",
+                "critical": false,
+                "grant": {
+                    "effect": "allow",
+                    "actions": [
+                        "read"
+                    ],
+                    "query": "true",
+                    "query_validation": "error",
+                    "equality": true,
+                    "data": {},
+                    "context_schema": {
+                        "type": "object",
+                        "properties": {
+                            "request_source": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "request_source"
+                        ]
+                    },
+                    "context_validation": "error"
+                }
+            }
+        ],
+        "definition": [],
+        "grant": [],
+        "jmespath": [],
+        "request": []
     }
-)
-authzee_app = Authzee(
-    compute_backend=compute,
-    storage_backend=storage
-)
-authzee_sync_app = AuthzeeSync(
-    authzee_app=authzee_app
-)
+}
 ```
 
-### `authzee` App Grant Management
 
-After initialization of the Authzee app you can manage grants with these async methods:
+### Error Handling
 
-- `list_grants` - List grants with an iterator.
-- `add_grant` - Add a new grant.
-- `delete_grant` - Delete a grant.
-- `get_grants_page` - Retrieve a single page of grants.
-- `get_page_refs_page` - Retrieve a page of page references for parallel pagination (not supported by all storage backends).
+Authzee provides comprehensive error handling with different validation settings that control how errors are treated during evaluation. Critical errors will cause the workflow to halt execution and return immediately with an incomplete result.
 
+**Validation Settings:**
 
-### `authzee` App Authorization Methods
+Both query and context validation can be configured at the grant level and overridden at the request level:
 
-Of course you can also use the async authorization methods!
+**Query Validation Options:**
+- `validate`: Query errors make grants non-applicable (silent failure)
+- `error`: Query errors make grants non-applicable and add to error collection
+- `critical`: Query errors make grants non-applicable, add to errors, and halt workflow execution
 
-- `authorize` - Determine if the request is authorized.
-- `authorize_many` - Determine if several of the same resource type are authorized for the request. 
-- `list_matching_grants` - List matching grants with an iterator. 
-- `get_matching_grants_page` - Retrieve a single page of matching grants. 
+At the request level it can be set to `grant` to accept the grant value, or override with one of the above values.
 
+**Context Validation Options:**
+- `none`: No context validation is performed
+- `validate`: Context validation errors make grants non-applicable (silent failure)
+- `error`: Context validation errors make grants non-applicable and add to error collection
+- `critical`: Context validation errors make grants non-applicable, add to errors, and halt workflow execution
 
-### `authzee` App Helper Methods
+At the request level it can be set to `grant` to accept the grant value, or override with one of the above values.
 
-- `grant_matches` - Check if the request matches the given grant.
-
-
-## Full Tutorial Example
-
-```python
-import asyncio
-from enum import auto
-from typing import Set, Type
-
-from pydantic import BaseModel, Field
-
-from authzee import (
-    Authzee,
-    AuthzeeSync,
-    Grant, 
-    GrantEffect,
-    MultiprocessCompute,
-    ResourceAction, 
-    ResourceAuthz,
-    SQLStorage
-)
-
-# Identity Models
-# Create identity models that represent the calling entities identities 
-class ADUser(BaseModel):
-    cn: str
-
-
-class ADGroup(BaseModel):
-    cn: str
-
-
-# Resource Models
-# Used to authorize actions on resources
-# Can use authorization specific resource models
-class Balloon(BaseModel):
-    color: str
-    size: float
-
-  
-class BalloonString(BaseModel):
-    color: str
-    length: float
-
-
-# Resource Actions
-# One resource action per resource type to represent the actions that can be taken on the resource
-class BalloonAction(ResourceAction):
-    CreateBalloon: str = auto()
-    DeleteBalloon: str = auto()
-    ListBalloons: str = auto()
-
-
-class BalloonStringAction(ResourceAction):
-    CreateBalloonString: str = auto()
-    DeleteBalloonString: str = auto()
-    ListBalloonsString: str = auto()
-
-
-# Resource Authzs
-# Tie resource types, resource actions, as well as child and parent relationships together
-
-BalloonAuthz = ResourceAuthz(
-    resource_type=Balloon,
-    action_type=BalloonAction,
-    parent_types=set(),
-    child_types={BalloonString}
-)
-BalloonStringAuthz = ResourceAuthz(
-    resource_type=BalloonString,
-    action_type=BalloonStringAction,
-    parent_types={Balloon},
-    child_types=set()
-)
-
-# Create a compute and storage backend
-compute = MultiprocessCompute()
-storage = SQLStorage(
-    sqlalchemy_async_engine_kwargs={
-        "url": "sqlite+aiosqlite:///test.sqlite",
-        "echo": False
-    }
-)
-# Pass those to the Authzee app
-authzee_app = Authzee(
-    compute_backend=compute,
-    storage_backend=storage
-)
-# Most methods to authzee are async, but you can use the synchronous wrapper if you aren't using async
-authzee_sync = AuthzeeSync(authzee_app=authzee_app)
-# Register Identity types
-authzee_app.register_identity_type(ADUser)
-authzee_app.register_identity_type(ADGroup)
-# Then register ResourceAuthzs
-authzee_app.register_resource_authz(BalloonAuthz)
-authzee_app.register_resource_authz(BalloonStringAuthz)
-
-if __name__ == "__main__":
-    # By default no requests are authorized in authzee
-    # Grants are the base unit for describing how to match an authorization request
-    # Grants are added to the authzee app as either ALLOW or DENY. 
-    # Authorization requests that match a DENY grant are not authorized.
-    # Requests that match an ALLOW grant but not any DENY grants are authorized.
-    # Create new grant objects
-    my_balloon = Balloon(
-        color="blue",
-        size=27.0
-    )
-    identities = [
-        ADUser(
-            cn="authzee_user_1"
-        ),
-        ADGroup(
-            cn="some_group"
-        ),
-        ADGroup(
-            cn="another_group"
-        )
-    ]
-    
-    # as long as the compute and storage backends support is there is also 
-    # async versions for all of these besides grant_matches. 
-    # Simply append "_async" to the method. 
-    async def tutorial() -> None:
-
-        # It's recommended to initialize the authzee app with a __main__ block
-        # or a frameworks startup function.
-        # Some compute backends me actually mandate it to be done like this.
-        await authzee_app.initialize()
-
-        # Run the one time setup.  This should only be done once per configuration.
-        # Creates DB tables, other storage setup, and other compute setup
-        #await authzee_app.setup()
-
-        # To tear down, delete everything that did run
-        #await authzee_app.teardown()
-
-        new_grant = Grant(
-            name="Human friendly name",
-            description="human friendly description",
-            resource_type=Balloon, # The class resource type
-            actions={ # the set of resource actions
-                BalloonAction.CreateBalloon,
-                BalloonAction.DeleteBalloon
-            },
-            # JMESpath is the JSON query language for verifying identities and 
-            # resources, as well as their relationships
-            expression=""" 
-            contains(identities.ADUser[].cn, 'authzee_user_1')
-            && resource.color == 'blue'
-            && contains(context.allowed_sizes, resource.size)
-            """,
-            # context makes additional data available when the expression is evaluated
-            context={
-                "allowed_sizes": [
-                    20.0,
-                    27.0,
-                    30.0
-                ]
-            },
-            equality=True # If the result of the jmespath search query matches this, then the grant is considered a match!
-        )
-        match_everything_grant = Grant(
-            name="everything",
-            description="",
-            resource_type=Balloon,
-            actions={BalloonAction.CreateBalloon},
-            expression="`true`",
-            context={},
-            equality=True
-        )
-        # Add the new grant to authzee as an ALLOW Grant
-        new_grant = await authzee_app.add_grant( 
-            effect=GrantEffect.ALLOW,
-            grant=new_grant
-        )
-        match_everything_grant = await authzee_app.add_grant( 
-            effect=GrantEffect.ALLOW,
-            grant=match_everything_grant
-        )
-        # Get an iterator for the grants
-        async for grant in authzee_app.list_grants(effect=GrantEffect.ALLOW):
-            print(grant)
-        
-        # Delete a grant
-        await authzee_app.delete_grant(
-            effect=GrantEffect.ALLOW, 
-            uuid=match_everything_grant.uuid
-        )
-
-        # Get a single page of grants
-        grants_page = await authzee_app.get_grants_page(
-            effect=GrantEffect.ALLOW
-        )
-        for grant in grants_page.grants:
-            print(grant)
-        
-        # Authorize a request
-        authorized = await authzee_app.authorize(
-            resource=my_balloon,
-            action=BalloonAction.CreateBalloon,
-            parents=[],
-            children=[],
-            identities=identities
-        )
-        print(authorized) # True
-
-        # Authorize many resources in a request
-        authorized_many = await authzee_app.authorize_many(
-            resources=[
-                my_balloon,
-                Balloon(
-                    color="red",
-                    size=100.8
-                )
-            ],
-            action=BalloonAction.CreateBalloon,
-            parents=[],
-            children=[],
-            identities=identities
-        )
-        print(authorized_many) # [True, False]
-        
-        # iterator for matching grants
-        matching_grants_iter = authzee_app.list_matching_grants(
-            effect=GrantEffect.ALLOW,
-            resource=my_balloon,
-            action=BalloonAction.CreateBalloon,
-            parents=[],
-            children=[],
-            identities=identities
-        )
-        async for grant in matching_grants_iter:
-            print(grant)
-        
-        # Get a single page of matching grants
-        matching_grants_page = await authzee_app.get_matching_grants_page(
-            effect=GrantEffect.ALLOW,
-            resource=my_balloon,
-            action=BalloonAction.CreateBalloon,
-            parents=[],
-            children=[],
-            identities=identities
-        )
-        for grant in matching_grants_page.grants:
-            print(grant)
-    
-    asyncio.run(tutorial())
-```
-
-### Definitions
-
-- Authorization Request (AKA Resource) - A request to see if a the calling entity is authorized to perform a specific resource action on a resource. 
-
-- Calling Entity (AKA Entity) - In an authorization request, the calling entity is essentially "who" is being authorized. The entity could be a person, service account, role etc.   
-
-- Identity - A way to identify an entity. An identity could be AD users, AD groups, AWS roles, AWS users etc.
-
-- Resource - Resources in Authzee represent resources that authorization is needed for.  Example: My application deals with balloons, balloons are resources we authorize against.
-
-- Resource Type - The type of a "Resource".  Example: My app needs to authorize around balloons. So, "Balloon" is the resource type.
-
-- Resource Actions - Actions that can be done to resources.  Example: Balloon resource type could have actions of "InflateBalloon", "PopBalloon", "ListBalloons", "CreateBalloon".
-
-- Grant - The unit that defines how to query and match against authorization requests.  Grants are added to authzee to allow or explicitly deny authorization requests.  Requests that match any DENY grants are never authorized.  Requests that match any ALLOW grants and does not match any DENY grants are allowed. 
-
+All workflows return detailed error information categorized by type to help with debugging and monitoring authorization decisions.
