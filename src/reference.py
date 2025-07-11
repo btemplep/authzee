@@ -40,7 +40,6 @@ import jsonschema.exceptions
 
 
 AnyJSON = Union[bool, str, int, float, None, list, dict]
-_any_types = ["array", "boolean", "integer", "null", "number", "object", "string"]
 _type_schema = {
     "title": "Authzee Type",
     "description": "A unique name to identity this type.",
@@ -60,6 +59,7 @@ _action_schema = {
 _schema_schema = jsonschema.Draft202012Validator.META_SCHEMA
 
 identity_definition_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Identity Definition",
     "description": "An identity definition.  Defines a type of identity to use with Authzee.",
     "type": "object",
@@ -74,6 +74,7 @@ identity_definition_schema = {
     }
 }
 resource_definition_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Resource Definition",
     "description": "An resource definition.  Defines a type of resource to use with Authzee.",
     "type": "object",
@@ -112,6 +113,7 @@ resource_definition_schema = {
     }
 }
 _grant_base_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Grant",
     "description": "A grant is an object representing a enacted authorization rule.",
     "type": "object",
@@ -165,7 +167,6 @@ _grant_base_schema = {
             ]
         },
         "equality": {
-            "type": _any_types,
             "description": "Expected value for they query to return.  If the query result matches this value the grant is a considered applicable to the request."
         },
         "data": {
@@ -243,9 +244,7 @@ _definition_error_base_schema = {
                 "resource"
             ]
         },
-        "definition": {
-            "type": _any_types
-        }
+        "definition": {}
     }
 }
 _grant_error_base_schema = {
@@ -267,9 +266,7 @@ _grant_error_base_schema = {
             "type": "boolean",
             "description": "If this error caused the the workflow to exit early."
         },
-        "grant": {
-            "type": _any_types
-        }
+        "grant": {}
     }
 }
 _jmespath_error_base_schema = {
@@ -317,6 +314,7 @@ _request_error_base_schema = {
     }
 }
 _errors_base_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Workflow Errors",
     "description": "Errors returned from Authzee workflows.",
     "type": "object",
@@ -350,18 +348,12 @@ _errors_base_schema = {
             "items": _request_error_base_schema
         }
     },
-    # "anyOf": [
-    #     _context_error_base_schema,
-    #     _definition_error_base_schema,
-    #     _grant_error_base_schema,
-    #     _jmespath_error_base_schema,
-    #     _request_error_base_schema
-    # ],
     "$defs": {
         "grant": None # Replaced with full grant schema
     }
 }
 _request_base_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Workflow Request",
     "description": "Request for an Authzee workflow.",
     "anyOf": [],
@@ -392,9 +384,7 @@ _request_base_schema = {
         "context": {
             "type": "object",
             "patternProperties": {
-                "^[a-zA-Z0-9_]{1,256}$": {
-                    "type": _any_types
-                }
+                "^[a-zA-Z0-9_]{1,256}$": {}
             }
         },
         "context_validation": {
@@ -459,6 +449,7 @@ _resource_request_base_schema = {
     }
 }
 _evaluate_response_base_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Evaluate Response",
     "description": "Response for the evaluate workflow.",
     "type": "object",
@@ -486,6 +477,7 @@ _evaluate_response_base_schema = {
     }
 }
 _authorize_response_base_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Authorize Response",
     "description": "Response for the authorize workflow.",
     "type": "object",
