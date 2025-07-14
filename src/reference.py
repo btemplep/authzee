@@ -11,7 +11,7 @@ Core workflow:
 6. Validate grants with ``validate_grants()``.  If any errors are returned, return with those errors immediately.
 7. User creates a request.
 8. Validate request with ``validate_request()``.  If any errors are returned, return with those errors immediately.
-9. Run authorize() or evaluate() with the the previously validated grants and request. 
+9. Run authorize() or audit() with the the previously validated grants and request. 
 
 For reference of the complete work
 """
@@ -24,13 +24,14 @@ __all__ = [
     "validate_grants",
     "validate_request",
     "evaluate_one"
-    "evaluate",
+    "audit",
     "authorize",
-    "evaluate_workflow",
+    "audit_workflow",
     "authorize_workflow"
 ]
 
 import copy
+import json
 from typing import Callable, Dict, List, Union
 
 import jmespath
@@ -349,7 +350,7 @@ _errors_base_schema = {
         }
     },
     "$defs": {
-        "grant": None # Replaced with full grant schema
+        "grant": {}
     }
 }
 _request_base_schema = {
@@ -409,8 +410,8 @@ _request_base_schema = {
     }
 }
 _resource_request_base_schema = {
-    "title": "",
-    "description": "",
+    "title": "'{{ resource_type }}' Resource Type Workflow Request",
+    "description": "'{{ resource_type }}' resource type request for an Authzee workflow.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -429,14 +430,27 @@ _resource_request_base_schema = {
             "$ref": "#/$defs/identities"
         },
         "action": {
-            "type": "string" # this changes based on resource type - obj
+            "type": "string",
+             "enum": []
         },
         "resource_type": {
-            "const": "" # this changes based on resource type - obj
+            "const": "{{ resource_type }}"
         },
-        "resource": {}, # this changes based on resource type - obj
-        "parents": {}, # changes based on resource type. Must include all Parent types - object of arrays
-        "children": {}, # changes based on resource type. Must include all Child types - object of arrays
+        "resource": {
+            "$ref": "#/$defs/{{ resource_type }}"
+        },
+        "parents": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [],
+            "properties": {}
+        }, 
+        "children": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [],
+            "properties": {}
+        }, 
         "query_validation": {
             "$ref": "#/$defs/query_validation"
         },
@@ -448,10 +462,10 @@ _resource_request_base_schema = {
         }
     }
 }
-_evaluate_response_base_schema = {
+_audit_response_base_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Evaluate Response",
-    "description": "Response for the evaluate workflow.",
+    "title": "Audit Response",
+    "description": "Response for the audit workflow.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -470,10 +484,10 @@ _evaluate_response_base_schema = {
             },
             "description": "List of grants that are applicable to the request."
         },
-        "errors": None # Replaced with full errors schema
+        "errors": {}
     },
     "$defs": {
-        "grant": None # Replaced with full grant schema
+        "grant": {}
     }
 }
 _authorize_response_base_schema = {
@@ -511,10 +525,10 @@ _authorize_response_base_schema = {
             "type": "string",
             "description": "Details about why the request was authorized or not."
         },
-        "errors": None # Replaced with full errors schema
+        "errors": {}
     },
     "$defs": {
-        "grant": None # Replaced with full grant schema
+        "grant": {}
     }
 }
 
@@ -574,28 +588,29 @@ def validate_definitions(
                 }
             )
 
-    for r_def in resource_defs:
-        for p_type in r_def['parent_types']:
-            if p_type not in r_types:
-                errors.append(
-                    {
-                        "message": f"Parent type '{p_type}' does not have a corresponding resource definition.",
-                        "critical": True,
-                        "definition_type": "resource",
-                        "definition": r_def
-                    }
-                )
-        
-        for c_type in r_def['child_types']:
-            if c_type not in r_types:
-                errors.append(
-                    {
-                        "message": f"Child type '{c_type}' does not have a corresponding resource definition.",
-                        "critical": True,
-                        "definition_type": "resource",
-                        "definition": r_def
-                    }
-                )
+    if len(errors) == 0:
+        for r_def in resource_defs:
+            for p_type in r_def['parent_types']:
+                if p_type not in r_types:
+                    errors.append(
+                        {
+                            "message": f"Parent type '{p_type}' does not have a corresponding resource definition.",
+                            "critical": True,
+                            "definition_type": "resource",
+                            "definition": r_def
+                        }
+                    )
+            
+            for c_type in r_def['child_types']:
+                if c_type not in r_types:
+                    errors.append(
+                        {
+                            "message": f"Child type '{c_type}' does not have a corresponding resource definition.",
+                            "critical": True,
+                            "definition_type": "resource",
+                            "definition": r_def
+                        }
+                    )
 
     return {
         "valid": False if len(errors) > 0 else True,
@@ -611,7 +626,7 @@ def generate_schemas(
         "grant": copy.deepcopy(_grant_base_schema),
         "errors": copy.deepcopy(_errors_base_schema),
         "request": copy.deepcopy(_request_base_schema),
-        "evaluate": copy.deepcopy(_evaluate_response_base_schema),
+        "audit": copy.deepcopy(_audit_response_base_schema),
         "authorize": copy.deepcopy(_authorize_response_base_schema)
     }
     # grant schema
@@ -627,11 +642,11 @@ def generate_schemas(
     # error schema
     schemas['errors']['$defs']['grant'] = schemas['grant']
 
-    # evaluate response schema
+    # audit response schema
     workflow_errors_schema = copy.deepcopy(schemas['errors'])
     workflow_errors_schema.pop("$defs")
-    schemas['evaluate']['properties']['errors'] = workflow_errors_schema
-    schemas['evaluate']['$defs']['grant'] = schemas['grant']
+    schemas['audit']['properties']['errors'] = workflow_errors_schema
+    schemas['audit']['$defs']['grant'] = schemas['grant']
 
     # authorize response schema
     schemas['authorize']['properties']['errors'] = workflow_errors_schema
@@ -649,21 +664,14 @@ def generate_schemas(
     type_to_def = {d['resource_type']: d for d in resource_defs}
     for r_type, r_def in type_to_def.items():
         rt_request_schema = copy.deepcopy(_resource_request_base_schema)
-        rt_request_schema['title'] = f"'{r_type}' Resource Type Workflow Request"
-        rt_request_schema['description'] = f"'{r_type}' resource type request for an Authzee workflow."
+        rt_request_schema = json.loads(
+            json.dumps(rt_request_schema).replace(
+                "{{ resource_type }}",
+                r_type
+            )
+        )
         rt_request_schema['properties']['action']['enum'] = r_def['actions']
-        rt_request_schema['properties']['resource_type']['const'] = r_type
         request_schema['$defs'][r_type] = r_def['schema']
-        rt_request_schema['properties']['resource'] = {
-            "$ref": f"#/$defs/{r_type}"
-        }
-        rt_request_schema['properties']['parents'] = {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [],
-            "properties": {}
-
-        }
         for p_type in r_def['parent_types']:
             rt_request_schema['properties']['parents']['required'].append(p_type)
             rt_request_schema['properties']['parents']['properties'][p_type] = {
@@ -673,13 +681,6 @@ def generate_schemas(
                 }
             }
         
-        rt_request_schema['properties']['children'] = {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [],
-            "properties": {}
-
-        }
         for c_type in r_def['child_types']:
             rt_request_schema['properties']['children']['required'].append(c_type)
             rt_request_schema['properties']['children']['properties'][c_type] = {
@@ -809,7 +810,7 @@ def evaluate_one(
     return result
 
 
-def evaluate(
+def audit(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
     search: Callable[[str, AnyJSON], AnyJSON]
@@ -914,7 +915,7 @@ def authorize(
     }
 
 
-def evaluate_workflow(
+def audit_workflow(
     identity_defs: List[Dict[str, AnyJSON]],
     resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
@@ -962,7 +963,7 @@ def evaluate_workflow(
             "errors": errors
         }
 
-    return evaluate(request, grants, search)
+    return audit(request, grants, search)
 
 
 def authorize_workflow(

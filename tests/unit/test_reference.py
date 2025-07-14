@@ -3,7 +3,7 @@ import pytest
 import jmespath
 import jsonschema
 from src.reference import (
-    evaluate_workflow,
+    audit_workflow,
     authorize_workflow,
     generate_schemas
 )
@@ -131,7 +131,7 @@ def basic_request():
 
 
 def test_successful_evaluation(basic_identity_defs, basic_resource_defs, basic_grants, basic_request):
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         basic_grants,
@@ -139,7 +139,7 @@ def test_successful_evaluation(basic_identity_defs, basic_resource_defs, basic_g
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])  
+    jsonschema.validate(result, schemas['audit'])  
     assert result['completed'] is True
     assert len(result['grants']) == 1  # Only the allow grant should match
     assert result['grants'][0]['effect'] == 'allow'
@@ -153,7 +153,7 @@ def test_invalid_identity_definitions(basic_resource_defs, basic_grants, basic_r
             # Missing required 'schema' field
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         invalid_identity_defs,
         basic_resource_defs,
         basic_grants,
@@ -161,7 +161,7 @@ def test_invalid_identity_definitions(basic_resource_defs, basic_grants, basic_r
         jmespath.search
     )
     schemas = generate_schemas([{"identity_type": "User", "schema": {"type": "object"}}], basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is False
     assert len(result['grants']) == 0
     assert len(result['errors']['definition']) > 0
@@ -179,7 +179,7 @@ def test_duplicate_identity_types(basic_resource_defs, basic_grants, basic_reque
             "schema": {"type": "object"}
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         duplicate_identity_defs,
         basic_resource_defs,
         basic_grants,
@@ -187,7 +187,7 @@ def test_duplicate_identity_types(basic_resource_defs, basic_grants, basic_reque
         jmespath.search
     )
     schemas = generate_schemas([{"identity_type": "User", "schema": {"type": "object"}}], basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is False
     assert len(result['errors']['definition']) > 0
 
@@ -199,23 +199,55 @@ def test_invalid_resource_definitions(basic_identity_defs, basic_grants, basic_r
             # Missing required fields
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         invalid_resource_defs,
         basic_grants,
         basic_request,
         jmespath.search
     )
-    schemas = generate_schemas(basic_identity_defs, [
+    assert result['completed'] is False
+    assert len(result['errors']['definition']) > 0
+
+
+def test_invalid_parent_type_resource_definitions(basic_identity_defs, basic_grants, basic_request):
+    invalid_resource_defs = [
+        {
+            "resource_type": "Document",
+            "actions": ["read"],
+            "schema": {"type": "object"},
+            "parent_types": ["unknown"],
+            "child_types": []
+        }
+    ]
+    result = audit_workflow(
+        basic_identity_defs,
+        invalid_resource_defs,
+        basic_grants,
+        basic_request,
+        jmespath.search
+    )
+    assert result['completed'] is False
+    assert len(result['errors']['definition']) > 0
+
+
+def test_invalid_child_type_resource_definitions(basic_identity_defs, basic_grants, basic_request):
+    invalid_resource_defs = [
         {
             "resource_type": "Document",
             "actions": ["read"],
             "schema": {"type": "object"},
             "parent_types": [],
-            "child_types": []
+            "child_types": ["unknown"]
         }
-    ])
-    jsonschema.validate(result, schemas['evaluate'])
+    ]
+    result = audit_workflow(
+        basic_identity_defs,
+        invalid_resource_defs,
+        basic_grants,
+        basic_request,
+        jmespath.search
+    )
     assert result['completed'] is False
     assert len(result['errors']['definition']) > 0
 
@@ -237,7 +269,7 @@ def test_duplicate_resource_types(basic_identity_defs, basic_grants, basic_reque
             "child_types": []
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         duplicate_resource_defs,
         basic_grants,
@@ -245,7 +277,7 @@ def test_duplicate_resource_types(basic_identity_defs, basic_grants, basic_reque
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, [duplicate_resource_defs[0]])
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is False
     assert len(result['errors']['definition']) > 0
 
@@ -257,7 +289,7 @@ def test_invalid_grants(basic_identity_defs, basic_resource_defs, basic_request)
             # Missing required fields
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         invalid_grants,
@@ -265,7 +297,7 @@ def test_invalid_grants(basic_identity_defs, basic_resource_defs, basic_request)
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is False
     assert len(result['errors']['grant']) > 0
 
@@ -277,7 +309,7 @@ def test_invalid_request(basic_identity_defs, basic_resource_defs, basic_grants)
         "action": "read"
         # Missing other required fields
     }
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         basic_grants,
@@ -285,7 +317,7 @@ def test_invalid_request(basic_identity_defs, basic_resource_defs, basic_grants)
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is False
     assert len(result['errors']['request']) > 0
 
@@ -309,7 +341,7 @@ def test_context_validation_error(basic_identity_defs, basic_resource_defs, basi
             "context_validation": "error"
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         grants_with_context,
@@ -317,7 +349,7 @@ def test_context_validation_error(basic_identity_defs, basic_resource_defs, basi
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is True
     assert len(result['errors']['context']) > 0
 
@@ -341,7 +373,7 @@ def test_context_validation_critical(basic_identity_defs, basic_resource_defs, b
             "context_validation": "critical"
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         grants_with_critical_context,
@@ -349,7 +381,7 @@ def test_context_validation_critical(basic_identity_defs, basic_resource_defs, b
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is False
     assert len(result['errors']['context']) > 0
     assert result['errors']['context'][0]['critical'] is True
@@ -368,7 +400,7 @@ def test_jmespath_error(basic_identity_defs, basic_resource_defs, basic_request)
             "context_validation": "none"
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         grants_with_bad_query,
@@ -376,7 +408,7 @@ def test_jmespath_error(basic_identity_defs, basic_resource_defs, basic_request)
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is True
     assert len(result['errors']['jmespath']) > 0
 
@@ -394,7 +426,7 @@ def test_jmespath_error_critical(basic_identity_defs, basic_resource_defs, basic
             "context_validation": "none"
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         grants_with_critical_query,
@@ -402,7 +434,7 @@ def test_jmespath_error_critical(basic_identity_defs, basic_resource_defs, basic
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is False
     assert len(result['errors']['jmespath']) > 0
     assert result['errors']['jmespath'][0]['critical'] is True
@@ -434,7 +466,7 @@ def test_request_level_query_validation_override(basic_identity_defs, basic_reso
         "context": {},
         "context_validation": "grant"
     }
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         grants_with_bad_query,
@@ -442,7 +474,7 @@ def test_request_level_query_validation_override(basic_identity_defs, basic_reso
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is True
     assert len(result['errors']['jmespath']) > 0
 
@@ -476,7 +508,7 @@ def test_request_level_context_validation_override(basic_identity_defs, basic_re
         "context": {},  # Invalid context
         "context_validation": "error"  # Override to error
     }
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         grants_with_context,
@@ -484,7 +516,7 @@ def test_request_level_context_validation_override(basic_identity_defs, basic_re
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is True
     assert len(result['errors']['context']) > 0
 
@@ -502,7 +534,7 @@ def test_empty_actions_grant(basic_identity_defs, basic_resource_defs, basic_req
             "context_validation": "none"
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         universal_grant,
@@ -510,7 +542,7 @@ def test_empty_actions_grant(basic_identity_defs, basic_resource_defs, basic_req
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is True
     assert len(result['grants']) == 1
 
@@ -528,7 +560,7 @@ def test_no_matching_grants(basic_identity_defs, basic_resource_defs, basic_requ
             "context_validation": "none"
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         non_matching_grants,
@@ -536,7 +568,7 @@ def test_no_matching_grants(basic_identity_defs, basic_resource_defs, basic_requ
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is True
     assert len(result['grants']) == 0
 
@@ -846,7 +878,7 @@ def test_both_allow_and_deny_grants_non_applicable(basic_identity_defs, basic_re
 #     empty_identity_defs = []
 #     empty_resource_defs = []
 #     empty_grants = []
-#     result = evaluate_workflow(
+#     result = audit_workflow(
 #         empty_identity_defs,
 #         empty_resource_defs,
 #         empty_grants,
@@ -872,7 +904,7 @@ def test_malformed_json_schemas_in_definitions():
             "child_types": []
         }
     ]
-    result = evaluate_workflow(
+    result = audit_workflow(
         malformed_identity_defs,
         basic_resource_defs,
         [],
@@ -971,7 +1003,7 @@ def test_query_equality_with_various_types(basic_identity_defs, basic_resource_d
         "context": {},
         "context_validation": "grant"
     }
-    result = evaluate_workflow(
+    result = audit_workflow(
         basic_identity_defs,
         basic_resource_defs,
         grants_with_different_equalities,
@@ -979,6 +1011,6 @@ def test_query_equality_with_various_types(basic_identity_defs, basic_resource_d
         jmespath.search
     )
     schemas = generate_schemas(basic_identity_defs, basic_resource_defs)
-    jsonschema.validate(result, schemas['evaluate'])
+    jsonschema.validate(result, schemas['audit'])
     assert result['completed'] is True
     assert len(result['grants']) == 3  
