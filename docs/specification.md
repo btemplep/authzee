@@ -1,27 +1,23 @@
-# Specification
+# Authzee Specification
 
 **Authzee** is a highly expressive grant-based authorization engine.  It uses JSON Schemas to define and validate all inputs and outputs. Grants are evaluated against the request data and grant data using JMESpath to make access control decisions. 
 
 
 ## Table of Contents
 
-- 
+- Thing
+ 
 
 ## Definitions
 
-Authzee
+**Identity** - An object representing a specific type of identity to authorize around.
+- **Resource** - An object representing a specific type of resource to authorize around.
+- **Resource Action (Action)** - A name for a specific action taken on a resource.
+- **Workflow** - A specific authorization process and the detailed steps to complete it.
+- **Authorization Request (Request)** - The object used to specify identities, resources, actions, and other configurations to start a wokflow.
+- **Calling Entity (Entity)** - Who or what is represented by a request.  A calling entity can have many identities of the same and different types. 
+- **Grant** - The unit of authorization that defines the conditions needed for an entity to perform an action on a resource, and the effect if the grant is applicable.
 
-- **Calling Entity (Entity)** - 
-- **a** - 
-- **a** - 
-- **a** - 
-- **a** - 
-- **a** - 
-- **a** - 
-- **a** - 
-- **a** - 
-- **a** - 
-- **a** - 
 
 ## Inputs
 
