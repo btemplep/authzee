@@ -5,14 +5,14 @@ Authzee is a highly expressive grant-based authorization engine. <img src="https
 
 
 - **Scalable** - Handle complex authorization scenarios across large systems.
-- **Extensible** - Easily adapt to new identity types, resources, and authorization patterns.
 - **Separation** - Keep authorization rules separate from business code.
 - **Dependable** - Built on top of existing specifications that are widely used. JSON Schema and JMESPath standards.  Authzee has a specification and reference implementation as well.
+- **Extensible** - Easily adapt to new identity types, resources, and authorization patterns.  Extend the JMESPath query language for custom capabilities.
 - **ACL** - Access Control List support
 - **RBAC** - Role-Based Access Control support
 - **ABAC** - Attribute-Based Access Control support
 - **ReBAC** - Relationship-Based Access Control support
-- **Ultra expressive** - Create very fine-grained controls that are highly maintainable
+- **Ultra expressive** - Create very fine-grained controls that are highly maintainable.
 - **Auditable** - Core auditing functionality built in from the ground up to easily perform access checks.
 - **Multi-lingual** - Uses widespread standards to make the core easy to create in any language. 
     - The reference implementation in this repo uses python for ease of access. 
@@ -20,16 +20,16 @@ Authzee is a highly expressive grant-based authorization engine. <img src="https
 - **Agnostic** - Works with any identity provider and resources. New or existing. 
 
 
-## Table of Contents
+### Table of Contents
 
 - [Basic Example](#basic-example)
 - [Complex Example](#complex-example)
 - [Tests](#tests)
 
-**Other Docs**
+### Other Docs
 
-- [Specification](./docs/specification.md#specification)
-- [Recommended SDK Patterns](./docs/sdk_patterns.md#recommended-sdk-patterns)
+- [Specification](./docs/specification.md#authzee-specification)
+- [SDKs](./docs/sdk_patterns.md#sdks)
 
 
 ## Basic Example

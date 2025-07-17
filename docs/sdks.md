@@ -1,5 +1,4 @@
-
-## Recommended SDK Patterns
+# Authzee SDKs
 
 This section focuses on standardizing SDK patterns in order to:
 - Offer friendlier APIs
