@@ -1,4 +1,5 @@
 # Authzee Specification
+## Version 0.1.0a1  
 
 This document describes the specification for **Authzee**.
 
@@ -86,7 +87,7 @@ Identity definitions enable flexible representation of complex organizational st
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+|-------|------|:--------:|-------------|
 | `identity_type` | string | ✅ | Unique identifier for this identity type. Must be alphanumeric with underscores only. Used as a key in request identity objects. |
 | `schema` | object | ✅ | JSON Schema (Draft 2020-12) that defines the structure and validation rules for identity objects of this type. All identity instances passed in requests must conform to this schema. |
 
@@ -133,7 +134,7 @@ Resource definitions describe the types of resources that can be accessed and wh
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+|-------|------|:--------:|-------------|
 | `resource_type` | string | ✅ | Unique identifier for this resource type. Must be alphanumeric with underscores only. Used to identify the resource type in authorization requests. |
 | `actions` | array[string] | ✅ | List of unique action names that can be performed on this resource type. Actions can include dots, hyphens, colons, and underscores. Common patterns include using a namespace like "Balloon:inflate". It is best to have actions unique to resource types but it is not strictly enforced.|
 | `schema` | object | ✅ | JSON Schema (Draft 2020-12) that defines the structure and validation rules for resource objects of this type. All resource instances must conform to this schema. |
@@ -173,7 +174,7 @@ The grant schema is generated based on the identity and resource definitions.
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+|-------|------|:--------:|-------------|
 | `effect` | string | ✅ | Whether this grant allows or denies access. Must be either "allow" or "deny". Deny grants always take precedence over allow grants. |
 | `actions` | array | ✅ | List of resource actions this grant applies to. If empty array, applies to all actions. Must match actions defined in resource definitions. |
 | `query` | string | ✅ | JMESPath expression that evaluates the request data. Has access to `request` (the full request object) and `grant` (the current grant with its data). The top-level query data structure is: `{"request": <request_object>, "grant": <grant_object>}` |
@@ -263,7 +264,7 @@ The request schema is generated based on the identity and resource definitions.
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+|-------|------|:--------:|-------------|
 | `identities` | object | ✅ | Map of identity type names to arrays of identity objects. Each identity type must match a defined identity definition and conform to its schema. |
 | `resource_type` | string | ✅ | The type of resource being accessed. Must match a defined resource definition, `resource_type`. |
 | `action` | string | ✅ | The specific action being requested on the resource. Must be one of the actions defined for the resource type. |
@@ -917,7 +918,7 @@ An error occurred when validating the request context against a grant context sc
 ```
 
 | Field    | Type    | Required | Description                                                                          |
-|----------|---------|----------|--------------------------------------------------------------------------------------|
+|----------|---------|:--------:|--------------------------------------------------------------------------------------|
 | message  | string  | ✅       | A message describing the error.                                                      |
 | critical | boolean | ✅       | A flag for if the error is critical. Critical errors will cause a workflow to halt. |
 | grant    | object<[Grant](#grants)>  | ✅       | The grant whose context schema did not match the requests context.                   |
@@ -952,7 +953,7 @@ An error occurred when validating an identity or resource definitions.
 ```
 
 | Field           | Type    | Required | Description                                                                          |
-|-----------------|---------|----------|--------------------------------------------------------------------------------------|
+|-----------------|---------|:--------:|--------------------------------------------------------------------------------------|
 | message         | string  | ✅       | A message describing the error.                                                      |
 | critical        | boolean | ✅       | A flag for if the error is critical.  Critical errors will cause a workflow to halt. |
 | definition_type | string  | ✅       | The definition type that did not pass validation. `identity` or `resource`           |
@@ -995,7 +996,7 @@ An error occurred when validating a grant.
 ```
 
 | Field    | Type    | Required | Description                                                                          |
-|----------|---------|----------|--------------------------------------------------------------------------------------|
+|----------|---------|:--------:|--------------------------------------------------------------------------------------|
 | message  | string  | ✅       | A message describing the error.                                                      |
 | critical | boolean | ✅       | A flag for if the error is critical.  Critical errors will cause a workflow to halt. |
 | grant    | any     | ✅       | The value that did not pass the grant validation.                                    |
@@ -1037,7 +1038,7 @@ An error occurred when running the JMESPath query while evaluating a grant.
 ```
 
 | Field    | Type    | Required | Description                                                                          |
-|----------|---------|----------|--------------------------------------------------------------------------------------|
+|----------|---------|:--------:|--------------------------------------------------------------------------------------|
 | message  | string  | ✅       | A message describing the error.                                                      |
 | critical | boolean | ✅       | A flag for if the error is critical. Critical errors will cause a workflow to halt. |
 | grant    | object<[Grant](#grants)>| ✅       | The grant whose query resulted in a JMESPath error.                                  |
@@ -1065,7 +1066,7 @@ An error occurred when validating a request.
 ```
 
 | Field    | Type    | Required | Description                                                                          |
-|----------|---------|----------|--------------------------------------------------------------------------------------|
+|----------|---------|:--------:|--------------------------------------------------------------------------------------|
 | message  | string  |    ✅    | A message describing the error.                                                      |
 | critical | boolean |    ✅    | A flag for if the error is critical.  Critical errors will cause a workflow to halt. |
 
@@ -1159,7 +1160,7 @@ After the first 7 steps are complete then the Audit step starts.
 ```
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+|---|---|:-:|---|
 | completed | boolean | ✅ | If the workflow completed. |
 | grants | array[object<[Grant](#grants)>] | ✅ | The grants that are applicable to the request. |
 | errors | object<[Workflow Errors](#workflow-errors)> | ✅ | The collected workflow errors. |
@@ -1266,7 +1267,7 @@ Evaluate the request against until an authorization decision is determined.
 ```
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+|---|---|:-:|---|
 | authorized | boolean | ✅ | If the request is authorized. |
 | completed | boolean | ✅ | If the workflow completed. |
 | grant | object<[Grant](#grants)> \| null | ✅ | The grant whose evaluation that led to the authorization decision, if applicable. |
