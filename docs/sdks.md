@@ -3,8 +3,8 @@
 Authzee aims to offer SDKs in many languages with similar interfaces. 
 Making it easier to switch languages by standardizing SDK patterns, while leaving room for language specific functionality and syntax. 
 
-they aim to offer a flexible and scalable general purpose interface, but they are opinionated in their APIs.  
-if this doesn't fit your use case you are free to create your own and 
+They aim to offer a flexible and scalable general purpose interface, but they are opinionated in their APIs.  
+If this doesn't fit your use case you are free to create your own as long as the core is compliant with the Authzee spec!
 
 ## Languages
 
@@ -81,6 +81,8 @@ Compute engines provide a standard API for running workflows on compute.
 They have direct access to the storage engine and use it to retrieve grants. 
 They may also use the storage engine ato create and retrieve latches that help with compute state.  Especially for compute that is spread across multiple systems.
 
+> **NOTE** - If the language supports async, then the compute engine functions are expected to be async. Even if the underlying functionality is not async, this is to simplify the API between the pieces. 
+
 Compute Engines should take these arguments when created:
 - Identity definitions
 - Resource Definitions
@@ -117,7 +119,9 @@ Compute engines objects or structs should implement these methods:
 
 ## Storage Engine Objects or Structs
 
-Storage engine provide a standard API for storing and retrieving grants and compute latches. 
+Storage engines provide a standard API for storing and retrieving grants and [Storage Latches](#storage-latches). 
+
+> **NOTE** - If the language supports async, then the storage engine functions are expected to be async. Even if the underlying functionality is not async, this is to simplify the API between the pieces. 
 
 Storage Engines should take these arguments when created:
 - Identity definitions
@@ -256,9 +260,11 @@ Compute engines may call on the storage engine to create latches to manage the s
 
 JMESPath libraries offer the ability extend functionality by making new functions available in JMESPath queries. 
 
-There are some custom functions that are needed in Authzee SDKs to enabled some query techniques. 
+Custom functions are needed in Authzee SDKs to enabled some query techniques. 
 
 - [Inner Join](#inner-join) - Join 2 arrays 
+- [regex](#regex) - Run regex patterns
+- [regex_group](#regex-Group) - Extract a regex group
 
 
 ### Inner Join
@@ -291,4 +297,19 @@ def inner_join(lhs, rhs, expr):
     return result
 
 ```
+
+
+### regex
+
+> **WARNING** - Regex evaluation differs based on the on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation at this point. 
+
+
+Run regex patterns against a string or array of strings.
+
+
+### regex Group
+
+> **WARNING** - Regex evaluation differs based on the on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation at this point. 
+
+Extract a regex group from a string or array of strings. 
 
