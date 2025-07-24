@@ -1,6 +1,6 @@
 # Official Authzee SDKs
 
-Authzee SDKs come in many languages, and the official ones offer the same general API's and architecture.
+Authzee official SDKs offer the same general API's and architecture.
 This makes it easier to switch languages by standardizing SDK patterns, and still leave room for language specific functionality and syntax. 
 
 They offer a flexible and scalable general purpose interface, but they are opinionated in their APIs.  
@@ -46,18 +46,22 @@ The Authzee object is created with a compute module and a storage module. The co
 and the storage module will be used to store and retrieve grants and other compute state objects. 
 
 
-## Authzee Object or Struct
+## Authzee Class
 
-The `Authzee` object should take these arguments when created:
-- Identity defs
-- Resource defs
+The `Authzee` class should take these arguments when created:
+- Identity Definitions
+- Resource Definitions
 - JMESPath search function
 - Compute Module type and arguments
 - Storage Module type and arguments
 
 If the language supports async, there should also be an async version, `AuthzeeAsync`. 
 
-These are the methods of functions for the Authzee object.  For the `AuthzeeAsync` class, they should all be async functions.
+Authzee instances must declare these public constant class vars when they are instanced, or have getters:
+- compute_locality - Compute [Module Locality](#module-locality) pass theough of compute value
+- compute_parallel_paging_supported - if the compute module supports processing grants with parallel paging
+
+These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they should all be async.
 
 - `start() -> None`
     - start up Authzee app 
@@ -76,7 +80,6 @@ These are the methods of functions for the Authzee object.  For the `AuthzeeAsyn
     - Maybe also by tags?
 - `get_grants_page(effect: str, action: str, page_token: str) -> GrantsPage` 
     - get a page of grants
-    - Maybe also by tags?
 - `get_grant_page_refs_page(effect: str, action: str, page_token: str) -> GrantPageRefsPage` 
     - get a page of grant page references for parallel pagination
     - For some storage modules this may not be possible
@@ -111,7 +114,7 @@ Compute Modules should take these arguments when created:
 - Storage module type and arguments
 - Other module specific arguments as needed
 
-Compute modules need to declare these public constant class vars when they are created, or have getters:
+Compute modules need to declare these public constant class vars when they are instanced, or have getters:
 - locality - Compute [Module Locality](#module-locality) 
 - parallel_paging_supported - if the compute module supports processing grants with parallel paging
 
