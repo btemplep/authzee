@@ -36,7 +36,7 @@ The following sections outline Authzee SDK standards.  All examples are given in
 
 The suggested architecture of SDKs is to have a primary class, `Authzee`, and create instances from it. 
 
-> **NOTE** - The docs will use class and method terminology, but for languages that don't, translate:
+> **NOTE** - The docs will use class and method terminology, but for languages that don't, translate as so:
 > - Classes -> struct definitions
 > - Class instances or objects -> struct instances
 > - Methods -> struct methods or functions that act on a struct 
@@ -57,15 +57,14 @@ The `Authzee` class should take these arguments when created:
 
 If the language supports async, there should also be an async version, `AuthzeeAsync`. 
 
-Authzee instances must declare these public constant class vars when they are instanced, or have getters:
-- compute_locality - Compute [Module Locality](#module-locality) pass theough of compute value
-- compute_parallel_paging_supported - if the compute module supports processing grants with parallel paging
-
 These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they should all be async.
 
 - `start() -> None`
     - start up Authzee app 
     - Initialize runtime resources
+    - After this method is complete these public instance vars or getters must be available:
+        - locality - Authzee [Module Locality](#module-locality) to tell the limit of where other Authzee instances can be created.
+        - parallel_paging - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination. 
 - `shutdown() -> None`
     - shutdown authzee app
     - clean up runtime resources
@@ -114,15 +113,14 @@ Compute Modules should take these arguments when created:
 - Storage module type and arguments
 - Other module specific arguments as needed
 
-Compute modules need to declare these public constant class vars when they are instanced, or have getters:
-- locality - Compute [Module Locality](#module-locality) 
-- parallel_paging_supported - if the compute module supports processing grants with parallel paging
-
 Compute modules objects or structs should implement these methods:
 
 - `start() -> null`
     - start up compute module
     - run before use
+    - After this method is complete these public instance vars or getters must be available:
+        - locality - Compute [Module Locality](#module-locality) 
+        - parallel_paging - if the compute module supports processing grants with parallel paging
 - `shutdown() -> null`
     - shutdown compute module
     - clean up runtime resources
@@ -142,6 +140,7 @@ Compute modules objects or structs should implement these methods:
 
 
 ## Storage Modules
+
 Storage modules provide a standard API for storing and retrieving grants and [Storage Latches](#storage-latches). 
 
 > **NOTE** - If the language supports async, then the storage module functions are expected to be async. Even if the underlying functionality is not async, this is to simplify the API between the pieces. 
@@ -152,14 +151,13 @@ Storage Modules should take these arguments when created:
 - Other module specific arguments as needed
 
 
-Storage modules need to declare these public constant class vars when they are created, or have getters:
-- locality - Storage [Module Locality](#module-locality) 
-- parallel_paging_supported - if the storage modules supports parallel paging (returning a page of grant page references). 
-
-Storage module objects or structs should implement these methods:
+Storage modules should implement these methods:
  `start() -> null`
     - start up storage module
     - run before use
+    - After this method is complete these public instance vars or getters must be available:
+        - locality - Storage [Module Locality](#module-locality) 
+        - parallel_paging - if the storage modules supports parallel paging (returning a page of grant page references). 
 - `shutdown() -> null`
     - shutdown storage module
     - clean up runtime resources
@@ -189,6 +187,36 @@ Storage module objects or structs should implement these methods:
 - `cleanup_latches(oldest: Datetime) -> null`
     - Delete all latches older than the specified oldest datetime
 
+
+## Module Locality
+
+Module Locality is a way to describe "where" a compute module, storage module, or Authzee instance could be located in relation to one another.  This will determine the compute localities that are compatible with specific storage localities.  It will also limit how Authzee instances can be created. 
+
+- process - The module is localized to the same process as the Authzee app.
+    - Compute resources are shared with the same process as the Authzee app.
+    - Storage is localized to the same process and is not shared with any other instances of the Authzee app (other processes).
+    - Authzee instances must exist within the same process.
+- system - The module is localized to the same system as the Authzee app.
+    - Compute resources are shared with the same system as the Authzee app.
+    - Storage is localized to the same system and is shared with other Authzee app instances on the system.
+    - Authzee instances must exist within the same system.
+- network - The module is localized to the same network as the Authzee app.
+    - Compute resources are shared with systems across the same network as the Authzee app.
+    - Storage is localized to the same network and is shared with other Authzee app instances on systems, on the same network.
+    - Authzee instances must exist within the same network.  More verbosely, the storage and compute is available over the network from all Authzee instances.
+
+Compute localities are only compatible with storage localities that are the same or have a "larger" locality. 
+
+The compute locality compatibility matrix with storage localities:
+
+| _______________Storage Locality<br>Compute Locality＼| Process | System | Network |
+|---|:---:|:---:|:---:|
+| Process | ✅ | ✅ | ✅ |
+| System | ❌ | ✅ | ✅ |
+| Network | ❌ | ❌ | ✅ |
+
+
+Authzee Localities are usually the same as the storage locality.
 
 
 ## Grants
@@ -236,32 +264,6 @@ Generally speaking, grants should only every be created or destroyed, never upda
 This simplifies many storage and compute structures and allows for more scalability. 
 
 
-## Module Locality
-
-Module Locality is a way to describe "where" a compute or storage module is or could be located in relation to where the Authzee app is created. 
-This will determine the compute localities that are compatible with specific storage localities.
-
-- process - The module is localized to the same process as the Authzee app.
-    - Compute resources are shared with the same process as the Authzee app.
-    - Storage is localized to the same process and is not shared with any other instances of the Authzee app (other processes).
-- system - The module is localized to the same system as the Authzee app.
-    - Compute resources are shared with the same system as the Authzee app.
-    - Storage is localized to the same system and is shared with other Authzee app instances on the system.
-- network - The module is localized to the same network as the Authzee app.
-    - Compute resources are shared with systems across the same network as the Authzee app.
-    - Storage is localized to the same network and is shared with other Authzee app instances on systems, on the same network.
-
-Compute localities are only compatible with storage localities that are the same or have a "larger" locality. 
-
-The compute locality compatibility matrix with storage localities:
-
-| Storage Locality<br>Compute Locality＼| Process | System | Network |
-|---|:---:|:---:|:---:|
-| Process | ✅ | ✅ | ✅ |
-| System | ❌ | ✅ | ✅ |
-| Network | ❌ | ❌ | ✅ |
-
-
 ## Storage Latches
 
 Storage latches are flag like objects kept in the storage module. 
@@ -277,29 +279,99 @@ Storage latches are flag like objects kept in the storage module.
 Storage latches can only be created, set, or deleted. 
 They cannot be unset. 
 
-Compute modules may call on the storage module to create latches to manage the state of workflows. 
+Compute modules may call on the storage module to create latches to manage the state of workflows.  When compute is shared over the network this because a necessary piece when syncing up on workflows.
 
 
 ## Standard JMESPath Extensions
 
 JMESPath libraries offer the ability extend functionality by making new functions available in JMESPath queries. 
+Authzee purposely takes a JMESPath search function as an argument so that custom functions can be used. Authzee SDKs should also offer a set of JMESPath functions out of the box the are helpful to Authzee grant queries.
 
-Custom functions are needed in Authzee SDKs to enabled some query techniques. 
+- [INNER JOIN](#inner-join) - Join 2 arrays in a fashion similar to an SQL INNER JOIN. 
+- [regex Find](#regex-find) - Run a regex pattern on a string or array of strings to find the first match.
+- [regex Find All](#regex-find-all) - Run a regex pattern on a string or array of strings to find all matches.
+- [regex Find Groups](#regex-group-find) - Run a regex pattern on a string or array of strings to find the first match, and extract the groups.
 
-- [Inner Join](#inner-join) - Join 2 arrays 
-- [regex](#regex) - Run regex patterns
-- [regex_group](#regex-Group) - Extract a regex group
 
+The sections are given in the same format as the [JMESPath Built-in Function Specification](https://jmespath.org/specification.html#built-in-functions)
 
-### Inner Join
+### INNER JOIN
 
-`inner_join(lhs: array, rhs: array, expr: str) -> array`
+`array[object] inner_join(array[any] $lhs, array[any] $rhs, expression->number expr)`
 
-- Takes 2 arrays and a jmespath expression
+Modeled after SQL INNER JOIN functionality.  Takes 2 arrays and an expression and returns all combinations of elements from the arrays where the expression evaluates to `true`.
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        }
+    }
+]           </code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <code>[]</code>
+        </td>
+    </tr>
+</table>
+
+Simple python function example:
 
 ```python
-
-
 def inner_join(lhs, rhs, expr):
     result = []
     for l in lhs:
@@ -323,17 +395,191 @@ def inner_join(lhs, rhs, expr):
 ```
 
 
-### regex
+### regex Find
 
-> **WARNING** - Regex evaluation differs based on the on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation at this point. 
+`string|null|array[string|null] regex_find(string $pattern, string|array[string] $subject)`
+
+> **WARNING** - Regex evaluation differs based on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation *at this point*. The general functionality should match between languages though, besides difference in the syntax and implementation of the regex notation evaluation.
 
 
-Run regex patterns against a string or array of strings.
+Run a regex pattern against a string and return the first occurrence of the pattern or `null` if there are none.
+Or, run a regex pattern on an array of strings and return an array where each element is the first occurrence of the pattern or `null` if there are none. 
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('pattern.*', 'some string here')</code>
+        </td>
+        <td>
+            <code>null</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('string.+', 'some string here')</code>
+        </td>
+        <td>
+            <code>"string here"</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('string.+', `["something", "here"]`)</code>
+        </td>
+        <td>
+            <code>[null, null]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('string.+', `["something", "a string now", "here"]`)</code>
+        </td>
+        <td>
+            <code>[null, "string now", null]</code>
+        </td>
+    </tr>
+</table>
 
 
-### regex Group
 
-> **WARNING** - Regex evaluation differs based on the on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation at this point. 
+Simple Python Example
 
-Extract a regex group from a string or array of strings. 
+```python
+import re
 
+# Use re.search() to find first
+
+```
+
+### regex Find All
+
+`array[string]|array[array[string]] regex_find_all(string $pattern, string|array[string] $subject)`
+
+> **WARNING** - Regex evaluation differs based on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation *at this point*. The general functionality should match between languages though, besides difference in the syntax and implementation of the regex notation evaluation.
+
+Run a regex pattern against a string and return an array of all occurrences of the pattern.
+Or, run a regex pattern on an array of strings and return an array of results where each element is an array of all occurrences of the pattern.
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('pattern', 'some string here')</code>
+        </td>
+        <td>
+            <code>[]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('string[0-9]', 'some string3 here string4')</code>
+        </td>
+        <td>
+            <code>["string3", "string4"]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('string.+', `["something", "here"]`)</code>
+        </td>
+        <td>
+            <code>[[], []]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>regex_find(
+    'string[0-9]',
+    `[
+        "something",
+        "a string2 now string7 too",
+        "here", 
+        "another string3 here"
+    ]`
+)</code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    [], 
+    ["string2", "string7"], 
+    [], 
+    ["string3"]
+]</code></pre>
+        </td>
+    </tr>
+</table>
+
+
+
+### regex Group Find
+
+`array[string|null]|array[array[string|null]] regex_groups_find(string|array[string] $subject, string $pattern)`
+
+> **WARNING** - Regex evaluation differs based on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation *at this point*. The general functionality should match between languages though, besides difference in the syntax and implementation of the regex notation evaluation.
+
+
+Run a regex pattern against a string and return the first occurrence of the pattern or `null` if there are none.
+Or, run a regex pattern on an array of strings and return an array where each element is the first occurrence of the pattern or `null` if there are none. 
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('pattern.*', 'some string here')</code>
+        </td>
+        <td>
+            <code>null</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('string.+', 'some string here')</code>
+        </td>
+        <td>
+            <code>"string here"</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('string.+', `["something", "here"]`)</code>
+        </td>
+        <td>
+            <code>[null, null]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_find('string.+', `["something", "a string now", "here"]`)</code>
+        </td>
+        <td>
+            <code>[null, "string now", null]</code>
+        </td>
+    </tr>
+</table>
+
+
+
+Simple Python Example
+
+```python
+import re
+
+# Use re.search() to find first
+
+```
