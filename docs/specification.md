@@ -9,6 +9,8 @@ For language specific use and guidance see the [SDKs](./sdks)
 
 Authzee is a highly expressive grant-based authorization engine.  It uses JSON Schemas to define and validate all inputs and outputs. Grants are evaluated against the request data and grant data using JMESpath to make access control decisions. 
 
+### Table of Contents
+
 - [Authzee Specification](#authzee-specification)
 - [Definitions](#definitions)
 - [Identity Definitions](#identity-definitions)

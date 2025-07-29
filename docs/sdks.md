@@ -8,13 +8,31 @@ If this doesn't fit your use case you are free to create your own as long as the
 
 > **NOTE** - This document is not a specification but a list of recommendations.  It may change and will not effect the specification or specification version of Authzee.
 
-## SDKs
+### Table of Contents
+
+- [Available SDKs](#available-sdks)
+- [SDK Standards](#sdk-standards)
+    - [Authzee Class](#authzee-class)
+    - [Compute Modules](#compute-modules)
+    - [Storage Modules](#storage-modules)
+    - [Module Locality](#module-locality)
+    - [Grants](#grants)
+    - [Storage Latches](#storage-latches)
+- [Standard JMESPath Extensions](#standard-jmespath-extensions)
+    - [INNER JOIN](#inner-join)
+    - [regex Find](#regex-find)
+    - [regex Find All](#regex-find-all)
+    - [regex Groups](#regex-groups)
+    - [regex Groups All](#regex-groups-all)
+
+
+## Available SDKs
 
 SDKs are considered:
 - **Authzee Compliant** - Follows the Authzee specification.
 - **Maintained** - Actively maintained.
-- **SDK Standard** - Follows the Authzee SDK standard.  It's not a bad thing if the library isn't does not follow the standard.  You can expect a different interface than the official SDKs. 
-- **Official** - Branded as the official Authzee SDK for a language. Again, not a bad thing, the other options could be better!
+- **SDK Standard** - Follows the Authzee SDK standard.  It's not a bad thing if the library does not follow the standard.  You can expect a different interface than the official SDKs. 
+- **Official** - Branded as the official Authzee SDK for a language. Again, not a bad thing if the library isn't official.
 
 | Language | Code Repo | Package - Repo | Authzee Compliant | Maintained | SDK Standard | Official |
 |---|---|---|:---:|:---:|:---:|:---:|
@@ -30,7 +48,7 @@ Grey Check box if not compliant for "SDK Standard" and "Official"
 -->
 
 
-## SDK Standard
+## SDK Standards
 
 The following sections outline Authzee SDK standards.  All examples are given in python or JSON with python naming conventions, but the SDKs should change this based on the convention of the language. 
 
@@ -44,6 +62,13 @@ The suggested architecture of SDKs is to have a primary class, `Authzee`, and cr
 Under this object, identity definitions, resource definitions, and the JMESPath search function are static.
 The Authzee object is created with a compute module and a storage module. The compute module will be used to provide the compute resources for running workflows, 
 and the storage module will be used to store and retrieve grants and other compute state objects. 
+
+- [Authzee Class](#authzee-class)
+- [Compute Modules](#compute-modules)
+- [Storage Modules](#storage-modules)
+- [Module Locality](#module-locality)
+- [Grants](#grants)
+- [Storage Latches](#storage-latches)
 
 
 ## Authzee Class
@@ -74,12 +99,12 @@ These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they
 - `teardown() -> None` 
     - tear down backend resources 
     - destructive - may lose all storage and compute etc.
-- `list_grants(effect: str, action: str) -> GrantsIterator` 
+- `list_grants(effect: str|None, action: str|None) -> GrantsIterator` 
     - auto paginate list grants
     - Maybe also by tags?
-- `get_grants_page(effect: str, action: str, page_token: str) -> GrantsPage` 
+- `get_grants_page(effect: str|None, action: str|None, page_token: str|None) -> GrantsPage` 
     - get a page of grants
-- `get_grant_page_refs_page(effect: str, action: str, page_token: str) -> GrantPageRefsPage` 
+- `get_grant_page_refs_page(effect: str|None, action: str|None, page_token: str|None) -> GrantPageRefsPage` 
     - get a page of grant page references for parallel pagination
     - For some storage modules this may not be possible
     - Maybe also by tags?
@@ -92,7 +117,7 @@ These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they
 - `evaluate(request: obj, parallel_paging: bool) -> EvaluateIterator` 
     - Run evaluate workflow with auto pagination
     - parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages.
-- `evaluate_page(request: obj, page_token) -> EvaluatePage` 
+- `evaluate_page(request: obj, page_token: str|None) -> EvaluatePage` 
     - Run evaluate workflow for a single page of results
 - `authorize(request: obj) -> AuthorizeResult` 
     - run authorize workflow
@@ -115,27 +140,27 @@ Compute Modules should take these arguments when created:
 
 Compute modules objects or structs should implement these methods:
 
-- `start() -> null`
+- `start() -> None`
     - start up compute module
     - run before use
     - After this method is complete these public instance vars or getters must be available:
         - locality - Compute [Module Locality](#module-locality) 
         - parallel_paging - if the compute module supports processing grants with parallel paging
-- `shutdown() -> null`
+- `shutdown() -> None`
     - shutdown compute module
     - clean up runtime resources
-- `setup() -> null` 
+- `setup() -> None` 
     - Construct backend resources for compute 
     - one time setup 
-- `teardown() -> null` 
+- `teardown() -> None` 
     - tear down backend resources 
     - destructive - may lose all long lasting compute resources
-- `evaluate_page(request: obj, page_token) -> <Evaluate Page>`
+- `evaluate_page(request: obj, page_token: str|None) -> EvaluatePage`
     - Run evaluate workflow on a page of grants
-- `evaluate(request: obj, parallel_paging: bool) -> <Evaluate Iterator>` 
+- `evaluate(request: obj, parallel_paging: bool) -> EvaluateIterator` 
     - Run evaluate workflow with auto pagination
     - parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages.
-- `authorize(request: obj) -> <Authorization Result>` 
+- `authorize(request: obj) -> AuthorizationResult` 
     - run authorize workflow
 
 
@@ -152,26 +177,26 @@ Storage Modules should take these arguments when created:
 
 
 Storage modules should implement these methods:
- `start() -> null`
+ `start() -> None`
     - start up storage module
     - run before use
     - After this method is complete these public instance vars or getters must be available:
         - locality - Storage [Module Locality](#module-locality) 
         - parallel_paging - if the storage modules supports parallel paging (returning a page of grant page references). 
-- `shutdown() -> null`
+- `shutdown() -> None`
     - shutdown storage module
     - clean up runtime resources
-- `setup() -> null` 
+- `setup() -> None` 
     - Construct backend resources for storage 
     - one time setup 
-- `teardown() -> null` 
+- `teardown() -> None` 
     - tear down backend resources 
     - destructive - may lose all long lasting compute resources
-- `list_grants(effect: str, action: str) -> <Grants Iterator>` 
+- `list_grants(effect: str|None, action: str|None) -> GrantsIterator` 
     - auto paginate list grants
-- `get_grants_page(effect: str, action: str, page_token: str) -> <Grants Page>` 
+- `get_grants_page(effect: str|None, action: str|None, page_token: str|None) -> GrantsPage` 
     - get a page of grants
-- `get_grant_page_refs_page(effect: str, action: str, page_token: str) -> Grant Page Refs Page` 
+- `get_grant_page_refs_page(effect: str|None, action: str|None, page_token: str|None) -> Grant Page Refs Page` 
     - get a page of grant page references for parallel pagination
     - **OPTIONAL** - For some storage modules this may not be possible.  Set `parallel_paging_supported` accordingly.
 - `get_grant(grant_uuid: UUID) -> Grant`
@@ -292,7 +317,8 @@ Authzee purposely takes a JMESPath search function as an argument so that custom
 - [INNER JOIN](#inner-join) - Join 2 arrays in a fashion similar to an SQL INNER JOIN. 
 - [regex Find](#regex-find) - Run a regex pattern on a string or array of strings to find the first match.
 - [regex Find All](#regex-find-all) - Run a regex pattern on a string or array of strings to find all matches.
-- [regex Find Groups](#regex-group-find) - Run a regex pattern on a string or array of strings to find the first match, and extract the groups.
+- [regex Groups](#regex-groups) - Run a regex pattern on a string or array of strings to find the first match, and extract the groups.
+- [regex Groups All](#regex-groups-all) - Run a regex pattern on a string or array of strings to find the first match, and extract the groups.
 
 
 The sections are given in the same format as the [JMESPath Built-in Function Specification](https://jmespath.org/specification.html#built-in-functions)
@@ -376,6 +402,9 @@ Simple python function example:
 ```python
 from typing import Any, Dict, List
 
+import jmespath
+
+
 def inner_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]]:
     result = []
     for l in lhs:
@@ -450,9 +479,7 @@ Examples:
     </tr>
 </table>
 
-
-`string|null|array[string|null] regex_find(string $pattern, string|array[string] $subject)`
-Simple Python Example
+Simple Python Example:
 
 ```python
 import re
@@ -461,8 +488,22 @@ from typing import List, Union
 
 def regex_find(pattern: str, subject: Union[str, List[str]]) -> Union[None, str, List[Union[None, str]]]:
     if type(subject) is str:
-        
-
+        match = re.search(pattern, subject)
+        if match is not None:
+            return match.group()
+        else:
+            return None
+    
+    if type(subject) is list:
+        result = []
+        for sub in subject:
+            match = re.search(pattern, sub)
+            if match is not None:
+                result.append(match.group())
+            else:
+                result.append(None)
+    
+    return result
 ```
 
 ### regex Find All
@@ -484,7 +525,7 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find('pattern', 'some string here')</code>
+           <code>regex_find_all('pattern', 'some string here')</code>
         </td>
         <td>
             <code>[]</code>
@@ -492,7 +533,7 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find('string[0-9]', 'some string3 here string4')</code>
+           <code>regex_find_all('string[0-9]', 'some string3 here string4')</code>
         </td>
         <td>
             <code>["string3", "string4"]</code>
@@ -500,7 +541,7 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find('string.+', `["something", "here"]`)</code>
+           <code>regex_find_all('string.+', `["something", "here"]`)</code>
         </td>
         <td>
             <code>[[], []]</code>
@@ -508,7 +549,7 @@ Examples:
     </tr>
     <tr>
         <td>
-           <pre><code>regex_find(
+           <pre><code>regex_find_all(
     'string[0-9]',
     `[
         "something",
@@ -521,14 +562,37 @@ Examples:
         <td>
             <pre><code>[
     [], 
-    ["string2", "string7"], 
+    [
+        "string2", 
+        "string7"
+    ], 
     [], 
-    ["string3"]
+    [
+        "string3"
+    ]
 ]</code></pre>
         </td>
     </tr>
 </table>
 
+Simple Python Example:
+
+```python
+import re
+from typing import List, Union
+
+
+def regex_find_all(pattern: str, subject: Union[str, List[str]]) -> Union[List[str], List[List[str]]]:
+    if type(subject) is str:
+        return re.findall(pattern, subject)
+        
+    if type(subject) is list:
+        result = []
+        for sub in subject:
+            result.append(re.findall(pattern, sub))
+    
+    return result
+```
 
 
 ### regex Groups
@@ -567,8 +631,8 @@ Examples:
     <tr>
         <td>
            <pre><code>regex_groups(
-    'string.+(my_group[0-4])|string.+(my_group[5-9])', 
-    'a string now my_group9 another string my_group2'
+    'string (my_group[0-4])|string (my_other_group[5-9])', 
+    'a string my_other_group9 another string my_group2'
 )</code></pre>
         </td>
         <td>
@@ -594,10 +658,10 @@ Examples:
     <tr>
         <td>
            <pre><code>regex_groups(
-    'string.+(my_group[0-4])|string.+(my_group[5-9])', 
+    'string (my_group[0-4])|string (my_other_group[5-9])', 
     `[
         "something", 
-        "a string now my_group9 another string my_group2", 
+        "a string my_other_group9 another string my_group2", 
         "here"
     ]`
 )</code></pre>
@@ -610,25 +674,57 @@ Examples:
 
 
 
-Simple Python Example
+Simple Python Example:
 
 ```python
 import re
+from typing import List, Union
 
-# Use re.search() to find first
 
+def regex_groups(
+    pattern: str, 
+    subject: Union[str, List[str]]
+) -> Union[
+    None, 
+    List[Union[None, str]], 
+    List[
+        Union[
+            None, 
+            List[
+                Union[None, str]
+            ]
+        ]
+    ]
+]:
+    if type(subject) is str:
+        match = re.search(pattern, subject)
+        if match is not None:
+            return list(match.groups())
+        else:
+            return None
+    
+    if type(subject) is list:
+        result = []
+        for sub in subject:
+            match = re.search(pattern, sub)
+            if match is not None:
+                result.append(list(match.groups()))
+            else:
+                result.append(None)
+    
+    return result
 ```
 
 
 ### regex Groups All
 
-`null|array[array[string|null]]|array[null|array[array[string|null]]] regex_groups_all(string|array[string] $subject, string $pattern)`
+`array[array[string|null]]|array[array[array[string|null]]] regex_groups_all(string|array[string] $subject, string $pattern)`
 
 > **WARNING** - Regex evaluation differs based on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation *at this point*. The general functionality should match between languages though, besides difference in the syntax and implementation of the regex notation evaluation.
 
 The return value depends on the subject type:
-- `string` - Run a regex pattern against a string and return an array where each item is an array of groups for each occurrence of the pattern, or `null` if there are no pattern matches. If the group has no value it will be `null`.
-- `array[string]` - Run a regex pattern on an array of strings and return an equal length array where each element is an array of all occurrences of the pattern or `null` if there are no pattern matches.  Each element in that array is an array of the groups. If the group has no value it will be `null`.
+- `string` - Run a regex pattern against a string and return an array where each item is an array of groups for each occurrence of the pattern. If the group has no value it will be `null`.
+- `array[string]` - Run a regex pattern on an array of strings and return an equal length array where each element is an array of all occurrences of the pattern.  Each element in the array or occurrences is an array of the groups. If the group has no value it will be `null`.
 
 Examples:
 
@@ -642,7 +738,7 @@ Examples:
            <code>regex_groups_all('pattern.*', 'some string here')</code>
         </td>
         <td>
-            <code>null</code>
+            <code>[]</code>
         </td>
     </tr>
     <tr>
@@ -656,8 +752,8 @@ Examples:
     <tr>
         <td>
            <pre><code>regex_groups_all(
-    'string.+(my_group[0-4])|string.+(my_group[5-9])', 
-    'a string now my_group9 another string my_group2'
+    'string (my_group[0-4])|string (my_other_group[5-9])', 
+    'a string my_other_group9 another string my_group2'
 )</pre></code>
         </td>
         <td>
@@ -678,7 +774,7 @@ Examples:
            <code>regex_groups_all('string.+', `["something", "here"]`)</code>
         </td>
         <td>
-            <code>[null, null]</code>
+            <code>[[], []]</code>
         </td>
     </tr>
     <tr>
@@ -686,23 +782,23 @@ Examples:
            <code>regex_groups_all('string.+', `["something", "a string now", "here"]`)</code>
         </td>
         <td>
-            <code>[null, [[]], null]</code>
+            <code>[[], [[]], []]</code>
         </td>
     </tr>
     <tr>
         <td>
            <pre><code>regex_groups_all(
-    'string.+(my_group[0-4])|string.+(my_group[5-9])', 
+    'string (my_group[0-4])|string (my_other_group[5-9])', 
     `[
         "something", 
-        "a string now my_group9 another string my_group2", 
+        "a string my_other_group9 another string my_group2", 
         "here"
     ]`
 )</code></pre>
         </td>
         <td>
             <pre><code>[
-    null,
+    [],
     [
         [
             null, 
@@ -713,7 +809,7 @@ Examples:
             null
         ]
     ], 
-    null
+    []
 ]</code></pre>
         </td>
     </tr>
@@ -725,7 +821,19 @@ Simple Python Example
 
 ```python
 import re
+from typing import List, Union
 
-# Use re.search() to find first
 
+def regex_groups_all(pattern: str, subject: Union[str, List[str]]) -> Union[List[str], List[List[str]]]:
+    if type(subject) is str:
+        return [list(m.groups()) if m is not None else None for m in re.finditer(pattern, subject)]
+        
+    if type(subject) is list:
+        result = []
+        for sub in subject:
+            result.append(
+                [list(m.groups()) if m is not None else None for m in re.finditer(pattern, sub)]
+            )
+    
+    return result
 ```
