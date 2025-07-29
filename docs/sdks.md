@@ -231,6 +231,8 @@ They should provide these additional fields:
 - tags - Key/value pairs that can be used to as grant metadata.
 
 
+These additional fields should also be available to the query at runtime. 
+
 ```json
 {
     "uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
@@ -372,7 +374,9 @@ Examples:
 Simple python function example:
 
 ```python
-def inner_join(lhs, rhs, expr):
+from typing import Any, Dict, List
+
+def inner_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]]:
     result = []
     for l in lhs:
         for r in rhs:
@@ -397,13 +401,13 @@ def inner_join(lhs, rhs, expr):
 
 ### regex Find
 
-`string|null|array[string|null] regex_find(string $pattern, string|array[string] $subject)`
+`string|null|array[string|null] regex_find(string $pattern, string|array[string] $subject, boolean $all)`
 
 > **WARNING** - Regex evaluation differs based on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation *at this point*. The general functionality should match between languages though, besides difference in the syntax and implementation of the regex notation evaluation.
 
-
-Run a regex pattern against a string and return the first occurrence of the pattern or `null` if there are none.
-Or, run a regex pattern on an array of strings and return an array where each element is the first occurrence of the pattern or `null` if there are none. 
+The return value depends on the subject type:
+- `string` - Run a regex pattern against a string and return the first occurrence of the pattern or `null` if there are none.
+- `array[string]` - Run a regex pattern on an array of strings and return an equal length array where each element is the first occurrence of the pattern or `null` if there are none.  
 
 Examples:
 
@@ -447,13 +451,17 @@ Examples:
 </table>
 
 
-
+`string|null|array[string|null] regex_find(string $pattern, string|array[string] $subject)`
 Simple Python Example
 
 ```python
 import re
+from typing import List, Union
 
-# Use re.search() to find first
+
+def regex_find(pattern: str, subject: Union[str, List[str]]) -> Union[None, str, List[Union[None, str]]]:
+    if type(subject) is str:
+        
 
 ```
 
@@ -463,8 +471,9 @@ import re
 
 > **WARNING** - Regex evaluation differs based on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation *at this point*. The general functionality should match between languages though, besides difference in the syntax and implementation of the regex notation evaluation.
 
-Run a regex pattern against a string and return an array of all occurrences of the pattern.
-Or, run a regex pattern on an array of strings and return an array of results where each element is an array of all occurrences of the pattern.
+The return value depends on the subject type:
+- `string` - Run a regex pattern against a string and return an array of all occurrences of the pattern in the string.
+- `array[string]` - Run a regex pattern on an array of strings and return an equal length array of results where each element is an array of all occurrences of the pattern in the string.
 
 Examples:
 
@@ -522,15 +531,15 @@ Examples:
 
 
 
-### regex Group Find
+### regex Groups
 
-`array[string|null]|array[array[string|null]] regex_groups_find(string|array[string] $subject, string $pattern)`
+`null|array[string|null]|array[array[string|null]|null] regex_groups(string|array[string] $subject, string $pattern)`
 
 > **WARNING** - Regex evaluation differs based on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation *at this point*. The general functionality should match between languages though, besides difference in the syntax and implementation of the regex notation evaluation.
 
-
-Run a regex pattern against a string and return the first occurrence of the pattern or `null` if there are none.
-Or, run a regex pattern on an array of strings and return an array where each element is the first occurrence of the pattern or `null` if there are none. 
+The return value depends on the subject type:
+- `string` - Run a regex pattern against a string and return an array of all groups from the first occurrence of the pattern, or `null` if there are no pattern matches. If the group has no value it will be `null`.
+- `array[string]` - Run a regex pattern on an array of strings and return an equal length array where each element is an array of groups from the first occurrence of the pattern or `null` if there are no pattern matches. If the group has no value it will be `null`.
 
 Examples:
 
@@ -541,7 +550,7 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find('pattern.*', 'some string here')</code>
+           <code>regex_groups('pattern.*', 'some string here')</code>
         </td>
         <td>
             <code>null</code>
@@ -549,15 +558,26 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find('string.+', 'some string here')</code>
+           <code>regex_groups('string.+', 'some string here')</code>
         </td>
         <td>
-            <code>"string here"</code>
+            <code>[]</code>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_find('string.+', `["something", "here"]`)</code>
+           <pre><code>regex_groups(
+    'string.+(my_group[0-4])|string.+(my_group[5-9])', 
+    'a string now my_group9 another string my_group2'
+)</code></pre>
+        </td>
+        <td>
+            <code>[null, "my_group9"]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_groups('string.+', `["something", "here"]`)</code>
         </td>
         <td>
             <code>[null, null]</code>
@@ -565,10 +585,136 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find('string.+', `["something", "a string now", "here"]`)</code>
+           <code>regex_groups('string.+', `["something", "a string now", "here"]`)</code>
         </td>
         <td>
-            <code>[null, "string now", null]</code>
+            <code>[null, [], null]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>regex_groups(
+    'string.+(my_group[0-4])|string.+(my_group[5-9])', 
+    `[
+        "something", 
+        "a string now my_group9 another string my_group2", 
+        "here"
+    ]`
+)</code></pre>
+        </td>
+        <td>
+            <code>[null, [null, "my_group9"], null]</code>
+        </td>
+    </tr>
+</table>
+
+
+
+Simple Python Example
+
+```python
+import re
+
+# Use re.search() to find first
+
+```
+
+
+### regex Groups All
+
+`null|array[array[string|null]]|array[null|array[array[string|null]]] regex_groups_all(string|array[string] $subject, string $pattern)`
+
+> **WARNING** - Regex evaluation differs based on the underlying language/library implementation. Regex evaluation is not standardized across programming languages, and it's not expected for the SDKs to create standard regex evaluation *at this point*. The general functionality should match between languages though, besides difference in the syntax and implementation of the regex notation evaluation.
+
+The return value depends on the subject type:
+- `string` - Run a regex pattern against a string and return an array where each item is an array of groups for each occurrence of the pattern, or `null` if there are no pattern matches. If the group has no value it will be `null`.
+- `array[string]` - Run a regex pattern on an array of strings and return an equal length array where each element is an array of all occurrences of the pattern or `null` if there are no pattern matches.  Each element in that array is an array of the groups. If the group has no value it will be `null`.
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_groups_all('pattern.*', 'some string here')</code>
+        </td>
+        <td>
+            <code>null</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_groups_all('string.+', 'some string here')</code>
+        </td>
+        <td>
+            <code>[[]]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>regex_groups_all(
+    'string.+(my_group[0-4])|string.+(my_group[5-9])', 
+    'a string now my_group9 another string my_group2'
+)</pre></code>
+        </td>
+        <td>
+            <pre><code>[
+    [
+        null, 
+        "my_group9"
+    ], 
+    [
+        "my_group2", 
+        null
+    ]
+]</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_groups_all('string.+', `["something", "here"]`)</code>
+        </td>
+        <td>
+            <code>[null, null]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>regex_groups_all('string.+', `["something", "a string now", "here"]`)</code>
+        </td>
+        <td>
+            <code>[null, [[]], null]</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>regex_groups_all(
+    'string.+(my_group[0-4])|string.+(my_group[5-9])', 
+    `[
+        "something", 
+        "a string now my_group9 another string my_group2", 
+        "here"
+    ]`
+)</code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    null,
+    [
+        [
+            null, 
+            "my_group9"
+        ],
+        [
+            "my_group2",
+            null
+        ]
+    ], 
+    null
+]</code></pre>
         </td>
     </tr>
 </table>
