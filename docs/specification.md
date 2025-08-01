@@ -33,7 +33,7 @@ Authzee is a highly expressive grant-based authorization engine.  It uses JSON S
 - **Workflow** - A specific authorization process and the detailed steps to complete it.
 - **Authorization Request (Request)** - The object used to specify identities, resources, actions, and other configurations to start a wokflow.
 - **Calling Entity (Entity)** - Who or what is represented by a request.  A calling entity can have many identities of the same and different types. 
-- **Grant** - The unit of authorization that defines the conditions needed for an entity to perform an action on a resource, and the effect if the grant is applicable.
+- **Grant** - The unit of authorization that defines the conditions needed for an entity to perform an action on a resource, and the effect, if the grant is applicable.
 
 
 ## Identity Definitions
@@ -1233,8 +1233,7 @@ Evaluate the request against until an authorization decision is determined.
     - If no grants are applicable, the request is implicitly denied and it is not authorized.
 - The result will be valid against the Authorize result schema generated in step 3. The fields are determined by the logic in the descriptions.
 
-### Authorize Workflow Response
-
+### Authorize Workflow Result
 
 ```json
 {
