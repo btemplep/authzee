@@ -1,0 +1,4 @@
+jmespath
+jsonschema
+pytest
+pytest-cov

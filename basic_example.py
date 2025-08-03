@@ -1,46 +1,3 @@
-# Authzee
-
-<!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
-Authzee is a highly expressive grant-based authorization engine. 
-
-<img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/logo.svg" alt="Authzee Logo" width="100">
-
-
-- **Scalable** - Handle complex authorization scenarios across large systems.
-- **Separation** - Keep authorization rules separate from business code.
-- **Dependable** - Built on top of existing specifications that are widely used. JSON Schema and JMESPath standards.  Authzee has a specification and reference implementation as well.
-- **Extensible** - Easily adapt to new identity types, resources, and authorization patterns.  Extend the JMESPath query language for custom capabilities.
-- **ACL** - Access Control List support
-- **RBAC** - Role-Based Access Control support
-- **ABAC** - Attribute-Based Access Control support
-- **ReBAC** - Relationship-Based Access Control support
-- **Ultra expressive** - Create very fine-grained controls that are highly maintainable.
-- **Auditable** - Core auditing functionality built in from the ground up to easily perform access checks.
-- **Agnostic** - Works with any identity provider and resources. New or existing.  Authzee does is not an identity provider and does not provide a means to store and source identity.
-- **Multi-lingual** - Uses widespread standards to make the core easy to create in any language. 
-    - The reference implementation in this repo uses python for ease of access. 
-    - The reference implementation only defines the core Authzee engine. Compute and storage implementations are handled at the SDK level for each language. 
-
-
-### Table of Contents
-
-- [Basic Example](#basic-example)
-- [Complex Example](#complex-example)
-- [Tests](#tests)
-
-### Other Docs
-
-- [Specification](./docs/specification.md#authzee-specification)
-- [SDKs](./docs/sdks.md#official-authzee-sdks)
-
-
-## Basic Example
-
-This example shows all of the basic ideas behind Authzee using the python reference implementation.
-
-Run [basic_example.py](./basic_example.py) from the root of the project after installing the dependencies from the `requirements.txt` file.
-
-```python
 import json
 
 import jmespath
@@ -208,24 +165,3 @@ else:
 #     }
 # }
 # ✅ Access granted!
-```
-
-This basic example shows:
-- A calling entity with a "User" identity "balloon_luvr", requesting to pop a balloon.
-- A grant that allows admin users to read and pop balloons.
-- The authorization succeeds because the calling entity has a user identity with the admin role
-
-## Complex Example
-
-This is a more complex example that shows how to handle multiple identities, resources, and grants. 
-It utilizes all these elements to create a more complex request for both the audit and authorize workflows.
-
-Run [complex_example.py](./complex_example.py) from the root of the project after installing the dependencies from the `requirements.txt` file.
-
-## Tests
-
-Run the tests and generate a coverage report from the root of the project after installing the dependencies from the `requirements.txt` file.
-
-```console
-pytest -vvv --cov=./src --cov-report=term --cov-report=html tests/unit
-```
