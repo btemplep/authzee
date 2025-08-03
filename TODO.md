@@ -1,11 +1,40 @@
 # TODO
 
-- [ ] What would it take to add grant filters by tags? 
+
+- [ ] Low level API that meets the Authzee specification.
+- [ ] should I even offer parallel pagination to start?
+    - I def should for audit because it can offload it to other resources
+    - but for regular pages... It could still be much faster because I can just get a whole bunch at once and can offload it to compute too right? 
+    - Compute should provide a method to get a parallel set of grant pages? 
+
+- [x] Explain all other objects that are passed in methods
+    - GrantsIterator
+    - GrantsPage
+    - GrantPageRefsPage
+    - NewGrant
+    - AuthzeeRequest
+    - EvaluateIterator
+    - EvaluatePage
+    - AuthorizeResult
+- [x] Handle audit pages as pages of grants?
+    - The Authorize workflow should auto parallel paginate if it can. 
+    - How should Audit work?
+        - It only does a page at a time and return the page token for the request limited 
+        - Tell it to do parallel pagination and a page or pages worth or results
+            - This is better since it can offload it on the compute module
+            - Need to take page values for functions? 
+        - Or get a page of page refs and start them all yourself?
+            - Not good all of the compute is not back on you
+- [x] Do I even want iterators?  Paging is easy enough and languages that have iterators can just add the on. 
+    - **Solution** - No iterators in the SDK standard
+- [x] explain SDK filters are for partitions
+- [x] What would it take to add grant filters by tags? 
     - Matching just the key, or key/value pairs
     - Basically need to partition on every tag key and value to maintain performance
-- [ ] optional function parameters and how to handle?
-
-
+    - **Solution**- Won't do - can just be client side
+- [x] optional function parameters and how to handle?
+    - Make sure optional ones can be null or the item
+    - Languages can add defaults to make it more simple
 - [x] custom function i/o
 - [x] JMESPath regex
     - instead of different functions just have a flag to do find or find all
