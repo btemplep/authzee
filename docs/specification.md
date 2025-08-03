@@ -1,5 +1,5 @@
-# Authzee Specification
-## Version 0.1.0a1  
+# Authzee Specification 
+## Version 0.1.0
 
 This document describes the specification for **Authzee**.
 

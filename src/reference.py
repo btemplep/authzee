@@ -742,7 +742,7 @@ def evaluate_one(
     request: Dict[str, AnyJSON], 
     grant: Dict[str, AnyJSON],
     search: Callable[[str, AnyJSON], AnyJSON]
-):
+) -> Dict[str, AnyJSON]:
     result = {
         "critical": False,
         "applicable": False,

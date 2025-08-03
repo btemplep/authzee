@@ -4,7 +4,7 @@ Authzee official SDKs offer the same general API's and architecture.
 This makes it easier to switch languages by standardizing SDK patterns, and still leave room for language specific functionality and syntax. 
 
 They offer a flexible and scalable general purpose interface, but they are opinionated in their APIs.  
-If this doesn't fit your use case you are free to create your own as long as the core is compliant with the Authzee spec!
+If this doesn't fit your use case you are free to create your own! Try to stay compliant with the Authzee spec for the sake of portability.
 
 > **NOTE** - This document is not a specification but a list of recommendations.  It may change and will not effect the specification or specification version of Authzee.
 
@@ -12,6 +12,7 @@ If this doesn't fit your use case you are free to create your own as long as the
 
 - [Available SDKs](#available-sdks)
 - [SDK Standards](#sdk-standards)
+    - [Low Level API](#low-level-api)
     - [Authzee Class](#authzee-class)
     - [Compute Modules](#compute-modules)
     - [Storage Modules](#storage-modules)
@@ -36,6 +37,7 @@ SDKs are considered:
 
 | Language | Code Repo | Package - Repo | Authzee Compliant | Maintained | SDK Standard | Official |
 |---|---|---|:---:|:---:|:---:|:---:|
+| example | [example](https://github.com/btemplep/authzee-py) | [example](https://pypi.org/project/authzee/) - pypi.org | ✅ ❌ | ✅ ❌ | ✅ ☑️ | ✅ ☑️ |
 | python | [authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ❌ | ✅ | ☑️ | ✅ |
 
 <!-- 
@@ -52,7 +54,7 @@ Grey Check box if not compliant for "SDK Standard" and "Official"
 
 The following sections outline Authzee SDK standards.  All examples are given in python or JSON with python naming conventions, but the SDKs should change this based on the convention of the language. 
 
-The suggested architecture of SDKs is to have a primary class, `Authzee`, and create instances from it.  This class provides the only public API to the Authzee SDKs. 
+The suggested architecture for the high level API of SDKs is to have a primary class, `Authzee`, and create instances from it.  This class provides the only public API to the Authzee SDKs. 
 
 > **NOTE** - The docs will use class and method terminology, but for languages that don't, translate as so:
 > - Classes -> struct definitions
@@ -64,12 +66,94 @@ The Authzee object is created with a compute module and a storage module. The co
 
 > **NOTE** - The Standard describes the minimum expectations of what an Authzee SDK should meet.  SDKs are welcome to have more functionality!!!
 
+- [Low Level API](#low-level-api)
 - [Authzee Class](#authzee-class)
 - [Compute Modules](#compute-modules)
 - [Storage Modules](#storage-modules)
 - [Module Locality](#module-locality)
 - [Standard Types](#standard-types)
 - [Storage Latches](#storage-latches)
+
+
+## Low Level API
+
+Authzee SDKs should offer both a high and low level APIs.  
+The majority of this document will focus on the high level APIs that are more easily consumed. 
+
+The low level APIs should also exist, and directly follow the specification for Authzee. 
+This is to give a core point of logic for the higher level APIs, and the ability to use a Authzee specification-like interface directly.  
+
+It should include these values to import:
+
+- `identity_definition_schema` - The current identity definition schema.
+- `resource_definition_schema` - The current resource definition schema.
+- `authzee_version` - The current version of the Authzee specification supported.
+
+It should include these functions from the authzee reference:
+
+-   ```python
+    def validate_definitions(
+        identity_defs: List[Dict[str, AnyJSON]],
+        resource_defs: List[Dict[str, AnyJSON]]
+    ) -> Dict[str, AnyJSON]:
+    ```
+-   ```python
+    def generate_schemas(
+        identity_defs: List[Dict[str, AnyJSON]],
+        resource_defs: List[Dict[str, AnyJSON]]
+    ) -> Dict[str, AnyJSON]:
+    ```
+-   ```python
+    def validate_grants(
+        grants: List[Dict[str, AnyJSON]], 
+        schema: Dict[str, AnyJSON]
+    ) -> Dict[str, AnyJSON]:
+    ```
+-   ```python
+    def validate_request(
+        request: Dict[str, AnyJSON], schema: 
+        Dict[str, AnyJSON]
+    ) -> Dict[str, AnyJSON]:
+    ```
+-   ```python
+    def evaluate_one(
+        request: Dict[str, AnyJSON], 
+        grant: Dict[str, AnyJSON],
+        search: Callable[[str, AnyJSON], AnyJSON]
+    ) -> Dict[str, AnyJSON]:
+    ```
+-   ```python
+    def audit(
+        request: Dict[str, AnyJSON], 
+        grants: List[Dict[str, AnyJSON]],
+        search: Callable[[str, AnyJSON], AnyJSON]
+    ) -> Dict[str, List[Dict[str, AnyJSON]]]:
+    ```
+-   ```python
+    def authorize(
+        request: Dict[str, AnyJSON], 
+        grants: List[Dict[str, AnyJSON]],
+        search: Callable[[str, AnyJSON], AnyJSON]
+    ) -> Dict[str, AnyJSON]:
+    ```
+-   ```python
+    def audit_workflow(
+        identity_defs: List[Dict[str, AnyJSON]],
+        resource_defs: List[Dict[str, AnyJSON]],
+        grants: List[Dict[str, AnyJSON]],
+        request: Dict[str, AnyJSON],
+        search: Callable[[str, AnyJSON], AnyJSON]
+    ):
+    ```
+-   ```python
+    def authorize_workflow(
+        identity_defs: List[Dict[str, AnyJSON]],
+        resource_defs: List[Dict[str, AnyJSON]],
+        grants: List[Dict[str, AnyJSON]],
+        request: Dict[str, AnyJSON],
+        search: Callable[[str, AnyJSON], AnyJSON]
+    ):
+    ```
 
 
 ## Authzee Class
@@ -88,8 +172,10 @@ If the language supports async, there should also be an async version, `AuthzeeA
 These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they should all be async.
 
 - `start() -> None`
-    - start up Authzee app 
+    - Start up Authzee app.  
     - Initialize runtime resources
+    - Needs to run before any methods or vars are accessed.
+    - Run the same method for compute and storage modules.
     - After this method is complete these public instance vars or getters must be available:
         - locality - Authzee [Module Locality](#module-locality) to tell the limit of where other Authzee instances can be created.
         - parallel_paging - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination. 
@@ -106,11 +192,14 @@ These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they
     - add a new grant.
 - `repeal(grant_uuid: UUID) -> None` 
     - delete a grant.
-- `get_grants_page(effect: str|None, action: str|None, page_ref: str|None, page_size: int|None, parallel_paging: bool, ref_page_size: int|None) -> GrantsPage` 
-    - get a page of grants
-- `get_grant_page_refs_page(effect: str|None, action: str|None, page_ref: str|None, page_size: int|None) -> GrantPageRefsPage` 
-    - get a page of grant page references for parallel pagination
+- `get_grants_page(effect: str|None, action: str|None, page_ref: str|None, page_size: int|None) -> GrantsPage` 
+    - Retrieve a page of grants
+- `get_grant_page_refs_page(effect: str|None, action: str|None, page_ref: str|None, page_size: int|None) -> PageRefsPage` 
+    - Retrieve a page of grant page references for parallel pagination
     - For some storage modules this may not be possible, check the `parallel_paging` value.
+- `get_grants_page_parallel(effect: str|None, action: str|None, page_ref: str|None, page_size: int|None, ref_page_size: int|None) -> GrantsPage` 
+    - Retrieve several pages of grants and return them all at once.
+    - Call to the Compute Module. 
 - `get_grant(grant_uuid: UUID) -> Grant`
     - Get a grant by UUID
 - `audit_page(request: AuthzeeRequest, page_ref: str|None, page_size: int|None, parallel_paging: bool, ref_page_size: int|None) -> AuditPage` 
@@ -152,10 +241,12 @@ Compute modules objects or structs should implement these methods:
 - `teardown() -> None` 
     - tear down backend resources 
     - destructive - may lose all long lasting compute resources
-- `audit_page(request: AuthzeeRequest, page_ref: str|None, parallel_paging: bool) -> AuditPage` 
+- `get_grants_page_parallel(effect: str|None, action: str|None, page_ref: str|None, page_size: int, ref_page_size: int) -> GrantsPage` 
+    - Retrieve several pages of grants and return them all at once.
+- `audit_page(request: AuthzeeRequest, page_ref: str|None, parallel_paging: bool, page_size: int, ref_page_size: int) -> AuditPage` 
     - Run the Audit Workflow for a page of results.
     - Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
-- `authorize(request: AuthzeeRequest) -> AuthorizeResult` 
+- `authorize(request: AuthzeeRequest, page_size: int, ref_page_size: int) -> AuthorizeResult` 
     - Run the Authorize Workflow.
 
 
@@ -169,7 +260,6 @@ Storage Modules should take these arguments when created:
 - Identity definitions
 - Resource Definitions
 - Other module specific arguments as needed
-
 
 Storage modules should implement these methods:
  `start() -> None`
@@ -193,7 +283,7 @@ Storage modules should implement these methods:
     - delete a grant.
 - `get_grants_page(effect: str|None, action: str|None, page_ref: str|None) -> GrantsPage` 
     - get a page of grants
-- `get_grant_page_refs_page(effect: str|None, action: str|None, page_ref: str|None) -> GrantPageRefsPage` 
+- `get_grant_page_refs_page(effect: str|None, action: str|None, page_ref: str|None) -> PageRefsPage` 
     - get a page of grant page references for parallel pagination
     - For some storage modules this may not be possible, check the `parallel_paging` value.
 - `get_grant(grant_uuid: UUID) -> Grant`
@@ -204,7 +294,7 @@ Storage modules should implement these methods:
     - Get a [storage latch](#storage-latches) by UUID
 - `set_latch(storage_latch_uuid) -> StorageLatch`
     - Set a [storage latch](#storage-latches) by UUID
-- `delete_storage_latch(storage_latch_uuid) -> null`
+- `delete_latch(storage_latch_uuid) -> null`
     - Delete a [storage latch](#storage-latches) by UUID
 - `cleanup_latches(oldest: Datetime) -> null`
     - Delete all latches older than the specified oldest datetime
@@ -224,10 +314,10 @@ Module Locality is a way to describe "where" a compute module, storage module, o
     - Compute resources are shared with the same system as the Authzee app.
     - Storage is localized to the same system and is shared with other Authzee app instances on the system.
     - Authzee instances must exist within the same system.
-- network - The module is localized to the same network as the Authzee app.
-    - Compute resources are shared with systems across the same network as the Authzee app.
-    - Storage is localized to the same network and is shared with other Authzee app instances on systems, on the same network.
-    - Authzee instances must exist within the same network.  More verbosely, the storage and compute is available over the network from all Authzee instances.
+- network - The module is localized to network connectivity with the Authzee app.
+    - Compute resources are shared with systems that are reachable across the same network as the Authzee app.
+    - Storage is shared with systems that are reachable across the same network as the Authzee app.
+    - More precisely, the storage and compute is available over the network from all Authzee instances.
 
 Compute localities are only compatible with storage localities that are the same or have a "larger" locality. 
 
@@ -269,7 +359,7 @@ Standard Types:
 - [Grant](#grant)
 - [NewGrant](#newgrant)
 - [GrantsPage](#grantspage)
-- [GrantPageRefsPage](#grantpagerefspage)
+- [PageRefsPage](#grantpagerefspage)
 - [AuthzeeRequest](#authzeerequest)
 - [AuditPage](#auditpage)
 - [AuthorizeResult](#authorizeresult)
@@ -282,7 +372,7 @@ Authzee relies on pagination to make it's operations scalable.
 
 ### Grant
 
-Grants should offer more flexibility over the reference implementation, but be standard across the SDKs.
+Grants should offer more flexibility over the reference implementation, and should be standard across the SDKs.
 
 ```json
 {
@@ -345,12 +435,12 @@ A single page of [Grants](#grant).
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `grants` | array[Grant]| ✅ | The array of grants. |
-| `next_ref` | string|null |  ✅ | A token used to reference the next page of grants to retrieve from Authzee/the storage module. |
+| `next_ref` | string OR null |  ✅ | A token used to reference the next page of grants to retrieve from Authzee/the storage module. |
 
 
-### GrantPageRefsPage
+### PageRefsPage
 
-A page of grant page references.
+A page of page references.
 
 ```json
 {
@@ -363,23 +453,23 @@ A page of grant page references.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `page_refs` | array[strings] | ✅ | The array page references that can be used to retrieve several pages in parallel. |
-| `next_ref` | string|null |  ✅ | A token used to reference the next page of page refs to retrieve from Authzee/the storage module. |
+| `page_refs` | array[strings] | ✅ | An array of page references that can be used to retrieve several pages of a resource in parallel. |
+| `next_ref` | string OR null |  ✅ | A token used to reference the next page of page refs to retrieve from Authzee/the storage module. |
 
 
 ### AuthzeeRequest
 
-The standard "Request" object used to initiate an Authzee workflow. Should match the [Authzee Request Specification](./specification.md#requests)
+The standard "Request" object used to initiate an Authzee workflow. Should match the [Authzee Request Specification](./specification.md#requests), where some fields are updated depending on the identity and resource definitions.
 
 
 ### AuditPage
 
-A page of Audit Workflow results.  Conforms to the [Audit Workflow Results](./specification.md#audit-workflow-result) except it will also have a `next_ref` field for pagination. 
+A page of Audit Workflow results.  Conforms to the [Audit Workflow Results](./specification.md#audit-workflow-result), where some fields are updated depending on the identity and resource definitions. It will also have a `next_ref` field for pagination. 
 
 
 ### AuthorizeResult
 
-The [Authorize Workflow Results](./specification.md#authorize-workflow-response), which conforms to the Authzee specification.
+The [Authorize Workflow Results](./specification.md#authorize-workflow-response), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource definitions.
 
 
 ## Standard JMESPath Extensions

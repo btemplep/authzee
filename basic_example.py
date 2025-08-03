@@ -1,3 +1,5 @@
+import json
+
 import jmespath
 
 from src.reference import authorize_workflow
@@ -128,9 +130,38 @@ result = authorize_workflow(
     request,
     jmespath.search
 )
+print(json.dumps(result, indent=4))
 if result["authorized"]:
     print("✅ Access granted!")
 else:
     print("❌ Access denied!")
 
-# Output: ✅ Access granted!
+# OUTPUT:
+# {
+#     "authorized": true,
+#     "completed": true,
+#     "grant": {
+#         "effect": "allow",
+#         "actions": [
+#             "Balloon:Read",
+#             "pop"
+#         ],
+#         "query": "contains(request.identities.User[*].role, 'admin')",
+#         "query_validation": "validate",
+#         "equality": true,
+#         "data": {},
+#         "context_schema": {
+#             "type": "object"
+#         },
+#         "context_validation": "none"
+#     },
+#     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#     "errors": {
+#         "context": [],
+#         "definition": [],
+#         "grant": [],
+#         "jmespath": [],
+#         "request": []
+#     }
+# }
+# ✅ Access granted!
