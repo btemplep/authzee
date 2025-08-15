@@ -178,7 +178,7 @@ The grant schema is generated based on the identity and resource definitions.
 | Field | Type | Required | Description |
 |-------|------|:--------:|-------------|
 | `effect` | string | ✅ | Whether this grant allows or denies access. Must be either "allow" or "deny". Deny grants always take precedence over allow grants. |
-| `actions` | array | ✅ | List of resource actions this grant applies to. If empty array, applies to all actions. Must match actions defined in resource definitions. |
+| `actions` | array | ✅ | List of resource actions this grant applies to. Must match actions defined in resource definitions. If an empty array is given, the grant will match all current and future actions. |
 | `query` | string | ✅ | JMESPath expression that evaluates the request data. Has access to `request` (the full request object) and `grant` (the current grant with its data). The top-level query data structure is: `{"request": <request_object>, "grant": <grant_object>}` |
 | `query_validation` | string | ✅ | How to handle JMESPath query errors. Options: <ul><li>`"validate"` - Query errors cause the grant to be inapplicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
 | `equality` | any | ✅ | Expected result from the query for this grant to be applicable. Can be any JSON value (boolean, string, number, object, array, null). |

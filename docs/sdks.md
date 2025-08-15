@@ -37,8 +37,7 @@ SDKs are considered:
 
 | Language | Code Repo | Package - Repo | Authzee Compliant | Maintained | SDK Standard | Official |
 |---|---|---|:---:|:---:|:---:|:---:|
-| example | [example](https://github.com/btemplep/authzee-py) | [example](https://pypi.org/project/authzee/) - pypi.org | ✅ ❌ | ✅ ❌ | ✅ ☑️ | ✅ ☑️ |
-| python | [authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ❌ | ✅ | ☑️ | ✅ |
+| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ✅ | ✅ | ✅ | ✅ |
 
 <!-- 
 Green checks for all that are compliant
@@ -46,7 +45,7 @@ Red X for if not compliant for "Authzee Complaint" and "Maintained"
 Grey Check box if not compliant for "SDK Standard" and "Official"
 
 | python | [authzee-py-bad](https://github.com/btemplep/authzee-py) | [authzee-bad](https://pypi.org/project/authzee/) - pypi.org | ❌ | ❌ | ☑️ | ☑️ |
-| python | [authzee-py-compliant](https://github.com/btemplep/authzee-py) | [authzee-comliant](https://pypi.org/project/authzee/) - pypi.org | ✅  | ✅ | ☑️ | ☑️ |
+| python | [authzee-py-compliant](https://github.com/btemplep/authzee-py) | [authzee-comliant](https://pypi.org/project/authzee/) - pypi.org | ✅  | ✅ | ✅ | ✅ |
 -->
 
 
@@ -91,69 +90,69 @@ It should include these values to import:
 
 It should include these functions from the authzee reference:
 
--   ```python
-    def validate_definitions(
-        identity_defs: List[Dict[str, AnyJSON]],
-        resource_defs: List[Dict[str, AnyJSON]]
-    ) -> Dict[str, AnyJSON]:
-    ```
--   ```python
-    def generate_schemas(
-        identity_defs: List[Dict[str, AnyJSON]],
-        resource_defs: List[Dict[str, AnyJSON]]
-    ) -> Dict[str, AnyJSON]:
-    ```
--   ```python
-    def validate_grants(
-        grants: List[Dict[str, AnyJSON]], 
-        schema: Dict[str, AnyJSON]
-    ) -> Dict[str, AnyJSON]:
-    ```
--   ```python
-    def validate_request(
-        request: Dict[str, AnyJSON], schema: 
-        Dict[str, AnyJSON]
-    ) -> Dict[str, AnyJSON]:
-    ```
--   ```python
-    def evaluate_one(
-        request: Dict[str, AnyJSON], 
-        grant: Dict[str, AnyJSON],
-        search: Callable[[str, AnyJSON], AnyJSON]
-    ) -> Dict[str, AnyJSON]:
-    ```
--   ```python
-    def audit(
-        request: Dict[str, AnyJSON], 
-        grants: List[Dict[str, AnyJSON]],
-        search: Callable[[str, AnyJSON], AnyJSON]
-    ) -> Dict[str, List[Dict[str, AnyJSON]]]:
-    ```
--   ```python
-    def authorize(
-        request: Dict[str, AnyJSON], 
-        grants: List[Dict[str, AnyJSON]],
-        search: Callable[[str, AnyJSON], AnyJSON]
-    ) -> Dict[str, AnyJSON]:
-    ```
--   ```python
-    def audit_workflow(
-        identity_defs: List[Dict[str, AnyJSON]],
-        resource_defs: List[Dict[str, AnyJSON]],
-        grants: List[Dict[str, AnyJSON]],
-        request: Dict[str, AnyJSON],
-        search: Callable[[str, AnyJSON], AnyJSON]
-    ):
-    ```
--   ```python
-    def authorize_workflow(
-        identity_defs: List[Dict[str, AnyJSON]],
-        resource_defs: List[Dict[str, AnyJSON]],
-        grants: List[Dict[str, AnyJSON]],
-        request: Dict[str, AnyJSON],
-        search: Callable[[str, AnyJSON], AnyJSON]
-    ):
-    ```
+```python
+def validate_definitions(
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]]
+) -> Dict[str, AnyJSON]:
+```
+```python
+def generate_schemas(
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]]
+) -> Dict[str, AnyJSON]:
+```
+```python
+def validate_grants(
+    grants: List[Dict[str, AnyJSON]], 
+    schema: Dict[str, AnyJSON]
+) -> Dict[str, AnyJSON]:
+```
+```python
+def validate_request(
+    request: Dict[str, AnyJSON], schema: 
+    Dict[str, AnyJSON]
+) -> Dict[str, AnyJSON]:
+```
+```python
+def evaluate_one(
+    request: Dict[str, AnyJSON], 
+    grant: Dict[str, AnyJSON],
+    search: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
+```
+```python
+def audit(
+    request: Dict[str, AnyJSON], 
+    grants: List[Dict[str, AnyJSON]],
+    search: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, List[Dict[str, AnyJSON]]]:
+```
+```python
+def authorize(
+    request: Dict[str, AnyJSON], 
+    grants: List[Dict[str, AnyJSON]],
+    search: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
+```
+```python
+def audit_workflow(
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
+    grants: List[Dict[str, AnyJSON]],
+    request: Dict[str, AnyJSON],
+    search: Callable[[str, AnyJSON], AnyJSON]
+):
+```
+```python
+def authorize_workflow(
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
+    grants: List[Dict[str, AnyJSON]],
+    request: Dict[str, AnyJSON],
+    search: Callable[[str, AnyJSON], AnyJSON]
+):
+```
 
 
 ## Authzee Class
@@ -164,90 +163,166 @@ The `Authzee` class should take these arguments when created:
 - JMESPath search function
 - Compute Module type and arguments
 - Storage Module type and arguments
-- Default grants page size
-- Default grant refs page size
 
 If the language supports async, there should also be an async version, `AuthzeeAsync`. 
 
 These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they should all be async.
 
-- `start() -> None`
-    - Start up Authzee app.  
-    - Initialize runtime resources
-    - Needs to run before any methods or vars are accessed.
-    - Run the same method for compute and storage modules.
-    - After this method is complete these public instance vars or getters must be available:
-        - locality - Authzee [Module Locality](#module-locality) to tell the limit of where other Authzee instances can be created.
-        - parallel_paging - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination. 
-- `shutdown() -> None`
-    - shutdown authzee app
-    - clean up runtime resources
-- `setup() -> None` 
-    - Construct backend resources for compute and storage
-    - one time setup 
-- `teardown() -> None` 
-    - tear down backend resources 
-    - destructive - may lose all storage and compute etc.
-- `enact(new_grant: NewGrant) -> Grant` 
-    - add a new grant.
-- `repeal(grant_uuid: UUID) -> None` 
-    - delete a grant.
-- `get_grants_page(effect: str|None, action: str|None, page_ref: str|None, page_size: int|None) -> GrantsPage` 
-    - Retrieve a page of grants
-- `get_grant_page_refs_page(effect: str|None, action: str|None, page_ref: str|None, page_size: int|None) -> PageRefsPage` 
-    - Retrieve a page of grant page references for parallel pagination
-    - For some storage modules this may not be possible, check the `parallel_paging` value.
-- `get_grants_page_parallel(effect: str|None, action: str|None, page_ref: str|None, page_size: int|None, ref_page_size: int|None) -> GrantsPage` 
-    - Retrieve several pages of grants and return them all at once.
-    - Call to the Compute Module. 
-- `get_grant(grant_uuid: UUID) -> Grant`
-    - Get a grant by UUID
-- `audit_page(request: AuthzeeRequest, page_ref: str|None, page_size: int|None, parallel_paging: bool, ref_page_size: int|None) -> AuditPage` 
-    - Run the Audit Workflow for a page of results.
-    - Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
-- `authorize(request: AuthzeeRequest, page_size: int|None, parallel_paging: bool, ref_page_size: int|None) -> AuthorizeResult` 
-    - Run the Authorize Workflow.
+```python
+def start() -> None:
+```
+- Start up Authzee app.  
+- Initialize runtime resources
+- Needs to run before any methods or vars are accessed.
+- Run the same method for compute and storage modules.
+- After this method is complete these public instance vars or getters must be available:
+    - locality - Authzee [Module Locality](#module-locality) to tell the limit of where other Authzee instances can be created.
+    - parallel_paging_supported - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination. 
+
+```python
+def shutdown() -> None:
+```
+- shutdown authzee app
+- clean up runtime resources
+
+```python
+def setup() -> None:
+```
+- Construct backend resources for compute and storage
+- one time setup 
+
+```python
+def teardown() -> None:
+```
+- tear down backend resources 
+- destructive - may lose all storage and compute etc.
+
+```python
+def enact(new_grant: NewGrant) -> Grant:
+```
+- add a new grant.
+
+```python
+def repeal(grant_uuid: UUID) -> None:
+```
+- delete a grant.
+
+```python
+def get_grant(grant_uuid: UUID) -> Grant:
+```
+- Get a grant by UUID
+
+```python
+def get_grants_page(
+    effect: str | None, 
+    action: str | None, 
+    page_ref: str | None, 
+    grants_page_size: int
+) -> GrantsPage:
+```
+- Retrieve a page of grants
+
+```python
+def get_grant_page_refs_page(
+    effect: str | None, 
+    action: str | None, 
+    page_ref: str | None, 
+    grants_page_size: int,
+    refs_page_size: int
+) -> PageRefsPage:
+```
+- Retrieve a page of grant page references for parallel pagination
+- For some storage modules this may not be possible, check the `parallel_paging` value.
+
+```python
+def audit_page(
+    request: AuthzeeRequest, 
+    page_ref: str | None, 
+    page_size: int, 
+    parallel_paging: bool, 
+    refs_page_size: int
+) -> AuditPage:
+```
+- Run the Audit Workflow for a page of results.
+- Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
+
+```python
+def authorize(
+    request: AuthzeeRequest, 
+    page_size: int, 
+    grants_page_size: int, 
+    refs_page_size: int
+) -> AuthorizeResult:
+```
+- Run the Authorize Workflow.
 
 
 ## Compute Modules
 
-Compute modules provide a standard API for running workflows on compute.
+Compute modules provide a standard API for running workflows on compute.  Compute Modules should not be used directly but through the Authzee class.
 They have direct access to the storage module and use it to retrieve grants. 
 They may also use the storage module to create and retrieve latches that help with compute state.  Especially for compute that is spread across multiple systems.
 
 > **NOTE** - If the language supports async, then the compute module functions are expected to be async. Even if the underlying functionality is not async, this is to simplify the API between the `Authzee` app and the compute modules.  As well as avoid having to create a sync and async version of each compute module. 
 
-Compute Modules should take these arguments when created:
-- Identity definitions
-- Resource Definitions
-- JMESPath function pointer
-- Storage module type and arguments
-- Other module specific arguments as needed
+Compute Modules should take any module specific arguments when created.
 
-Compute modules objects or structs should implement these methods:
+Compute modules objects should implement these methods:
 
-- `start() -> None`
-    - start up compute module
-    - run before use
-    - After this method is complete these public instance vars or getters must be available:
-        - locality - Compute [Module Locality](#module-locality) 
-        - parallel_paging - if the compute module supports processing grants with parallel paging
-- `shutdown() -> None`
-    - shutdown compute module
-    - clean up runtime resources
-- `setup() -> None` 
-    - Construct backend resources for compute 
-    - one time setup 
-- `teardown() -> None` 
-    - tear down backend resources 
-    - destructive - may lose all long lasting compute resources
-- `get_grants_page_parallel(effect: str|None, action: str|None, page_ref: str|None, page_size: int, ref_page_size: int) -> GrantsPage` 
-    - Retrieve several pages of grants and return them all at once.
-- `audit_page(request: AuthzeeRequest, page_ref: str|None, parallel_paging: bool, page_size: int, ref_page_size: int) -> AuditPage` 
-    - Run the Audit Workflow for a page of results.
-    - Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
-- `authorize(request: AuthzeeRequest, page_size: int, ref_page_size: int) -> AuthorizeResult` 
-    - Run the Authorize Workflow.
+```python
+def start(
+    identity_defs: List[IdentityDef], 
+    resource_defs: List[ResourceDef], 
+    search: Callable[[str, Any], Any], 
+    storage_type: Type[StorageModule], 
+    storage_kwargs: Dict[str, Any]
+) -> None:
+```
+- start up compute module
+- run before use
+- After this method is complete these public instance vars or getters must be available:
+    - locality - Compute [Module Locality](#module-locality) 
+    - parallel_paging_supported - if the compute module supports processing grants with parallel paging
+
+```python
+def shutdown() -> None:
+```
+- shutdown compute module
+- clean up runtime resources
+
+```python
+def setup() -> None:
+```
+- Construct backend resources for compute 
+- one time setup 
+
+```python
+def teardown() -> None:
+```
+- tear down backend resources 
+- destructive - may lose all long lasting compute resources
+
+```python
+def audit_page(
+    request: AuthzeeRequest, 
+    page_ref: str | None, 
+    grants_page_size: int, 
+    parallel_paging: bool, 
+    refs_page_size: int
+) -> AuditPage:
+```
+- Run the Audit Workflow for a page of results.
+- Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
+
+```python
+def authorize(
+    request: AuthzeeRequest, 
+    page_size: int, 
+    grants_page_size: int, 
+    refs_page_size: int
+) -> AuthorizeResult:
+```
+- Run the Authorize Workflow.
 
 
 ## Storage Modules
@@ -256,51 +331,104 @@ Storage modules provide a standard API for storing and retrieving grants and [St
 
 > **NOTE** - If the language supports async, then the storage module functions are expected to be async. Even if the underlying functionality is not async, this is to simplify the API between the pieces. 
 
-Storage Modules should take these arguments when created:
-- Identity definitions
-- Resource Definitions
-- Other module specific arguments as needed
+Storage Modules should take any module specific arguments when created.
 
 Storage modules should implement these methods:
- `start() -> None`
-    - start up storage module
-    - run before use
-    - After this method is complete these public instance vars or getters must be available:
-        - locality - Storage [Module Locality](#module-locality) 
-        - parallel_paging - if the storage modules supports parallel paging (returning a page of grant page references). 
-- `shutdown() -> None`
-    - shutdown storage module
-    - clean up runtime resources
-- `setup() -> None` 
-    - Construct backend resources for storage 
-    - one time setup 
-- `teardown() -> None` 
-    - tear down backend resources 
-    - destructive - may lose all long lasting compute resources
-- `enact(new_grant: NewGrant) -> Grant` 
-    - add a new grant.
-- `repeal(grant_uuid: UUID) -> None` 
-    - delete a grant.
-- `get_grants_page(effect: str|None, action: str|None, page_ref: str|None) -> GrantsPage` 
-    - get a page of grants
-- `get_grant_page_refs_page(effect: str|None, action: str|None, page_ref: str|None) -> PageRefsPage` 
-    - get a page of grant page references for parallel pagination
-    - For some storage modules this may not be possible, check the `parallel_paging` value.
-- `get_grant(grant_uuid: UUID) -> Grant`
-    - Get a grant by UUID
-- `create_latch() -> StorageLatch`
-    - Create a new [storage latch](#storage-latches) by UUID
-- `get_latch(storage_latch_uuid) -> StorageLatch`
-    - Get a [storage latch](#storage-latches) by UUID
-- `set_latch(storage_latch_uuid) -> StorageLatch`
-    - Set a [storage latch](#storage-latches) by UUID
-- `delete_latch(storage_latch_uuid) -> null`
-    - Delete a [storage latch](#storage-latches) by UUID
-- `cleanup_latches(oldest: Datetime) -> null`
-    - Delete all latches older than the specified oldest datetime
 
-> **NOTE** - When listing grants there are 2 filters: `effect` and `action`.  Storage modules should partition grants on these 2 fields. 
+```python
+def start(
+    identity_defs: List[IdentityDef], 
+    resource_defs: List[ResourceDef]
+) -> None:
+```
+- start up storage module
+- run before use
+- After this method is complete these public instance vars or getters must be available:
+    - locality - Storage [Module Locality](#module-locality) 
+    - parallel_paging_supported - if the storage modules supports parallel paging (returning a page of grant page references). 
 
+```python
+def shutdown() -> None:
+```
+- shutdown storage module
+- clean up runtime resources
+
+```python
+def setup() -> None:
+```
+- Construct backend resources for storage 
+- one time setup 
+
+```python
+def teardown() -> None:
+```
+- tear down backend resources 
+- destructive - may lose all long lasting compute resources
+
+```python
+def enact(new_grant: NewGrant) -> Grant:
+```
+- add a new grant.
+
+```python
+def repeal(grant_uuid: UUID) -> None:
+```
+- delete a grant.
+
+```python
+def get_grant(grant_uuid: UUID) -> Grant:
+```
+- Get a grant by UUID
+
+```python
+def get_grants_page(
+    effect: str | None, 
+    action: str | None, 
+    page_ref: str | None,
+    grants_page_size: int
+) -> GrantsPage:
+```
+- get a page of grants
+
+```python
+def get_grant_page_refs_page(
+    effect: str | None, 
+    action: str | None, 
+    page_ref: str | None, 
+    grants_page_size: int,
+    refs_page_size: int
+) -> PageRefsPage:
+```
+- get a page of grant page references for parallel pagination
+- For some storage modules this may not be possible, check the `parallel_paging` value.
+
+```python
+def create_latch() -> StorageLatch:
+```
+- Create a new [storage latch](#storage-latches) by UUID
+
+```python
+def get_latch(storage_latch_uuid) -> StorageLatch:
+```
+- Get a [storage latch](#storage-latches) by UUID
+
+```python
+def set_latch(storage_latch_uuid) -> StorageLatch:
+```
+- Set a [storage latch](#storage-latches) by UUID
+
+```python
+def delete_latch(storage_latch_uuid) -> None:
+```
+- Delete a [storage latch](#storage-latches) by UUID
+
+```python
+def cleanup_latches(before: Datetime) -> None:
+```
+- Delete all latches before the specified datetime.
+- Workflows should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
+
+> **NOTE** - When listing grants there are 2 filters: `effect` and `action`.  Storage modules should partition grants on these 2 fields.
 
 ## Module Locality
 

@@ -856,11 +856,10 @@ def authorize(
     allow_grants = []
     deny_grants = []
     for g in grants:
-        if request['action'] in g['actions'] or len(g['actions']) == 0:
-            if g['effect'] == "allow":
-                allow_grants.append(g)
-            else:
-                deny_grants.append(g)
+        if g['effect'] == "allow":
+            allow_grants.append(g)
+        else:
+            deny_grants.append(g)
     
     for g in deny_grants:
         g_eval = evaluate_one(request, g, search)

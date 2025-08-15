@@ -39,7 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -->
 
 
+## [0.1.1] - 2025-08-14
+
+### Fixed
+
+- Clarify how grants that match all actions (no actions specified) are handled.  They will match all current and future actions. 
+
+
 ### [0.1.0] - 2025-08-03
 
 - Initial Specification and Reference Implementation 
-
