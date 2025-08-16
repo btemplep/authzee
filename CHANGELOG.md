@@ -22,21 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security 
 -->
 
-<!-- 
-## [Unreleased] - YYYY-MM-DD
 
-### Added
+## [0.2.0] - 2025-08-16
 
 ### Changed
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security 
--->
+    - Authorize workflow now only returns critical errors.  The `errors` field was renamed to `critical_errors` to make this clear
+        - This was because authorize should be optimized around a binary decision.  Returning an unmanageable number of errors at a time is not scalable in the worst cases.
 
 
 ## [0.1.1] - 2025-08-14

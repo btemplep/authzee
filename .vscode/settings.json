@@ -15,6 +15,7 @@
         "beatdrop",
         "botocore",
         "caplog",
+        "crits",
         "croniter",
         "dataclass",
         "datetimes",

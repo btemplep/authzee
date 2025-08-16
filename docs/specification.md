@@ -1187,7 +1187,7 @@ There are 8 steps.  The first 7 steps are same as in [Common Workflow Steps](#co
             "completed",
             "grant",
             "message",
-            "errors"
+            "critical_errors"
         ],
         "properties": {
             "authorized": {
@@ -1211,7 +1211,7 @@ There are 8 steps.  The first 7 steps are same as in [Common Workflow Steps](#co
                 "type": "string",
                 "description": "Details about why the request was authorized or not."
             },
-            "errors": {}
+            "critical_errors": {}
         },
         "$defs": {
             "grant": {}
@@ -1257,7 +1257,7 @@ Evaluate the request against until an authorization decision is determined.
         "context_validation": "none"
     },
     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-    "errors": {
+    "critical_errors": {
         "context": [],
         "definition": [],
         "grant": [],
@@ -1271,8 +1271,6 @@ Evaluate the request against until an authorization decision is determined.
 |---|---|:-:|---|
 | authorized | boolean | ✅ | If the request is authorized. |
 | completed | boolean | ✅ | If the workflow completed. |
-| grant | object<[Grant](#grants)> \| null | ✅ | The grant whose evaluation that led to the authorization decision, if applicable. |
+| grant | object<[Grant](#grants)> \| null | ✅ | The grant whose evaluation led to the authorization decision, if applicable. |
 | message | string | ✅ | The authorization message and reasoning. |
-| errors | object<[Workflow Errors](#workflow-errors)> | ✅ | The collected workflow errors. |
-
-
+| critical_errors | object<[Workflow Errors](#workflow-errors)> | ✅ | Critical errors that caused the workflow to exit early. |
