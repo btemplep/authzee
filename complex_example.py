@@ -1,3 +1,4 @@
+
 import json
 
 import jmespath
@@ -85,6 +86,18 @@ identity_definitions = [
                 "level"
             ]
         }
+    },
+    {
+        "identity_type": "OtherID",
+        "schema": {
+            "type": "object",
+            "required": [],
+            "properties": {
+                "dontCare": {
+                    "type": "string"
+                }
+            }
+        }
     }
 ]
 
@@ -119,11 +132,7 @@ resource_definitions = [
                 "owner_department",
                 "location"
             ]
-        },
-        "parent_types": [],
-        "child_types": [
-            "Balloon"
-        ]
+        }
     },
     {
         "resource_type": "Balloon",
@@ -169,13 +178,7 @@ resource_definitions = [
                 "owner_department",
                 "inflated"
             ]
-        },
-        "parent_types": [
-            "BalloonStore"
-        ],
-        "child_types": [
-            "BalloonString"
-        ]
+        }
     },
     {
         "resource_type": "BalloonString",
@@ -207,18 +210,80 @@ resource_definitions = [
                 "color",
                 "material"
             ]
-        },
-        "parent_types": [
-            "Balloon"
-        ],
-        "child_types": []
+        }
     }
 ]
 
-# 3. Define Grants - access rules 
+# 3. Define Contexts - extra data that is passed to the request
+context_definitions = [
+    { # no context
+        "context_type": "NULL",
+        "schema": {
+            "type": "null"
+        }
+    },
+    { # any context
+        "context_type": "ANY",
+        "schema": {}
+    },
+    { # Context for the Team
+        "context_type": "MySpecialContext",
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "Team"
+            ],
+            "properties": {
+                "Team": {
+                    "type": "string"
+                }
+            }
+        }
+    }, 
+    { # You can also do things like parent or child resources
+        "context_type": "BalloonRelationships",
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "BalloonStore"
+            ],
+            "properties": {
+                "BalloonStore": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "owner_department": {
+                                "type": "string"
+                            },
+                            "location": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "name",
+                            "owner_department",
+                            "location"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+]
+
+# 4. Define Grants - access rules 
 grants = [
-    # Allow users to read balloons in their department
-    {
+    { # Allow users to read balloons in their department
         "effect": "allow",
         "actions": [
             "read"
@@ -227,14 +292,20 @@ grants = [
         "query_validation": "error", # if the query has an error return it
         "equality": True,
         "data": {},
-        "context_schema": {
-            "type": "object"
-        },
-        "context_validation": "none"
+        "context_type": "NULL"
     },
-    
-    # Allow users with admin role to perform any action
-    {
+    { # Allow users to read balloons on the context team
+        "effect": "allow",
+        "actions": [
+            "read"
+        ],
+        "query": "contains(request.identities.User[].department, request.context.Team)",
+        "query_validation": "error", # if the query has an error return it
+        "equality": True,
+        "data": {},
+        "context_type": "MySpecialContext"
+    },
+    { # Allow users with admin role to perform any action
         "effect": "allow", 
         "actions": [
             "read",
@@ -247,14 +318,9 @@ grants = [
         "query_validation": "error",
         "equality": True,
         "data": {},
-        "context_schema": {
-            "type": "object"
-        },
-        "context_validation": "none"
+        "context_type": "NULL"
     },
-    
-    # Allow members of department groups to read balloons in that department
-    {
+    { # Allow members of department groups to read balloons in that department
         "effect": "allow",
         "actions": [
             "read"
@@ -263,14 +329,9 @@ grants = [
         "query_validation": "error", 
         "equality": True,
         "data": {},
-        "context_schema": {
-            "type": "object"
-        },
-        "context_validation": "none"
+        "context_type": "NULL"
     },
-    
-    # Allow inflate access if user has balloon permission in their role
-    {
+    { # Allow inflate access if user has balloon permission in their role
         "effect": "allow",
         "actions": [
             "inflate"
@@ -279,14 +340,9 @@ grants = [
         "query_validation": "error",
         "equality": True,
         "data": {},
-        "context_schema": {
-            "type": "object"
-        },
-        "context_validation": "none"
+        "context_type": "NULL"
     },
-    
-    # Deny pop access for large balloons unless admin
-    {
+    { # Deny pop access for large balloons unless admin
         "effect": "deny",
         "actions": [
             "pop"
@@ -295,28 +351,20 @@ grants = [
         "query_validation": "error",
         "equality": True,
         "data": {},
-        "context_schema": {
-            "type": "object"
-        },
-        "context_validation": "none"
+        "context_type": "NULL"
     },
-
-    # Deny if they don't have any user identities
-    {
+    { # Deny if they don't have any user identities
         "effect": "deny",
         "actions": [],
         "query": "length(request.identities.User)",
         "query_validation": "error",
         "equality": 0,
         "data": {},
-        "context_schema": {
-            "type": "object"
-        },
-        "context_validation": "none"
+        "context_type": "NULL"
     }
 ]
 
-# Step 4: Create an authorization request
+# 5. Create an authorization request
 request = {
     "identities": {
         "User": [
@@ -349,6 +397,7 @@ request = {
                 "level": "advanced"
             }
         ]
+        #"OtherID": [] # Can be added if none or any exist for the calling entity
     },
     "resource_type": "Balloon",
     "action": "inflate",
@@ -360,32 +409,14 @@ request = {
         "owner_department": "party_planning",
         "inflated": False
     },
-    "parents": {
-        "BalloonStore": [
-            {
-                "id": "store123",
-                "name": "Party Central",
-                "owner_department": "party_planning",
-                "location": "Building A"
-            }
-        ]
-    },
-    "children": {
-        "BalloonString": [
-            {
-                "id": "string1",
-                "length": 24.5,
-                "color": "white",
-                "material": "cotton"
-            }
-        ]
-    },
     "query_validation": "grant",  # Use grant-level validation settings
-    "context": {},   # Additional context data
-    "context_validation": "grant"
+    "context_type": "MySpecialContext",  # specify the context type, this will only be evaluated against grants that accept this context
+    "context": { # The context for the request
+        "Team": "party_planning"
+    }
 }
 
-# Optional Step 4b: Add custom JMESPath functions
+# 5.b. (Optional) Add custom JMESPath functions
 class CustomFunctions(jmespath.functions.Functions):
     @jmespath.functions.signature({'types': ['number']}, {'types': ['number']})
     def _func_my_add(self, x, y):
@@ -396,7 +427,7 @@ options = jmespath.Options(custom_functions=CustomFunctions())
 def my_search(expression: str, data):
     return jmespath.search(expression, data, options)
 
-# Step 5a: Audit which grants are applicable (useful for auditing)
+# 6.a. Audit which grants are applicable (useful for auditing)
 audit_result = audit_workflow(
     identity_definitions,
     resource_definitions,
@@ -435,7 +466,7 @@ print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 
 
 
-# Step 5b: Make authorization decision
+# 6.b. Make authorization decision
 authorization_result = authorize_workflow(
     identity_definitions,
     resource_definitions, 

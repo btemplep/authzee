@@ -487,7 +487,7 @@ Standard Types:
 - [Grant](#grant)
 - [NewGrant](#newgrant)
 - [GrantsPage](#grantspage)
-- [PageRefsPage](#grantpagerefspage)
+- [PageRefsPage](#pagerefspage)
 - [AuthzeeRequest](#authzeerequest)
 - [AuditPage](#auditpage)
 - [AuthorizeResult](#authorizeresult)

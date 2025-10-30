@@ -69,13 +69,40 @@ resource_definitions = [
                 "color",
                 "size"
             ]
-        },
-        "parent_types": [], # parent resource types, if any
-        "child_types": [] # child resource types, if any
+        }
     }
 ]
 
-# 3. Define Grants - access rules 
+# 3. Define Contexts - extra data that is passed to the request
+context_definitions = [
+    {
+        "context_type": "NULL",
+        "schema": {
+            "type": "null"
+        }
+    },
+    {
+        "context_type": "ANY",
+        "schema": {}
+    },
+    {
+        "context_type": "MySpecialContext",
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "Team"
+            ],
+            "properties": {
+                "Team": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+]
+
+# 4. Define Grants - access rules 
 grants = [
     {
         "effect": "allow", # allow or deny
@@ -86,15 +113,12 @@ grants = [
         "query": "contains(request.identities.User[*].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} and will return `true` if any of the calling entities, User type identities have the admin role
         "query_validation": "validate",
         "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
-        "data": {},
-        "context_schema": {
-            "type": "object"
-        },
-        "context_validation": "none"
+        "data": {}, # extra free from data to store with grant
+        "context_type": "MySpecialContext" # type of context to accept
     }
 ]
 
-# 4. Create an authorization request
+# 5. Create an authorization request
 request = {
     "identities": { # create zero or more instances of any identity
         "User": [
@@ -113,19 +137,18 @@ request = {
         "color": "green",
         "size": "medium"
     },
-    "parents": {},
-    "children": {},
     "query_validation": "grant", # optionally override grant level query validation
+    "context_type": "MySpecialContext",
     "context": {
-        "TEAM": "ABC" # free from data 
-    },
-    "context_validation": "grant" # optionally override grant level context validation
+        "Team": "ABC"
+    }
 }
 
-# 5. Check authorization
+# 6. Check authorization
 result = authorize_workflow(
     identity_definitions,
     resource_definitions,
+    context_definitions,
     grants,
     request,
     jmespath.search
