@@ -288,7 +288,8 @@ grants = [
         "actions": [
             "read"
         ],
-        "query": "contains(request.identities.User[].department, request.resource.owner_department)",
+        "query": "contains(request.identities.User[].department, request.resource.owner_department)", 
+        # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
         "query_validation": "error", # if the query has an error return it
         "equality": True,
         "data": {},
@@ -456,15 +457,12 @@ print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 #         }
 #     ],
 #     "errors": {
-#         "context": [],
 #         "definition": [],
 #         "grant": [],
 #         "jmespath": [],
 #         "request": []
 #     }
 # }
-
-
 
 # 6.b. Make authorization decision
 authorization_result = authorize_workflow(
@@ -495,10 +493,143 @@ print(f"Authorization Result:\n{json.dumps(authorization_result, indent=4)}")
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
 #     "errors": {
-#         "context": [],
 #         "definition": [],
 #         "grant": [],
 #         "jmespath": [],
 #         "request": []
 #     }
 # }
+
+# 7. Create a batch request. Requests can also be batched for the same identities, action, resource type, and context type.
+batch_request = {
+    "identities": {
+        "User": [
+            {
+                "id": "user123",
+                "department": "party_planning",
+                "email": "john.doe@company.com"
+            }
+        ],
+        "Group": [
+            {
+                "name": "event-team",
+                "department": "party_planning", 
+                "type": "team"
+            },
+            {
+                "name": "party-planning-dept",
+                "department": "party_planning",
+                "type": "department"
+            }
+        ],
+        "Role": [
+            {
+                "name": "party-coordinator",
+                "permissions": [
+                    "balloon:read",
+                    "balloon:inflate",
+                    "balloon:tie"
+                ],
+                "level": "advanced"
+            }
+        ]
+        #"OtherID": [] # Can be added if none or any exist for the calling entity
+    },
+    "resource_type": "Balloon",
+    "action": "inflate",
+    "context_type": "MySpecialContext",  # specify the context type, this will only be evaluated against grants that accept this context
+    "resources": [
+        {
+            "resource": {
+                "id": "balloon456",
+                "color": "red",
+                "size": "medium",
+                "material": "latex",
+                "owner_department": "party_planning",
+                "inflated": False
+            },
+            "query_validation": "grant",  # Use grant-level validation settings
+            "context": { # The context for the request
+                "Team": "party_planning"
+            }
+        }
+    ]  
+}
+
+# 6.a. Audit which grants are applicable (useful for auditing)
+audit_batch_result = audit_batch_workflow(
+    identity_definitions,
+    resource_definitions,
+    grants,
+    batch_request,
+    jmespath.search # JMESPath search function or custom function
+)
+print(f"Audit Batch Result:\n{json.dumps(audit_result, indent=4)}")
+# Audit Result - An array of audit results that maps to the batch_request.resources array
+# Each one is processed as if it was a separate request
+# [
+#     {
+#         "completed": true,
+#         "grants": [
+#             {
+#                 "effect": "allow",
+#                 "actions": [
+#                     "inflate"
+#                 ],
+#                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+#                 "query_validation": "error",
+#                 "equality": true,
+#                 "data": {},
+#                 "context_schema": {
+#                     "type": "object"
+#                 },
+#                 "context_validation": "none"
+#             }
+#         ],
+#         "errors": {
+#             "definition": [],
+#             "grant": [],
+#             "jmespath": [],
+#             "request": []
+#         }
+#     }
+# ]
+
+# 7.b. Make authorization decision
+authorize_batch_result = authorize_batch_workflow(
+    identity_definitions,
+    resource_definitions, 
+    grants,
+    batch_request,
+    my_search # JMESPath search function or custom function
+)
+print(f"Authorize Batch Result:\n{json.dumps(authorization_result, indent=4)}")
+# Authorization Result - An array of authorization results that maps to the batch_request.resources array
+# Each one is processed as if it was a separate request
+# [
+#     {
+#         "authorized": true,
+#         "completed": true,
+#         "grant": {
+#             "effect": "allow",
+#             "actions": [
+#                 "inflate"
+#             ],
+#             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+#             "query_validation": "error",
+#             "equality": true,
+#             "data": {},
+#             "context_schema": {
+#                 "type": "object"
+#             },
+#             "context_validation": "none"
+#         },
+#         "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#         "errors": {
+#             "definition": [],
+#             "grant": [],
+#             "jmespath": [],
+#             "request": []
+#         }
+#     }
+# ]

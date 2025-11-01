@@ -110,7 +110,8 @@ grants = [
             "Balloon:Read",
             "pop"
         ],
-        "query": "contains(request.identities.User[*].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} and will return `true` if any of the calling entities, User type identities have the admin role
+        "query": "contains(request.identities.User[*].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
+        # In this case, the above query will return `true` if any of the calling entity's User type identities have the admin role
         "query_validation": "validate",
         "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
         "data": {}, # extra free from data to store with grant
