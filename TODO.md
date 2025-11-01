@@ -1,0 +1,33 @@
+# TODO
+
+- [ ] Add context and remove parent and child
+    - [x] update basic example
+    - [x] update complex example
+    - [ ] update sample code
+    - [ ] update readme
+    - [ ] update specification
+    - [ ] update SDK docs
+
+- [ ] TODO - figure out how to craft request schema and handle validation
+    - In order to fit it all in the schema for the multiple action types and context types, we would need to create a schema that will have to be all permutations of resource types and context types
+    - In reality it would be better to have 2 steps
+    - one to run it through the initial schema
+    - then another to confirm that the resources match the resource type schema and the context matches the context type schema
+    - DO THIS with all references of large data?
+        - ie "verfiy" is separate from validate for schema
+        - Actions
+        - all types
+        - schemas of objects for types
+    - Validation will be validating against my schemas
+        - Validate that I can work with this data
+    - Verification will will against the data that was passed
+        - for example: it's a valid context type and the schema matches that type
+        - Verify that the given data matches what is expected from the client
+- [x] Remove need to have all identity and parent/child types present?
+    - Having it makes the queries slightly easier, but makes request more complex and possible less scalable if there are a lot of identities or parent/child relationships
+    - Can maybe just remove the parent child in favor of the more flexible context?
+        - But if there are parent and child relationships that means that the context would have to be different per each resource type and would possible create way more context types
+        - don't even know how important parent child will be, just make it only context
+        - But in batch operations, we can only use one context, but each resource could have parent, child, sibling resources
+        - not true we could require the same context type, but have different context for each
+            - Same resource type and context type, but separate actual values. 

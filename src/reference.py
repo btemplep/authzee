@@ -51,7 +51,7 @@ _type_schema = {
 }
 _action_schema = {
     "title": "Resource Action",
-    "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common.",
+    "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
     "type": "string",
     "pattern": "^[A-Za-z0-9_.:-]*$",
     "minLength": 1,
@@ -59,6 +59,22 @@ _action_schema = {
 }
 _schema_schema = jsonschema.Draft202012Validator.META_SCHEMA
 
+
+context_definition_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Context Definition",
+    "description": "A request context definition.  Defines a type of context that can be passed with Authzee requests.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "context_type",
+        "schema"
+    ],
+    "properties": {
+        "context_type": _type_schema,
+        "schema": _schema_schema
+    }
+}
 identity_definition_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Identity Definition",
@@ -83,9 +99,7 @@ resource_definition_schema = {
     "required": [
         "resource_type",
         "actions",
-        "schema",
-        "parent_types",
-        "child_types"
+        "schema"
     ],
     "properties": {
         "resource_type": _type_schema,
@@ -94,23 +108,7 @@ resource_definition_schema = {
             "uniqueItems": True,
             "items": _action_schema
         },
-        "schema": _schema_schema,
-        "parent_types": {
-            "type": "array",
-            "uniqueItems": True,
-            "items": {
-                "type": "string"
-            },
-            "description": "Types that are a parent of this resource.  When instances of these types are passed to the request they will be checked against their schemas and against the hierarchy."
-        },
-        "child_types": {
-            "type": "array",
-            "uniqueItems": True,
-            "items": {
-                "type": "string"
-            },
-            "description": "Types that are a child of this resource.  When instances of these types are passed to the request they will be checked against their schemas and against the hierarchy."
-        }
+        "schema": _schema_schema
     }
 }
 _grant_base_schema = {
@@ -126,8 +124,7 @@ _grant_base_schema = {
         "query_validation",
         "equality",
         "data",
-        "context_schema",
-        "context_validation"
+        "context_type"
     ],
     "properties": {
         "effect": {
@@ -174,53 +171,14 @@ _grant_base_schema = {
             "type": "object",
             "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
         },
-        "context_schema": _schema_schema, # schema for a schema must be of type object at a base
-        "context_validation": {
-            "type": "string",
-            "title": "Grant-Level Context Validation",
-            "description": (
-                "Grant-level context validation setting. Set how the request context is validated against the grant context schema. "
-                "'none' - there is no validation.  "
-                "'validate' - Context is validated and if the context is invalid, the grant is not applicable to the request. "
-                "'error' - Includes the 'validate' setting checks, and also adds errors to the result. "
-                "'critical' Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
-            ),
-            "enum": [
-                "none",
-                "validate",
-                "error",
-                "critical"
-            ]
-        }
-    }
-}
-_context_error_base_schema = {
-    "title": "Context Error",
-    "description": "Error when the request context is not valid against the expected context for the grant.",
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "message",
-        "critical",
-        "grant"
-    ],
-    "properties": {
-        "message": {
-            "type": "string",
-            "description": "Detailed message about what caused the error."
-        },
-        "critical": {
-            "type": "boolean",
-            "description": "If this error caused the the workflow to exit early."
-        },
-        "grant": {
-            "$ref": "#/$defs/grant"
+        "context_type": {
+            "$ref": "#/$defs/context_type"
         }
     }
 }
 _definition_error_base_schema = {
     "title": "Definition Error",
-    "description": "Error when an identity or resource definition is not valid.",
+    "description": "Error when an context, identity, or resource definition is not valid.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -241,6 +199,7 @@ _definition_error_base_schema = {
         "definition_type": {
             "type": "string",
             "enum": [
+                "context",
                 "identity",
                 "resource"
             ]
@@ -321,17 +280,12 @@ _errors_base_schema = {
     "type": "object",
     "additionalProperties": False,
     "required": [
-        "context",
         "definition",
         "grant",
         "jmespath",
         "request"
     ],
     "properties": {
-        "context": {
-            "type": "array",
-            "items": _context_error_base_schema
-        },
         "definition": {
             "type": "array",
             "items": _definition_error_base_schema
@@ -382,31 +336,7 @@ _request_base_schema = {
                 "critical"
             ]
         },
-        "context": {
-            "type": "object",
-            "patternProperties": {
-                "^[a-zA-Z0-9_]{1,256}$": {}
-            }
-        },
-        "context_validation": {
-            "type": "string",
-            "title": "Request-Level Context Validation",
-            "description": (
-                "Request-level context validation setting. Overrides grant-level settings for context validation. Set how the request context is validated against the grant context schema. "
-                "'grant' - Use the grant level context validation setting. "
-                "'none' - There is no validation.  "
-                "'validate' - Context is validated and if the context is invalid, the grant is not applicable to the request.  "
-                "'error' - Includes the 'validate' setting checks, and also adds errors to the result.  "
-                "'critical' Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
-            ),
-            "enum": [
-                "grant",
-                "none",
-                "validate",
-                "error",
-                "critical"
-            ]
-        }
+        "context_type": _type_schema
     }
 }
 _resource_request_base_schema = {
@@ -534,10 +464,36 @@ _authorize_response_base_schema = {
 
 
 def validate_definitions(
+    context_defs: List[Dict[str, AnyJSON]],
     identity_defs: List[Dict[str, AnyJSON]],
     resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
     errors = []
+    context_types = []
+    for c_def in context_defs:
+        try:
+            jsonschema.validate(c_def, context_definition_schema)
+            if c_def['context_type'] not in context_types:
+                context_defs.append(c_def['context_type'])
+            else:
+                errors.append(
+                    {
+                        "message": f"Context types must be unique. '{c_def['context_type']}' is present more than once.",
+                        "critical": True,
+                        "definition_type": "context",
+                        "definition": c_def
+                    }
+                )
+        except jsonschema.exceptions.ValidationError as exc:
+            errors.append(
+                {
+                    "message": f"Context definition schema was not valid. Schema Error: {exc}'",
+                    "critical": True,
+                    "definition_type": "context",
+                    "definition": c_def
+                }
+            )
+    
     id_types = []
     for id_def in identity_defs:
         try:
@@ -619,6 +575,7 @@ def validate_definitions(
 
 
 def generate_schemas(
+    context_defs: List[Dict[str, AnyJSON]],
     identity_defs: List[Dict[str, AnyJSON]],
     resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
@@ -634,10 +591,15 @@ def generate_schemas(
     for r_def in resource_defs:
         for a in r_def['actions']:
             actions.add(a)
-
+    
     enum_action_schema = copy.deepcopy(_action_schema)
     enum_action_schema["enum"] = list(actions)
     schemas['grant']['properties']['actions']['items'] = enum_action_schema
+
+    enum_context_type_schema = copy.deepcopy(_type_schema)
+    enum_context_type_schema['title'] = "A unique name to identity this request context type."
+    enum_context_type_schema['enum'] = [c_def['context_type'] for c_def in context_defs]
+    schemas['grant']['properties']['context_type']
 
     # error schema
     schemas['errors']['$defs']['grant'] = schemas['grant']
@@ -652,7 +614,9 @@ def generate_schemas(
     schemas['authorize']['properties']['critical_errors'] = workflow_errors_schema
     schemas['authorize']['$defs']['grant'] = schemas['grant']
 
-    # request schema
+    
+    # request schema 
+    # This 
     request_schema = copy.deepcopy(_request_base_schema)
     for id_def in identity_defs:
         request_schema['$defs']['identities']['required'].append(id_def['identity_type'])
@@ -697,6 +661,8 @@ def generate_schemas(
     return schemas
 
 
+# vv_grants - validate and verify grants
+# or separate steps for validate and verify - most scalable? 
 def validate_grants(grants: List[Dict[str, AnyJSON]], schema: Dict[str, AnyJSON]) -> Dict[str, AnyJSON]:
     errors = []
     for g in grants:
@@ -718,6 +684,8 @@ def validate_grants(grants: List[Dict[str, AnyJSON]], schema: Dict[str, AnyJSON]
 
 
 
+# vv_request - validate and verify request
+# separate like above too????
 def validate_request(request: Dict[str, AnyJSON], schema: Dict[str, AnyJSON]) -> Dict[str, AnyJSON]:
     try:
         jsonschema.validate(request, schema)
