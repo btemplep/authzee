@@ -41,11 +41,13 @@ import jsonschema.exceptions
 
 
 AnyJSON = Union[bool, str, int, float, None, list, dict]
+
+_type_regex = "^[A-Za-z0-9_]*$"
 _type_schema = {
     "title": "Authzee Type",
     "description": "A unique name to identity this type.",
     "type": "string",
-    "pattern": "^[A-Za-z0-9_]*$",
+    "pattern": _type_regex,
     "minLength": 1,
     "maxLength": 256
 }
@@ -111,10 +113,25 @@ resource_definition_schema = {
         "schema": _schema_schema
     }
 }
-_grant_base_schema = {
+_query_validation_schema = {
+    "type": "string",
+    "title": "Grant-Level Query Validation Setting",
+    "description": (
+        "Grant-level query validation setting. Set how the query errors are treated. "
+        "'validate' - Query errors cause the grant to be inapplicable to the request. "
+        "'error' - Includes the 'validate' setting checks, and also adds errors to the result. "
+        "'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
+    ),
+    "enum": [
+        "validate",
+        "error",
+        "critical"
+    ]
+}
+grant_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Grant",
-    "description": "A grant is an object representing a enacted authorization rule.",
+    "description": "A grant is an object representing enacted authorization rules.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -149,21 +166,7 @@ _grant_base_schema = {
             "type": "string",
             "description": "JMESPath query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
         },
-        "query_validation": {
-            "type": "string",
-            "title": "Grant-Level Query Validation Setting",
-            "description": (
-                "Grant-level query validation setting. Set how the query errors are treated. "
-                "'validate' - Query errors cause the grant to be inapplicable to the request. "
-                "'error' - Includes the 'validate' setting checks, and also adds errors to the result. "
-                "'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
-            ),
-            "enum": [
-                "validate",
-                "error",
-                "critical"
-            ]
-        },
+        "query_validation": _query_validation_schema,
         "equality": {
             "description": "Expected value for they query to return.  If the query result matches this value the grant is a considered applicable to the request."
         },
@@ -171,12 +174,10 @@ _grant_base_schema = {
             "type": "object",
             "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
         },
-        "context_type": {
-            "$ref": "#/$defs/context_type"
-        }
+        "context_type": _type_schema
     }
 }
-_definition_error_base_schema = {
+definition_error_schema = {
     "title": "Definition Error",
     "description": "Error when an context, identity, or resource definition is not valid.",
     "type": "object",
@@ -207,7 +208,7 @@ _definition_error_base_schema = {
         "definition": {}
     }
 }
-_grant_error_base_schema = {
+grant_error_schema = {
     "title": "Grant Error",
     "description": "Error when an grant is not valid.",
     "type": "object",
@@ -229,7 +230,7 @@ _grant_error_base_schema = {
         "grant": {}
     }
 }
-_jmespath_error_base_schema = {
+jmespath_error_schema = {
     "title": "JMESPath Error",
     "description": "Error when a JMESPath query for a grant produces an error.",
     "type": "object",
@@ -248,12 +249,10 @@ _jmespath_error_base_schema = {
             "type": "boolean",
             "description": "If this error caused the the workflow to exit early."
         },
-        "grant": {
-            "$ref": "#/$defs/grant"
-        }
+        "grant": grant_schema
     }
 }
-_request_error_base_schema = {
+request_error_schema = {
     "title": "Workflow Request Error",
     "description": "Error when a request is not valid.",
     "type": "object",
@@ -273,7 +272,7 @@ _request_error_base_schema = {
         }
     }
 }
-_errors_base_schema = {
+errors_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Workflow Errors",
     "description": "Errors returned from Authzee workflows.",
@@ -288,117 +287,73 @@ _errors_base_schema = {
     "properties": {
         "definition": {
             "type": "array",
-            "items": _definition_error_base_schema
+            "items": definition_error_schema
         },
         "grant": {
             "type": "array",
-            "items": _grant_error_base_schema
+            "items": grant_error_schema
         },
         "jmespath": {
             "type": "array",
-            "items": _jmespath_error_base_schema
+            "items": jmespath_error_schema
         },
         "request": {
             "type": "array",
-            "items": _request_error_base_schema
+            "items": request_error_schema
         }
-    },
-    "$defs": {
-        "grant": {}
     }
 }
-_request_base_schema = {
+_request_query_validation_schema = {
+    "type": "string",
+    "title": "Request-Level Query Validation Setting",
+    "description": "Request-level query validation setting. Overrides " + _query_validation_schema['description'],
+    "enum": ["grant"] + _query_validation_schema['enum']
+}
+request_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Workflow Request",
     "description": "Request for an Authzee workflow.",
-    "anyOf": [],
-    "$defs": {
-        "identities": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [],
-            "properties": {}
-        },
-        "query_validation": {
-            "type": "string",
-            "title": "Request-Level Query Validation Setting",
-            "description": (
-                "Request-level query validation setting. Overrides grant-level settings for query validation. Set how the query errors are treated. "
-                "'grant' - Use the grant level query validation setting. "
-                "'validate' - Query errors cause the grant to be inapplicable to the request. "
-                "'error' - Includes the 'validate' setting checks, and also adds errors to the result. "
-                "'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early."
-            ),
-            "enum": [
-                "grant",
-                "validate",
-                "error",
-                "critical"
-            ]
-        },
-        "context_type": _type_schema
-    }
-}
-_resource_request_base_schema = {
-    "title": "'{{ resource_type }}' Resource Type Workflow Request",
-    "description": "'{{ resource_type }}' resource type request for an Authzee workflow.",
-    "type": "object",
     "additionalProperties": False,
     "required": [
         "identities",
-        "resource_type",
         "action",
+        "resource_type",
         "resource",
-        "parents",
-        "children",
         "query_validation",
-        "context",
-        "context_validation"
+        "context_type",
+        "context"
     ],
     "properties": {
         "identities": {
-            "$ref": "#/$defs/identities"
+            "type": "object",
+            "additionalProperties": False,
+            "required": [],
+            "patternProperties": {
+                _type_regex: {
+                    "type": "object"
+                }
+            }
         },
-        "action": {
-            "type": "string",
-             "enum": []
-        },
-        "resource_type": {
-            "const": "{{ resource_type }}"
-        },
+        "action": _action_schema,
+        "resource_type": _type_schema,
         "resource": {
-            "$ref": "#/$defs/{{ resource_type }}"
+            "type": "object"
         },
-        "parents": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [],
-            "properties": {}
-        }, 
-        "children": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [],
-            "properties": {}
-        }, 
-        "query_validation": {
-            "$ref": "#/$defs/query_validation"
-        },
+        "query_validation": _request_query_validation_schema,
+        "context_type": _type_schema,
         "context": {
-            "$ref": "#/$defs/context"
-        },
-        "context_validation": {
-            "$ref": "#/$defs/context_validation"
+            "type": "object"
         }
     }
 }
-_audit_response_base_schema = {
+audit_response_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Audit Response",
     "description": "Response for the audit workflow.",
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "completed",
         "grants",
         "errors"
     ],
@@ -409,18 +364,13 @@ _audit_response_base_schema = {
         },
         "grants": {
             "type": "array",
-            "items": {
-                "$ref": "#/$defs/grant"
-            },
-            "description": "List of grants that are applicable to the request."
+            "description": "List of grants that are applicable to the request.",
+            "items": grant_schema
         },
-        "errors": {}
-    },
-    "$defs": {
-        "grant": {}
+        "errors": errors_schema
     }
 }
-_authorize_response_base_schema = {
+authorize_response_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Authorize Response",
     "description": "Response for the authorize workflow.",
@@ -445,20 +395,15 @@ _authorize_response_base_schema = {
         "grant": {
             "description": "Grant that was responsible for the authorization decision, if applicable.",
             "anyOf": [
-                {
-                    "$ref": "#/$defs/grant"
-                },
-                {"type": "null"}
+                {"type": "null"},
+                grant_schema
             ]
         },
         "message": {
             "type": "string",
             "description": "Details about why the request was authorized or not."
         },
-        "critical_errors": {}
-    },
-    "$defs": {
-        "grant": {}
+        "critical_errors": errors_schema
     }
 }
 

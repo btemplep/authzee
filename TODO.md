@@ -23,6 +23,27 @@
     - Verification will will against the data that was passed
         - for example: it's a valid context type and the schema matches that type
         - Verify that the given data matches what is expected from the client
+    - Original steps:
+        - Validate defs
+        - generate schemas
+        - Validate grants
+        - Validate request
+        - Run workflow specific steps
+    - New steps: - schemas are now static
+        - Validate defs
+        - Verify defs
+        - validate grants
+        - verify grants
+        - validate request
+        - verify request
+        - Run workflow specific steps
+- [x] resource_type in grant or no??
+    - We should recommend that you namespace the actions by resource type for best scaling and performance
+    - Or if you have to share offload the check for resource type to the query
+    - This we we can also create a grant for several resource types
+    - A grant with permissions that span resource types
+    - Makes it much more flexible - can create very complex rules now
+    - Only filter by actions, and context type
 - [x] Remove need to have all identity and parent/child types present?
     - Having it makes the queries slightly easier, but makes request more complex and possible less scalable if there are a lot of identities or parent/child relationships
     - Can maybe just remove the parent child in favor of the more flexible context?
