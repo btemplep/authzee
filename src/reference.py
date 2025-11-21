@@ -61,7 +61,6 @@ _action_schema = {
 }
 _schema_schema = jsonschema.Draft202012Validator.META_SCHEMA
 
-
 context_definition_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Context Definition",
@@ -177,26 +176,28 @@ grant_schema = {
         "context_type": _type_schema
     }
 }
+_is_critical_schema = {
+    "type": "boolean",
+    "description": "If this error caused the the workflow to exit early."
+}
+_error_message_schema = {
+    "type": "string",
+    "description": "Detailed message about what caused the error."
+}
 definition_error_schema = {
     "title": "Definition Error",
     "description": "Error when an context, identity, or resource definition is not valid.",
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "is_critical",
         "message",
-        "critical",
         "definition_type",
         "definition"
     ],
     "properties": {
-        "message": {
-            "type": "string",
-            "description": "Detailed message about what caused the error."
-        },
-        "critical": {
-            "type": "boolean",
-            "description": "If this error caused the the workflow to exit early."
-        },
+        "is_critical": _is_critical_schema,
+        "message": _error_message_schema,
         "definition_type": {
             "type": "string",
             "enum": [
@@ -205,7 +206,9 @@ definition_error_schema = {
                 "resource"
             ]
         },
-        "definition": {}
+        "definition": {
+            "description": "The value that was given as a definition."
+        }
     }
 }
 grant_error_schema = {
@@ -214,20 +217,16 @@ grant_error_schema = {
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "is_critical",
         "message",
-        "critical",
         "grant"
     ],
     "properties": {
-        "message": {
-            "type": "string",
-            "description": "Detailed message about what caused the error."
-        },
-        "critical": {
-            "type": "boolean",
-            "description": "If this error caused the the workflow to exit early."
-        },
-        "grant": {}
+        "is_critical": _is_critical_schema,
+        "message": _error_message_schema,
+        "grant": {
+            "description": "The value that was given as a grant."
+        }
     }
 }
 jmespath_error_schema = {
@@ -236,19 +235,13 @@ jmespath_error_schema = {
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "is_critical",
         "message",
-        "critical",
         "grant"
     ],
     "properties": {
-        "message": {
-            "type": "string",
-            "description": "Detailed message about what caused the error."
-        },
-        "critical": {
-            "type": "boolean",
-            "description": "If this error caused the the workflow to exit early."
-        },
+        "is_critical": _is_critical_schema,
+        "message": _error_message_schema,
         "grant": grant_schema
     }
 }
@@ -258,18 +251,12 @@ request_error_schema = {
     "type": "object",
     "additionalProperties": False,
     "required": [
-        "message",
-        "critical",
+        "is_critical",
+        "message"
     ],
     "properties": {
-        "message": {
-            "type": "string",
-            "description": "Detailed message about what caused the error."
-        },
-        "critical": {
-            "type": "boolean",
-            "description": "If this error caused the the workflow to exit early."
-        }
+        "is_critical": _is_critical_schema,
+        "message": _error_message_schema
     }
 }
 errors_schema = {
@@ -278,12 +265,7 @@ errors_schema = {
     "description": "Errors returned from Authzee workflows.",
     "type": "object",
     "additionalProperties": False,
-    "required": [
-        "definition",
-        "grant",
-        "jmespath",
-        "request"
-    ],
+    "required": [],
     "properties": {
         "definition": {
             "type": "array",
@@ -337,14 +319,20 @@ request_schema = {
         "action": _action_schema,
         "resource_type": _type_schema,
         "resource": {
-            "type": "object"
+            "type": "object",
+            "description": "Resource for the request."
         },
         "query_validation": _request_query_validation_schema,
         "context_type": _type_schema,
         "context": {
-            "type": "object"
+            "type": "object",
+            "description": "Context for the request."
         }
     }
+}
+_completed_request_schema = {
+    "type": "boolean",
+    "description": "The workflow completed."
 }
 audit_response_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -358,10 +346,7 @@ audit_response_schema = {
         "errors"
     ],
     "properties": {
-        "completed": {
-            "type": "boolean",
-            "description": "The workflow completed."
-        },
+        "completed": _completed_request_schema,
         "grants": {
             "type": "array",
             "description": "List of grants that are applicable to the request.",
@@ -377,20 +362,17 @@ authorize_response_schema = {
     "type": "object",
     "additionalProperties": False,
     "required": [
-        "authorized",
         "completed",
+        "authorized",
         "grant",
         "message",
         "critical_errors"
     ],
     "properties": {
+        "completed": _completed_request_schema,
         "authorized": {
             "type": "boolean",
             "description": "true if the request is authorized.  false if it is not authorized."
-        },
-        "completed": {
-            "type": "boolean",
-            "description": "The workflow completed."
         },
         "grant": {
             "description": "Grant that was responsible for the authorization decision, if applicable.",
@@ -407,220 +389,222 @@ authorize_response_schema = {
     }
 }
 
+batch_request_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch Workflow Request",
+    "description": "Request for an Authzee Batch workflow.",
+    "additionalProperties": False,
+    "required": [
+        "identities",
+        "action",
+        "resource_type",
+        "context_type",
+        "batch"
+    ],
+    "properties": {
+        "identities": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [],
+            "patternProperties": {
+                _type_regex: {
+                    "type": "object"
+                }
+            }
+        },
+        "action": _action_schema,
+        "resource_type": _type_schema,
+        "context_type": _type_schema,
+        "batch": {
+            "type": "array",
+            "description": "batch of resources and contexts to process with shared identities, action, resource type, and context type.",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "resource",
+                    "query_validation",
+                    "context"
+                ],
+                "properties": {
+                    "resource": {
+                        "type": "object",
+                        "description": "Resource for this batch item."
+                    },
+                    "query_validation": _request_query_validation_schema,
+                    "context": {
+                        "type": "object",
+                        "description": "Context for this batch item."
+                    }
+                }
+            }
+        }
+    }
+}
+batch_audit_response_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch Audit Response",
+    "description": "Response for the batch audit workflow.",
+    "type": "array",
+    "items": audit_response_schema
+}
+batch_authorize_response_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch Authorize Response",
+    "description": "Response for the batch authorize workflow.",
+    "type": "array",
+    "items": authorize_response_schema
+}
 
-def validate_definitions(
-    context_defs: List[Dict[str, AnyJSON]],
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]]
-) -> Dict[str, AnyJSON]:
+
+def validate_context_definitions(context_definitions: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
     errors = []
-    context_types = []
-    for c_def in context_defs:
+    context_types = set()
+    for c_def in context_definitions:
         try:
             jsonschema.validate(c_def, context_definition_schema)
-            if c_def['context_type'] not in context_types:
-                context_defs.append(c_def['context_type'])
-            else:
-                errors.append(
-                    {
-                        "message": f"Context types must be unique. '{c_def['context_type']}' is present more than once.",
-                        "critical": True,
-                        "definition_type": "context",
-                        "definition": c_def
-                    }
-                )
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
-                    "message": f"Context definition schema was not valid. Schema Error: {exc}'",
-                    "critical": True,
+                    "message": f"Context definition is not valid. Schema Error: {exc}'",
+                    "is_critical": True,
                     "definition_type": "context",
                     "definition": c_def
                 }
             )
-    
+            continue
+
+        if c_def['context_type'] not in context_types:
+            context_types.add(c_def['context_type'])
+        else:
+            errors.append(
+                {
+                    "message": f"Context types must be unique. '{c_def['context_type']}' is present more than once.",
+                    "is_critical": True,
+                    "definition_type": "context",
+                    "definition": c_def
+                }
+            )
+
+    return {
+        "valid": False if len(errors) > 0 else True,
+        "errors": errors
+    }
+
+
+def validate_identity_definitions(identity_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
+    errors = []
     id_types = []
     for id_def in identity_defs:
         try:
             jsonschema.validate(id_def, identity_definition_schema)
-            if id_def['identity_type'] not in id_types:
-                id_types.append(id_def['identity_type'])
-            else:
-                errors.append(
-                    {
-                        "message": f"Identity types must be unique. '{id_def['identity_type']}' is present more than once.",
-                        "critical": True,
-                        "definition_type": "identity",
-                        "definition": id_def
-                    }
-                )
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
-                    "message": f"Identity definition schema was not valid. Schema Error: {exc}'",
-                    "critical": True,
+                    "message": f"Identity definition is not valid. Schema Error: {exc}'",
+                    "is_critical": True,
+                    "definition_type": "identity",
+                    "definition": id_def
+                }
+            )
+            continue
+
+        if id_def['identity_type'] not in id_types:
+            id_types.append(id_def['identity_type'])
+        else:
+            errors.append(
+                {
+                    "message": f"Identity types must be unique. '{id_def['identity_type']}' is present more than once.",
+                    "is_critical": True,
                     "definition_type": "identity",
                     "definition": id_def
                 }
             )
 
-    r_types = []
+    return {
+        "valid": False if len(errors) > 0 else True,
+        "errors": errors
+    }
+
+
+def validate_resource_definitions(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
+    errors = []
+    r_types = set()
     for r_def in resource_defs:
         try:
             jsonschema.validate(r_def, resource_definition_schema)
-            if r_def['resource_type'] not in r_types:
-                r_types.append(r_def['resource_type'])
-            else:
-                errors.append(
-                    {
-                        "message": f"Resource types must be unique. '{r_def['resource_type']}' is present more than once.",
-                        "critical": True,
-                        "definition_type": "resource",
-                        "definition": r_def
-                    }
-                )
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
-                    "message": f"Resource definition was not valid. Schema Error: {exc}",
-                    "critical": True,
+                    "message": f"Resource definition is not valid. Schema Error: {exc}",
+                    "is_critical": True,
                     "definition_type": "resource",
                     "definition": r_def
                 }
             )
+            continue
 
-    if len(errors) == 0:
-        for r_def in resource_defs:
-            for p_type in r_def['parent_types']:
-                if p_type not in r_types:
-                    errors.append(
-                        {
-                            "message": f"Parent type '{p_type}' does not have a corresponding resource definition.",
-                            "critical": True,
-                            "definition_type": "resource",
-                            "definition": r_def
-                        }
-                    )
-            
-            for c_type in r_def['child_types']:
-                if c_type not in r_types:
-                    errors.append(
-                        {
-                            "message": f"Child type '{c_type}' does not have a corresponding resource definition.",
-                            "critical": True,
-                            "definition_type": "resource",
-                            "definition": r_def
-                        }
-                    )
-
+        if r_def['resource_type'] not in r_types:
+            r_types.add(r_def['resource_type'])
+        else:
+            errors.append(
+                {
+                    "message": f"Resource types must be unique. '{r_def['resource_type']}' is present more than once.",
+                    "is_critical": True,
+                    "definition_type": "resource",
+                    "definition": r_def
+                }
+            )
+    
     return {
         "valid": False if len(errors) > 0 else True,
         "errors": errors
     }
 
 
-def generate_schemas(
-    context_defs: List[Dict[str, AnyJSON]],
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]]
+def validate_grants(
+    grants: List[Dict[str, AnyJSON]],
+    context_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
-    schemas = {
-        "grant": copy.deepcopy(_grant_base_schema),
-        "errors": copy.deepcopy(_errors_base_schema),
-        "request": copy.deepcopy(_request_base_schema),
-        "audit": copy.deepcopy(_audit_response_base_schema),
-        "authorize": copy.deepcopy(_authorize_response_base_schema)
-    }
-    # grant schema
+    context_types = set([c['context_type'] for c in context_definitions])
     actions = set()
-    for r_def in resource_defs:
-        for a in r_def['actions']:
-            actions.add(a)
-    
-    enum_action_schema = copy.deepcopy(_action_schema)
-    enum_action_schema["enum"] = list(actions)
-    schemas['grant']['properties']['actions']['items'] = enum_action_schema
+    for r_def in resource_definitions:
+        for action in r_def['actions']:
+            actions.add(action)
 
-    enum_context_type_schema = copy.deepcopy(_type_schema)
-    enum_context_type_schema['title'] = "A unique name to identity this request context type."
-    enum_context_type_schema['enum'] = [c_def['context_type'] for c_def in context_defs]
-    schemas['grant']['properties']['context_type']
-
-    # error schema
-    schemas['errors']['$defs']['grant'] = schemas['grant']
-
-    # audit response schema
-    workflow_errors_schema = copy.deepcopy(schemas['errors'])
-    workflow_errors_schema.pop("$defs")
-    schemas['audit']['properties']['errors'] = workflow_errors_schema
-    schemas['audit']['$defs']['grant'] = schemas['grant']
-
-    # authorize response schema
-    schemas['authorize']['properties']['critical_errors'] = workflow_errors_schema
-    schemas['authorize']['$defs']['grant'] = schemas['grant']
-
-    
-    # request schema 
-    # This 
-    request_schema = copy.deepcopy(_request_base_schema)
-    for id_def in identity_defs:
-        request_schema['$defs']['identities']['required'].append(id_def['identity_type'])
-        request_schema['$defs']['identities']['properties'][id_def['identity_type']] = {
-            "type": "array",
-            "items": id_def['schema']
-        }
-
-    type_to_def = {d['resource_type']: d for d in resource_defs}
-    for r_type, r_def in type_to_def.items():
-        rt_request_schema = copy.deepcopy(_resource_request_base_schema)
-        rt_request_schema = json.loads(
-            json.dumps(rt_request_schema).replace(
-                "{{ resource_type }}",
-                r_type
-            )
-        )
-        rt_request_schema['properties']['action']['enum'] = r_def['actions']
-        request_schema['$defs'][r_type] = r_def['schema']
-        for p_type in r_def['parent_types']:
-            rt_request_schema['properties']['parents']['required'].append(p_type)
-            rt_request_schema['properties']['parents']['properties'][p_type] = {
-                "type": "array",
-                "items": {
-                    "$ref": f"#/$defs/{p_type}"
-                }
-            }
-        
-        for c_type in r_def['child_types']:
-            rt_request_schema['properties']['children']['required'].append(c_type)
-            rt_request_schema['properties']['children']['properties'][c_type] = {
-                "type": "array",
-                "items": {
-                    "$ref": f"#/$defs/{c_type}"
-                }
-            }
-        
-        request_schema['anyOf'].append(rt_request_schema)
-    
-    schemas['request'] = request_schema
-
-    return schemas
-
-
-# vv_grants - validate and verify grants
-# or separate steps for validate and verify - most scalable? 
-def validate_grants(grants: List[Dict[str, AnyJSON]], schema: Dict[str, AnyJSON]) -> Dict[str, AnyJSON]:
     errors = []
     for g in grants:
         try:
-            jsonschema.validate(g, schema)
+            jsonschema.validate(g, grant_schema)
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
                     "message": f"The grant is not valid. Schema Error: {exc}" ,
-                    "critical": True,
+                    "is_critical": True,
                     "grant": g
                 }
             )
+            continue
+
+        if g['context_type'] not in context_types:
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": f"The '{g['context_type']}' context_type is not valid.",
+                    "grant": g
+                }
+            )
+        
+        for action in g['actions']:
+            if action not in actions:
+                errors.append(
+                    {
+                        "is_critical": True,
+                        "message": f"The '{action}' action is not valid.",
+                        "grant": g
+                    }
+                )
     
     return {
         "valid": False if len(errors) > 0 else True,
@@ -628,27 +612,130 @@ def validate_grants(grants: List[Dict[str, AnyJSON]], schema: Dict[str, AnyJSON]
     }
 
 
-
-# vv_request - validate and verify request
-# separate like above too????
-def validate_request(request: Dict[str, AnyJSON], schema: Dict[str, AnyJSON]) -> Dict[str, AnyJSON]:
+def validate_request(
+    request: Dict[str, AnyJSON],
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions:List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]]
+) -> Dict[str, AnyJSON]:
+    errors = []
     try:
-        jsonschema.validate(request, schema)
+        jsonschema.validate(request, request_schema)
     except jsonschema.exceptions.ValidationError as exc:
         return {
             "valid": False,
-            "errors": [
+            "errors" : [
                 {
-                    "message": f"The request is not valid for the request schema: {exc}",
-                    "critical": True
+                    "is_critical": True,
+                    "message": f"The request is not valid. Schema Error: {exc}"
                 }
             ]
         }
     
+    context_type_lut = {c['context_type']: c for c in context_definitions}
+    if request['context_type'] not in context_type_lut:
+        errors.append(
+            {
+                "is_critical": True,
+                "message": f"Context type '{request['context_type']}' is not valid."
+            }
+        )
+    else:
+        try:
+            jsonschema.validate(request['context'], context_type_lut[request['context_type']])
+        except jsonschema.exceptions.ValidationError as exc:
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": f"The request context is not valid for the the '{request['context_type']}' context type. Schema Error: {exc}"
+                }
+            )
+    
+    identity_type_lut = {i['identity_type']: i for i in identity_definitions}
+    for i_type in request['identities']:
+        if i_type not in identity_type_lut:
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": f"Identity Type '{i_type}' is not valid."
+                }
+            )
+        else:
+            i_num = 0
+            for identity, i_num in zip(request['identities'][i_type], range(len(request['identities'][i_type]))):
+                try:
+                    jsonschema.validate(identity, identity_type_lut[i_type]['schema'])
+                except jsonschema.exceptions.ValidationError as exc:
+                    errors.append(
+                        {
+                            "is_critical": True,
+                            "message": f"Identity '{i_type}[{i_num}]' is not valid. Schema Error: {exc}"
+                        }
+                    )
+                i_num += 1
+
+    resource_type_lut = {r['resource_type']: r for r in resource_definitions}
+    if request['resource_type'] not in resource_type_lut:
+        errors.append(
+            {
+                "is_critical": True,
+                "message": f"Resource type '{request['resource_type']}' is not valid."
+            }
+        )
+    else:
+        try:
+            jsonschema.validate(request['resource'], resource_type_lut[request['resource_type']]['schema'])
+        except jsonschema.exceptions.ValidationError as exc:
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": f"The request resource is not valid for the '{request['resource_type']}' resource type. Schema Error: {exc}"
+                }
+            )
+    
+    actions = set()
+    for r_def in resource_definitions:
+        for action in r_def['actions']:
+            actions.add(action)
+
+    if request['action'] not in actions:
+        errors.append(
+            {
+                "is_critical": True,
+                "message": f"Resource action '{request['action']}' is not valid."
+            }
+        )
+    
     return {
-        "valid": True,
-        "errors": []
-    }         
+        "valid": False if len(errors) > 0 else True,
+        "errors": errors
+    }
+
+
+def validate_batch_request(
+    batch_request: Dict[str, AnyJSON],
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions:List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]]
+) -> Dict[str, AnyJSON]:
+    errors = []
+    # Will need to split out errors to at least check batch request schema
+    # if that fails we don't even try to evaluate any further
+    # do we just copy that or put in separate errors
+    # batch 
+    try:
+        jsonschema.validate(batch_request, batch_request_schema)
+    except jsonschema.exceptions.ValidationError as exc:
+        return {
+            "valid": False,
+            "errors" : [
+                {
+                    "is_critical": True,
+                    "message": f"The request is not valid. Schema Error: {exc}"
+                }
+            ]
+        }
+        
 
 
 def evaluate_one(
@@ -658,7 +745,7 @@ def evaluate_one(
     only_crits: bool
 ) -> Dict[str, AnyJSON]:
     result = {
-        "critical": False,
+        "is_critical": False,
         "applicable": False,
         "errors": {
             "context": [],
@@ -689,8 +776,8 @@ def evaluate_one(
             ):
                 result['errors']['context'].append(
                     {
+                        "is_critical": is_c_val_crit,
                         "message": str(exc),
-                        "critical": is_c_val_crit,
                         "grant": grant
                     }
                 )
@@ -720,8 +807,8 @@ def evaluate_one(
         ):
             result['errors']['jmespath'].append(
                 {
+                    "is_critical": is_q_val_crit,
                     "message": str(exc),
-                    "critical": is_q_val_crit,
                     "grant": grant
                 }
             )
