@@ -3,9 +3,17 @@
 - [ ] Add context and remove parent and child
     - [x] update basic example
     - [x] update complex example
-    - [ ] update sample code
+    - [ ] update reference code
     - [ ] update readme
     - [ ] update specification
+        - Add individual steps to here and responses
+        - main functions should return responses and errors - Now called Operations
+            - audit, authorize, batch_audit, batch_authorize
+        - Workflow functions are for reference only and do not have a set return schemas
+        - has_critical_error vs has_failed
+        - on the sdk side of things requests are validated once and then run the operation
+            - Everything else is separate because they are added separate
+            - but a request validation always goes along with the operation
     - [ ] update SDK docs
 
 - [ ] TODO - figure out how to craft request schema and handle validation
