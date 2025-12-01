@@ -14,9 +14,21 @@
         - on the sdk side of things requests are validated once and then run the operation
             - Everything else is separate because they are added separate
             - but a request validation always goes along with the operation
+            - should a workflow still be a reference?  since it can combine all errors
+            - I would like the base level Schemas to match what the SDK puts out for the most part
+                - SDKs can add properties to grants etc but should match besides that
+            - If an op puts out a request val error, that wouldn't match in the current setup
+        
+        - Must be able to return or raise errors in a consistent fashion for languages without exceptions
     - [ ] update SDK docs
 
-- [ ] TODO - figure out how to craft request schema and handle validation
+- [x] Context types in grants? 
+    - Do we need this in the grant and wouldn't it make it more flexible to not have it just list resource types? 
+    - context type and context would still be passed in the request and validated 
+    - Gives one less thing to filter/partition on, but again makes the grants way more flexible which seems more important...
+    - **Solution** - no context type in grant
+
+- [x] figure out how to craft request schema and handle validation
     - In order to fit it all in the schema for the multiple action types and context types, we would need to create a schema that will have to be all permutations of resource types and context types
     - In reality it would be better to have 2 steps
     - one to run it through the initial schema
@@ -45,13 +57,14 @@
         - validate request
         - verify request
         - Run workflow specific steps
+    - **Solution** - Schemas are only one part of the validation now - makes it easier to add and remove definitions in an active way in the future
 - [x] resource_type in grant or no??
     - We should recommend that you namespace the actions by resource type for best scaling and performance
     - Or if you have to share offload the check for resource type to the query
     - This we we can also create a grant for several resource types
     - A grant with permissions that span resource types
-    - Makes it much more flexible - can create very complex rules now
-    - Only filter by actions, and context type
+    - **Solution** - Only filter by actions, and context type
+        - Makes it much more flexible - can create very complex rules now spanning actions and resource types
 - [x] Remove need to have all identity and parent/child types present?
     - Having it makes the queries slightly easier, but makes request more complex and possible less scalable if there are a lot of identities or parent/child relationships
     - Can maybe just remove the parent child in favor of the more flexible context?
@@ -60,3 +73,4 @@
         - But in batch operations, we can only use one context, but each resource could have parent, child, sibling resources
         - not true we could require the same context type, but have different context for each
             - Same resource type and context type, but separate actual values. 
+    - **Solution** - Have a context types that can be created and are custom with schemas

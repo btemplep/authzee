@@ -27,9 +27,11 @@ __all__ = [
     "validate_definitions_response_schema",
     "validate_grants_response_schema",
     "request_schema",
+    "validate_request_response_schema",
     "audit_response_schema",
     "authorize_response_schema",
     "batch_request_schema",
+    "validate_batch_request_response_schema",
     "batch_audit_response_schema",
     "batch_authorize_response_schema",
     "validate_context_definitions",
@@ -156,8 +158,7 @@ grant_schema = {
         "query",
         "query_validation",
         "equality",
-        "data",
-        "context_type"
+        "data"
     ],
     "properties": {
         "effect": {
@@ -189,8 +190,7 @@ grant_schema = {
         "data": {
             "type": "object",
             "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
-        },
-        "context_type": _type_schema
+        }
     }
 }
 _is_critical_schema = {
@@ -375,10 +375,35 @@ request_schema = {
         }
     }
 }
+validate_request_response_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Request Validation Response",
+    "description": "Request Validation Response schema.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "is_valid",
+        "errors"
+    ],
+    "properties": {
+         "is_valid": _is_valid_schema,
+        "errors": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [],
+            "properties": {
+                "request": {
+                    "type": "array",
+                    "items": request_error_schema
+                }
+            }
+        }
+    }
+}
 _operation_errors_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Response Errors",
-    "description": "Errors returned from Authzee Operations.",
+    "title": "Operation Response Errors",
+    "description": "Errors returned from Authzee Operations. NOTE: Because requests are tied so closely to operations, request validation errors are also included in the schema.",
     "type": "object",
     "additionalProperties": False,
     "required": [],
@@ -479,7 +504,7 @@ batch_request_schema = {
         "context_type": _type_schema,
         "batch": {
             "type": "array",
-            "description": "batch of resources and contexts to process with shared identities, action, resource type, and context type.",
+            "description": "Batch of resources and contexts to process with shared identities, action, resource type, and context type.",
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -503,6 +528,47 @@ batch_request_schema = {
         }
     }
 }
+validate_batch_request_response_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Request Validation Response",
+    "description": "Request Validation Response schema.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "is_valid",
+        "errors",
+        "batch_errors"
+    ],
+    "properties": {
+        "is_valid": _is_valid_schema,
+        "errors": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [],
+            "properties": {
+                "request": {
+                    "type": "array",
+                    "items": request_error_schema
+                }
+            }
+        },
+        "batch_errors": {
+            "type": "array",
+            "description": "Each result corresponds to the batch request item of the same index.",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [],
+                "properties": {
+                    "request": {
+                        "type": "array",
+                        "items": request_error_schema
+                    }
+                }
+            }
+        }
+    }
+}
 _batch_response_errors_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Batch Response Errors",
@@ -517,22 +583,6 @@ _batch_response_errors_schema = {
         }
     }
 }
-_batch_result_errors_schema = {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Batch Result Errors",
-    "description": "Errors returned from individual Authzee Batch results.",
-    "type": "object",
-    "additionalProperties": False,
-    "required": [],
-    "properties": {
-        "jmespath": {
-            "type": "array",
-            "items": jmespath_error_schema
-        }
-    }
-}
-_batch_audit_result_schema = copy.deepcopy(audit_response_schema)
-_batch_audit_result_schema['properties']['errors'] = _batch_result_errors_schema
 _has_failed_batch_schema = {
     "type": "boolean",
     "description": "If the batch request could not be validated and failed or not. "
@@ -551,15 +601,13 @@ batch_audit_response_schema = {
     "properties": {
         "results": {
             "type": "array",
-            "description": "Array of results from a batch request. Each result corresponds to the batch request item in the same index.",
-            "items": _batch_audit_result_schema
+            "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
+            "items": audit_response_schema
         },
         "has_failed": _has_failed_batch_schema,
         "errors": _batch_response_errors_schema
     }
 }
-_batch_authorize_result_schema = copy.deepcopy(authorize_response_schema)
-_batch_authorize_result_schema['properties']['errors'] = _batch_result_errors_schema
 batch_authorize_response_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Batch Authorize Response",
@@ -574,8 +622,8 @@ batch_authorize_response_schema = {
     "properties": {
         "results": {
             "type": "array",
-            "description": "Array of results from a batch request. Each result corresponds to the batch request item in the same index.",
-            "items": _batch_authorize_result_schema
+            "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
+            "items": authorize_response_schema
         },
         "has_failed": _has_failed_batch_schema,
         "errors": _batch_response_errors_schema
@@ -690,10 +738,8 @@ def validate_resource_definitions(resource_defs: List[Dict[str, AnyJSON]]) -> Di
 
 def validate_grants(
     grants: List[Dict[str, AnyJSON]],
-    context_definitions: List[Dict[str, AnyJSON]],
     resource_definitions: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
-    context_types = set([c['context_type'] for c in context_definitions])
     actions = set()
     for r_def in resource_definitions:
         for action in r_def['actions']:
@@ -712,15 +758,6 @@ def validate_grants(
                 }
             )
             continue
-
-        if g['context_type'] not in context_types:
-            errors.append(
-                {
-                    "is_critical": True,
-                    "message": f"The '{g['context_type']}' context_type is not valid.",
-                    "grant": g
-                }
-            )
         
         for action in g['actions']:
             if action not in actions:
@@ -768,7 +805,7 @@ def validate_request(
         )
     else:
         try:
-            jsonschema.validate(request['context'], context_type_lut[request['context_type']])
+            jsonschema.validate(request['context'], context_type_lut[request['context_type']]['schema'])
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
@@ -832,65 +869,63 @@ def validate_request(
 
 
 def validate_batch_request(
-    request: Dict[str, AnyJSON],
+    batch_request: Dict[str, AnyJSON],
     context_definitions: List[Dict[str, AnyJSON]],
     identity_definitions:List[Dict[str, AnyJSON]],
     resource_definitions: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
-    """context and resource objects are going to be per batch item
-    
-    which means that some errors are on the batch request level and some are on the batch items level.
-
-    
-    """
-    errors = []
+    request_errors = []
     try:
-        jsonschema.validate(request, batch_request_schema)
+        jsonschema.validate(batch_request, batch_request_schema)
     except jsonschema.exceptions.ValidationError as exc:
         return {
             "valid": False,
             "errors" : [
                 {
                     "is_critical": True,
-                    "message": f"The batch request is not valid. Schema Error: {exc}"
+                    "message": f"The batch batch_request is not valid. Schema Error: {exc}"
                 }
-            ]
+            ],
+            "results": None # return None if we can't validate the schema
         }
     
+    batch_errors = [[] for _ in range(batch_request['batch'])]
     context_type_lut = {c['context_type']: c for c in context_definitions}
-    if request['context_type'] not in context_type_lut:
-        errors.append(
+    if batch_request['context_type'] not in context_type_lut:
+        request_errors.append(
             {
                 "is_critical": True,
-                "message": f"Context type '{request['context_type']}' is not valid."
+                "message": f"Context type '{batch_request['context_type']}' is not valid."
             }
         )
     else:
-        try:
-            jsonschema.validate(request['context'], context_type_lut[request['context_type']])
-        except jsonschema.exceptions.ValidationError as exc:
-            errors.append(
-                {
-                    "is_critical": True,
-                    "message": f"The request context is not valid for the the '{request['context_type']}' context type. Schema Error: {exc}"
-                }
-            )
+        context_schema = context_type_lut[batch_request['context_type']]['schema']
+        for item, errors, index in zip(batch_request['batch'], batch_errors, range(len(batch_errors))):
+            try:
+                jsonschema.validate(item['context'], context_schema)
+            except jsonschema.exceptions.ValidationError as exc:
+                errors.append(
+                    {
+                        "is_critical": True,
+                        "message": f"The request.batch[{index}] item context is not valid for the the '{batch_request['context_type']}' context type. Schema Error: {exc}"
+                    }
+                )
     
     identity_type_lut = {i['identity_type']: i for i in identity_definitions}
-    for i_type in request['identities']:
+    for i_type in batch_request['identities']:
         if i_type not in identity_type_lut:
-            errors.append(
+            request_errors.append(
                 {
                     "is_critical": True,
                     "message": f"Identity Type '{i_type}' is not valid."
                 }
             )
         else:
-            for identity, i_num in zip(request['identities'][i_type], range(len(request['identities'][i_type]))):
+            for identity, i_num in zip(batch_request['identities'][i_type], range(len(batch_request['identities'][i_type]))):
                 try:
                     jsonschema.validate(identity, identity_type_lut[i_type]['schema'])
                 except jsonschema.exceptions.ValidationError as exc:
-                    errors.append(
+                    request_errors.append(
                         {
                             "is_critical": True,
                             "message": f"Identity '{i_type}[{i_num}]' is not valid. Schema Error: {exc}"
@@ -898,86 +933,57 @@ def validate_batch_request(
                     )
 
     resource_type_lut = {r['resource_type']: r for r in resource_definitions}
-    if request['resource_type'] not in resource_type_lut:
-        errors.append(
+    if batch_request['resource_type'] not in resource_type_lut:
+        request_errors.append(
             {
                 "is_critical": True,
-                "message": f"Resource type '{request['resource_type']}' is not valid."
+                "message": f"Resource type '{batch_request['resource_type']}' is not valid."
             }
         )
     else:
-        try:
-            jsonschema.validate(request['resource'], resource_type_lut[request['resource_type']]['schema'])
-        except jsonschema.exceptions.ValidationError as exc:
-            errors.append(
-                {
-                    "is_critical": True,
-                    "message": f"The request resource is not valid for the '{request['resource_type']}' resource type. Schema Error: {exc}"
-                }
-            )
+        resource_schema = resource_type_lut[batch_request['resource_type']]['schema']
+        for item, errors, index in zip(batch_request['batch'], batch_errors, range(len(batch_errors))):
+            try:
+                jsonschema.validate(item['resource'], resource_schema)
+            except jsonschema.exceptions.ValidationError as exc:
+                errors.append(
+                    {
+                        "is_critical": True,
+                        "message": f"The request.batch[{index}] item resource is not valid for the '{batch_request['resource_type']}' resource type. Schema Error: {exc}"
+                    }
+                )
 
-        if request['action'] not in resource_type_lut[request['resource_type']]['actions']:
-            errors.append(
+        if batch_request['action'] not in resource_type_lut[batch_request['resource_type']]['actions']:
+            request_errors.append(
                 {
                     "is_critical": True,
-                    "message": f"'{request['action']}' is not a valid action for the '{request['resource_type']}' resource type."
+                    "message": f"'{batch_request['action']}' is not a valid action for the '{batch_request['resource_type']}' resource type."
                 }
             )
     
     return {
         "is_valid": True if len(errors) == 0 else False,
-        "errors": errors
+        "errors": request_errors,
+        "batch_errors": [{"request": errors} for errors in batch_errors]
     }
-        
 
 
-def evaluate_one(
+def _evaluate_one(
     request: Dict[str, AnyJSON], 
     grant: Dict[str, AnyJSON],
     search: Callable[[str, AnyJSON], AnyJSON],
     only_crits: bool
 ) -> Dict[str, AnyJSON]:
     result = {
-        "is_critical": False,
+        "has_failed": False,
         "applicable": False,
-        "errors": {
-            "context": [],
-            "definition": [],
-            "grant": [],
-            "jmespath": [],
-            "request": []
-        }
+        "errors": {}
     }
-    if request['action'] not in grant['action'] and len(grant['actions']) > 0:
-        return result
-    
-    c_val = grant['context_validation'] if request['context_validation'] == "grant" else request['context_validation']
-    is_c_val_crit = c_val == "critical"
     if (
-        c_val != "none"
-        and (
-            only_crits is False
-            or is_c_val_crit is True # and only_crits is True
-        )
+        len(grant['actions']) > 0
+        and request['action'] not in grant['action'] 
     ):
-        try:
-            jsonschema.validate(request['context'], grant['context_schema'])
-        except jsonschema.exceptions.ValidationError as exc:
-            if (
-                c_val == "error"
-                or is_c_val_crit is True
-            ):
-                result['errors']['context'].append(
-                    {
-                        "is_critical": is_c_val_crit,
-                        "message": str(exc),
-                        "grant": grant
-                    }
-                )
-                if is_c_val_crit is True:
-                    result['critical'] = True
-                    
-            return result
+        return result
 
     try:
         if grant['equality'] == search(
@@ -998,15 +1004,15 @@ def evaluate_one(
             )
             or is_q_val_crit is True
         ):
-            result['errors']['jmespath'].append(
+            result['errors']['jmespath'] = [
                 {
                     "is_critical": is_q_val_crit,
-                    "message": str(exc),
+                    "message": f"A JMESPath error has occurred: {exc}.",
                     "grant": grant
                 }
-            )
+            ]
             if is_q_val_crit is True:
-                result['critical'] = True
+                result['has_failed'] = True
                 
         # return right after this anyway
 
@@ -1030,7 +1036,7 @@ def audit(
         }
     }
     for g in grants:
-        g_eval = evaluate_one(request, g, search, False)
+        g_eval = _evaluate_one(request, g, search, False)
         result['errors']['context'] += g_eval['errors']['context']
         result['errors']['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
@@ -1065,7 +1071,7 @@ def authorize(
             deny_grants.append(g)
     
     for g in deny_grants:
-        g_eval = evaluate_one(request, g, search, True)
+        g_eval = _evaluate_one(request, g, search, True)
         errors['context'] += g_eval['errors']['context']
         errors['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
@@ -1087,7 +1093,7 @@ def authorize(
             }
     
     for g in allow_grants:
-        g_eval = evaluate_one(request, g, search, True)
+        g_eval = _evaluate_one(request, g, search, True)
         errors['context'] += g_eval['errors']['context']
         errors['jmespath'] += g_eval['errors']['jmespath']
         if g_eval['critical'] is True:
