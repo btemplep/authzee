@@ -40,6 +40,7 @@ __all__ = [
     "validate_grants",
     "validate_request",
     "validate_batch_request",
+    "evaluate_one",
     "audit",
     "authorize",
     "audit_workflow",
@@ -357,7 +358,10 @@ request_schema = {
             "required": [],
             "patternProperties": {
                 _type_regex: {
-                    "type": "object"
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
                 }
             }
         },
@@ -421,6 +425,40 @@ _operation_errors_schema = {
 _has_failed_schema = {
     "type": "boolean",
     "description": "If the request has failed from a critical error or not."
+}
+evaluate_one_response_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Evaluate One Response",
+    "description": "Response from evaluating one grant against a request.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "applicable",
+        "has_failed",
+        "errors"
+    ],
+    "properties": {
+        "applicable": {
+            "type": "boolean",
+            "description": "If the grant is applicable to the request or not."
+        },
+        "has_failed": _has_failed_schema,
+        "errors": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [],
+            "properties": {
+                "jmespath": {
+                    "type": "array",
+                    "items": jmespath_error_schema
+                },
+                "request": {
+                    "type": "array",
+                    "items": request_error_schema
+                }
+            }
+        }
+    }
 }
 audit_response_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -666,10 +704,10 @@ def validate_context_definitions(context_definitions: List[Dict[str, AnyJSON]]) 
     }
 
 
-def validate_identity_definitions(identity_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
+def validate_identity_definitions(identity_definitions: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
     errors = []
     id_types = []
-    for id_def in identity_defs:
+    for id_def in identity_definitions:
         try:
             jsonschema.validate(id_def, identity_definition_schema)
         except jsonschema.exceptions.ValidationError as exc:
@@ -701,10 +739,10 @@ def validate_identity_definitions(identity_defs: List[Dict[str, AnyJSON]]) -> Di
     }
 
 
-def validate_resource_definitions(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
+def validate_resource_definitions(resource_definitions: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
     errors = []
     r_types = set()
-    for r_def in resource_defs:
+    for r_def in resource_definitions:
         try:
             jsonschema.validate(r_def, resource_definition_schema)
         except jsonschema.exceptions.ValidationError as exc:
@@ -786,7 +824,7 @@ def validate_request(
         jsonschema.validate(request, request_schema)
     except jsonschema.exceptions.ValidationError as exc:
         return {
-            "valid": False,
+            "is_valid": False,
             "errors" : [
                 {
                     "is_critical": True,
@@ -879,7 +917,7 @@ def validate_batch_request(
         jsonschema.validate(batch_request, batch_request_schema)
     except jsonschema.exceptions.ValidationError as exc:
         return {
-            "valid": False,
+            "is_valid": False,
             "errors" : [
                 {
                     "is_critical": True,
@@ -968,20 +1006,20 @@ def validate_batch_request(
     }
 
 
-def _evaluate_one(
+def evaluate_one(
     request: Dict[str, AnyJSON], 
     grant: Dict[str, AnyJSON],
     search: Callable[[str, AnyJSON], AnyJSON],
     only_crits: bool
 ) -> Dict[str, AnyJSON]:
     result = {
-        "has_failed": False,
         "applicable": False,
+        "has_failed": False,
         "errors": {}
     }
     if (
         len(grant['actions']) > 0
-        and request['action'] not in grant['action'] 
+        and request['action'] not in grant['actions'] 
     ):
         return result
 
@@ -1025,27 +1063,25 @@ def audit(
     search: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, List[Dict[str, AnyJSON]]]: 
     result = {
-        "has_failed": True,
         "grants": [],
+        "has_failed": False,
         "errors": {
-            "context": [],
-            "definition": [],
-            "grant": [],
-            "jmespath": [],
-            "request": []
+            "jmespath": []
         }
     }
     for g in grants:
-        g_eval = _evaluate_one(request, g, search, False)
-        result['errors']['context'] += g_eval['errors']['context']
-        result['errors']['jmespath'] += g_eval['errors']['jmespath']
-        if g_eval['critical'] is True:
-            result['completed'] = False
+        g_eval = evaluate_one(request, g, search, False)
+        result['errors']['jmespath'] += g_eval['errors'].get("jmespath", [])
+        if g_eval['has_failed'] is True:
+            result['has_failed'] = True
 
             return result 
 
         elif g_eval['applicable'] is True:
             result['grants'].append(g)
+    
+    if len(result['errors']['jmespath']) == 0:
+        result['errors'] = {}
 
     return result
 
@@ -1056,11 +1092,7 @@ def authorize(
     search: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     errors =  {
-        "context": [],
-        "definition": [],
-        "grant": [],
-        "jmespath": [],
-        "request": []
+        "jmespath": []
     }
     allow_grants = []
     deny_grants = []
@@ -1071,13 +1103,12 @@ def authorize(
             deny_grants.append(g)
     
     for g in deny_grants:
-        g_eval = _evaluate_one(request, g, search, True)
-        errors['context'] += g_eval['errors']['context']
-        errors['jmespath'] += g_eval['errors']['jmespath']
-        if g_eval['critical'] is True:
+        g_eval = evaluate_one(request, g, search, True)
+        errors['jmespath'] += g_eval['errors'].get("jmespath", [])
+        if g_eval['has_failed'] is True:
             return {
                 "authorized": False,
-                "has_failed": False,
+                "has_failed": True,
                 "grant": g,
                 "message": "A critical error has occurred. Therefore, the request is not authorized.",
                 "critical_errors": errors
@@ -1086,20 +1117,19 @@ def authorize(
         if g_eval['applicable'] is True:
             return {
                 "authorized": False,
-                "has_failed": True,
+                "has_failed": False,
                 "grant": g,
                 "message": "A deny grant is applicable to the request. Therefore, the request is not authorized.",
                 "critical_errors": errors
             }
     
     for g in allow_grants:
-        g_eval = _evaluate_one(request, g, search, True)
-        errors['context'] += g_eval['errors']['context']
-        errors['jmespath'] += g_eval['errors']['jmespath']
-        if g_eval['critical'] is True:
+        g_eval = evaluate_one(request, g, search, True)
+        errors['jmespath'] += g_eval['errors'].get("jmespath", [])
+        if g_eval['has_failed'] is True:
             return {
                 "authorized": False,
-                "has_failed": False,
+                "has_failed": True,
                 "grant": g,
                 "message": "A critical error has occurred. Therefore, the request is not authorized.",
                 "critical_errors": errors
@@ -1108,7 +1138,7 @@ def authorize(
         if g_eval['applicable'] is True:
             return {
                 "authorized": True,
-                "has_failed": True,
+                "has_failed": False,
                 "grant": g,
                 "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
                 "critical_errors": errors
@@ -1116,117 +1146,204 @@ def authorize(
     
     return {
         "authorized": False,
-        "has_failed": True,
+        "has_failed": False,
         "grant": None,
         "message": "No allow or deny grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
         "critical_errors": errors
     }
 
 
+def _validate(
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]],
+    grants: List[Dict[str, AnyJSON]],
+    request: Dict[str, AnyJSON],
+    is_batch: bool
+) -> Dict[str, AnyJSON]:
+    c_val = validate_context_definitions(context_definitions)
+    if c_val['is_valid'] is False:
+        return c_val
+    
+    i_val = validate_identity_definitions(identity_definitions)
+    if i_val['is_valid'] is False:
+        return i_val
+    
+    r_val = validate_resource_definitions(resource_definitions)
+    if r_val['is_valid'] is False:
+        return r_val
+
+    g_val = validate_grants(grants, resource_definitions)
+    if g_val['is_valid'] is False:
+        return g_val
+    
+    if is_batch is True:
+        req_val = validate_batch_request(
+            request,
+            context_definitions,
+            identity_definitions,
+            resource_definitions
+        )
+    else:
+        req_val = validate_request(
+            request,
+            context_definitions,
+            identity_definitions,
+            resource_definitions
+        )
+
+
+    if req_val['is_valid'] is False:
+        return req_val
+    
+    return {
+        "is_valid": True
+    }
+
+
 def audit_workflow(
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]],
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
     search: Callable[[str, AnyJSON], AnyJSON]
-):
-    errors = {
-        "context": [],
-        "definition": [],
-        "grant": [],
-        "jmespath": [],
-        "request": []
-    }
-    def_val = validate_definitions(
-        identity_defs,
-        resource_defs
+) -> Dict[str, AnyJSON]:
+    val = _validate(
+        context_definitions,
+        identity_definitions,
+        resource_definitions,
+        grants,
+        request,
+        False
     )
-    errors['definition'] = def_val['errors']
-    if def_val['valid'] is False:
-        return {
-            "has_failed": False,
-            "grants": [],
-            "errors": errors
-        }
-    
-    schemas = generate_schemas(
-        identity_defs,
-        resource_defs
-    )
-    grant_val = validate_grants(grants, schemas['grant'])
-    errors['grant'] = grant_val['errors']
-    if grant_val['valid'] is False:
-        return {
-            "has_failed": False,
-            "grants": [],
-            "errors": errors
-        }
-
-    request_val = validate_request(request, schemas['request'])
-    errors['request'] = request_val['errors']
-    if request_val['valid'] is False:
-        return {
-            "has_failed": False,
-            "grants": [],
-            "errors": errors
-        }
+    if val['is_valid'] is False:
+        return val
 
     return audit(request, grants, search)
 
 
 def authorize_workflow(
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]],
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
     search: Callable[[str, AnyJSON], AnyJSON]
-):
-    errors = {
-        "context": [],
-        "definition": [],
-        "grant": [],
-        "jmespath": [],
-        "request": []
-    }
-    def_val = validate_definitions(
-        identity_defs,
-        resource_defs
+) -> Dict[str, AnyJSON]:
+    val = _validate(
+        context_definitions,
+        identity_definitions,
+        resource_definitions,
+        grants,
+        request,
+        False
     )
-    errors['definition'] = def_val['errors']
-    if def_val['valid'] is False:
-        return {
-            "authorized": False,
-            "grant": None,
-            "message": "One or more identity and/or resource definitions are not valid. Therefore, the request is not authorized.",
-            "has_failed": False,
-            "critical_errors": errors
-        }
-    
-    schemas = generate_schemas(
-        identity_defs,
-        resource_defs
-    )
-    grant_val = validate_grants(grants, schemas['grant'])
-    errors['grant'] = grant_val['errors']
-    if grant_val['valid'] is False:
-        return {
-            "authorized": False,
-            "grant": None,
-            "message": "One or more grants are not valid.  Therefore, the request is not authorized.",
-            "has_failed": False,
-            "critical_errors": errors
-        }
-
-    request_val = validate_request(request, schemas['request'])
-    errors['request'] = request_val['errors']
-    if request_val['valid'] is False:
-        return {
-            "authorized": False,
-            "grant": None,
-            "message": "The request is not valid. Therefore the request is not authorized.",
-            "has_failed": False,
-            "critical_errors": errors
-        }
+    if val['is_valid'] is False:
+        return val
 
     return authorize(request, grants, search)
 
+
+def batch_audit(
+    batch_request: Dict[str, AnyJSON], 
+    grants: List[Dict[str, AnyJSON]],
+    search: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, List[Dict[str, AnyJSON]]]: 
+    results = []
+    for item in batch_request['batch']:
+        results.append(
+            audit(
+                {
+                    "identities": batch_request['identities'],
+                    "action": batch_request['action'],
+                    "resource_type": batch_request['resource_type'],
+                    "resource": item['resource'],
+                    "context_type": batch_request['context_type'],
+                    "context": item['context'],
+                    "query_validation": item['query_validation']
+                },
+                grants,
+                search
+            )
+        )
+    
+    return {
+        "results": results,
+        "has_failed": False,
+        "errors": {}
+    }
+
+
+def batch_authorize(
+    batch_request: Dict[str, AnyJSON], 
+    grants: List[Dict[str, AnyJSON]],
+    search: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, List[Dict[str, AnyJSON]]]: 
+    results = []
+    for item in batch_request['batch']:
+        results.append(
+            authorize(
+                {
+                    "identities": batch_request['identities'],
+                    "action": batch_request['action'],
+                    "resource_type": batch_request['resource_type'],
+                    "resource": item['resource'],
+                    "context_type": batch_request['context_type'],
+                    "context": item['context'],
+                    "query_validation": item['query_validation']
+                },
+                grants,
+                search
+            )
+        )
+    
+    return {
+        "results": results,
+        "has_failed": False,
+        "errors": {}
+    }
+
+
+def batch_audit_workflow(
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]],
+    grants: List[Dict[str, AnyJSON]],
+    batch_request: Dict[str, AnyJSON],
+    search: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
+    val = _validate(
+        context_definitions,
+        identity_definitions,
+        resource_definitions,
+        grants,
+        batch_request,
+        True
+    )
+    if val['is_valid'] is False:
+        return val
+
+    return batch_audit(batch_request, grants, search)
+
+
+def batch_authorize_workflow(
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]],
+    grants: List[Dict[str, AnyJSON]],
+    batch_request: Dict[str, AnyJSON],
+    search: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
+    val = _validate(
+        context_definitions,
+        identity_definitions,
+        resource_definitions,
+        grants,
+        batch_request,
+        True
+    )
+    if val['is_valid'] is False:
+        return val
+
+    return batch_authorize(batch_request, grants, search)

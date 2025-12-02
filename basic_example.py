@@ -115,7 +115,6 @@ grants = [
         "query_validation": "validate",
         "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
         "data": {}, # extra free from data to store with grant
-        "context_type": "MySpecialContext" # type of context to accept
     }
 ]
 
@@ -147,9 +146,9 @@ request = {
 
 # 6. Check authorization
 result = authorize_workflow(
+    context_definitions,
     identity_definitions,
     resource_definitions,
-    context_definitions,
     grants,
     request,
     jmespath.search
