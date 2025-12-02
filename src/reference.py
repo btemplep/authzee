@@ -488,14 +488,14 @@ authorize_response_schema = {
     "type": "object",
     "additionalProperties": False,
     "required": [
-        "authorized",
+        "is_authorized",
         "grant",
         "message",
         "has_failed",
         "critical_errors"
     ],
     "properties": {
-        "authorized": {
+        "is_authorized": {
             "type": "boolean",
             "description": "true if the request is authorized.  false if it is not authorized."
         },
@@ -1086,6 +1086,9 @@ def audit(
     return result
 
 
+def _get_authz_error(errors):
+    return errors if len(errors['jmespath']) > 0 else {}
+
 def authorize(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
@@ -1107,20 +1110,20 @@ def authorize(
         errors['jmespath'] += g_eval['errors'].get("jmespath", [])
         if g_eval['has_failed'] is True:
             return {
-                "authorized": False,
-                "has_failed": True,
+                "is_authorized": False,
                 "grant": g,
                 "message": "A critical error has occurred. Therefore, the request is not authorized.",
-                "critical_errors": errors
+                "has_failed": False,
+                "critical_errors": _get_authz_error(errors)
             }
         
         if g_eval['applicable'] is True:
             return {
-                "authorized": False,
-                "has_failed": False,
+                "is_authorized": False,
                 "grant": g,
                 "message": "A deny grant is applicable to the request. Therefore, the request is not authorized.",
-                "critical_errors": errors
+                "has_failed": False,
+                "critical_errors": _get_authz_error(errors)
             }
     
     for g in allow_grants:
@@ -1128,28 +1131,28 @@ def authorize(
         errors['jmespath'] += g_eval['errors'].get("jmespath", [])
         if g_eval['has_failed'] is True:
             return {
-                "authorized": False,
-                "has_failed": True,
+                "is_authorized": False,
                 "grant": g,
                 "message": "A critical error has occurred. Therefore, the request is not authorized.",
-                "critical_errors": errors
+                "has_failed": False,
+                "critical_errors": _get_authz_error(errors)
             }
         
         if g_eval['applicable'] is True:
             return {
-                "authorized": True,
-                "has_failed": False,
+                "is_authorized": True,
                 "grant": g,
                 "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-                "critical_errors": errors
+                "has_failed": False,
+                "critical_errors": _get_authz_error(errors)
             }
     
     return {
-        "authorized": False,
-        "has_failed": False,
+        "is_authorized": False,
         "grant": None,
         "message": "No allow or deny grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
-        "critical_errors": errors
+        "has_failed": False,
+        "critical_errors": _get_authz_error(errors)
     }
 
 
