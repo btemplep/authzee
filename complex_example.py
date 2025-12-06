@@ -112,6 +112,12 @@ resource_definitions = [
         ],
         "schema": {
             "type": "object",
+            "required": [
+                "id",
+                "name",
+                "owner_department",
+                "location"
+            ],
             "properties": {
                 "id": {
                     "type": "string"
@@ -125,13 +131,7 @@ resource_definitions = [
                 "location": {
                     "type": "string"
                 }
-            },
-            "required": [
-                "id",
-                "name",
-                "owner_department",
-                "location"
-            ]
+            }
         }
     },
     {
@@ -145,6 +145,14 @@ resource_definitions = [
         ],
         "schema": {
             "type": "object", 
+            "required": [
+                "id",
+                "color",
+                "size",
+                "material",
+                "owner_department",
+                "inflated"
+            ],
             "properties": {
                 "id": {
                     "type": "string"
@@ -169,15 +177,7 @@ resource_definitions = [
                 "inflated": {
                     "type": "boolean"
                 }
-            },
-            "required": [
-                "id",
-                "color",
-                "size",
-                "material",
-                "owner_department",
-                "inflated"
-            ]
+            }
         }
     },
     {
@@ -190,6 +190,12 @@ resource_definitions = [
         ],
         "schema": {
             "type": "object",
+            "required": [
+                "id",
+                "length",
+                "color",
+                "material"
+            ],
             "properties": {
                 "id": {
                     "type": "string"
@@ -203,13 +209,7 @@ resource_definitions = [
                 "material": {
                     "type": "string"
                 }
-            },
-            "required": [
-                "id",
-                "length",
-                "color",
-                "material"
-            ]
+            }
         }
     }
 ]
@@ -292,19 +292,17 @@ grants = [
         # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
         "query_validation": "error", # if the query has an error return it
         "equality": True,
-        "data": {},
-        "context_type": "NULL"
+        "data": {}
     },
     { # Allow users to read balloons on the context team
         "effect": "allow",
         "actions": [
             "read"
         ],
-        "query": "contains(request.identities.User[].department, request.context.Team)",
+        "query": "request.context_type == 'MySpecialContext' && contains(request.identities.User[].department, request.context.Team)",
         "query_validation": "error", # if the query has an error return it
         "equality": True,
-        "data": {},
-        "context_type": "MySpecialContext"
+        "data": {}
     },
     { # Allow users with admin role to perform any action
         "effect": "allow", 
@@ -325,18 +323,17 @@ grants = [
         "effect": "allow",
         "actions": [
             "read"
-        ],
-        "query": "contains(request.identities.Group[?type=='department'].department, request.resource.owner_department)",
+        ], # because the read action is for multiple resources we can check the resource type first. 
+        "query": "request.resource_type == 'BalloonStore' && contains(request.identities.Group[?type=='department'].department, request.resource.owner_department)",
         "query_validation": "error", 
         "equality": True,
-        "data": {},
-        "context_type": "NULL"
+        "data": {}
     },
     { # Allow inflate access if user has balloon permission in their role
         "effect": "allow",
         "actions": [
             "inflate"
-        ],
+        ],                                                                               # don't need to check resource type since only Balloon has the 'inflate' action
         "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
         "query_validation": "error",
         "equality": True,
@@ -347,7 +344,7 @@ grants = [
         "effect": "deny",
         "actions": [
             "pop"
-        ],
+        ],       # don't need to check resource type since only Balloon has the 'inflate' action
         "query": "request.resource.size == 'large' && !contains(request.identities.Role[*].level, 'admin')",
         "query_validation": "error",
         "equality": True,
@@ -365,7 +362,7 @@ grants = [
     }
 ]
 
-# 5. Create an authorization request
+# 5. Create an Authzee request
 request = {
     "identities": {
         "User": [
@@ -557,7 +554,7 @@ batch_request = {
 }
 
 # 6.a. Audit which grants are applicable (useful for auditing)
-audit_batch_result = audit_batch_workflow(
+audit_batch_result = batch_audit-workflow(
     identity_definitions,
     resource_definitions,
     grants,

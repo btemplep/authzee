@@ -21,7 +21,23 @@
         
         - Must be able to return or raise errors in a consistent fashion for languages without exceptions
     - [ ] update SDK docs
-
+- [x] What to include in batch request? 
+    - Technically they only thing you need is action to save on listing the grants
+    - the downside is a lot of duplication especially for all identities,
+    - Context and context type probably too? 
+    - Resource def needs to be different
+    - Maybe make it optional? 
+    - **Solution** - include all but resource at request level and ability to override all but action at the batch item level. 
+- [x] if grants are only filtered/partitioned by action
+    - then the only fields in a batch request that need to stay the same are:
+        - identities
+        - actions
+    - If we don't filter by resource type and context type in grant
+        - Grants can cover many many use cases
+        - Actions unique to resource types gives you an inherent resource type filter
+        - Could do similar with context mixture of resource type and action specifics. 
+    - Really the only plus of having those is more filters/partitions so slightly less compute needed but it sacrifices so much in the way of grant flexibility
+    - **Solution** - Grants don't have context or resource type
 - [x] Context types in grants? 
     - Do we need this in the grant and wouldn't it make it more flexible to not have it just list resource types? 
     - context type and context would still be passed in the request and validated 

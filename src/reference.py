@@ -81,6 +81,19 @@ _action_schema = {
 }
 _schema_schema = jsonschema.Draft202012Validator.META_SCHEMA
 
+_context_type_schema = _type_schema | {
+    "title": "Authzee Context Type",
+    "description": "A unique name to identity this context type."
+}
+_identity_type_schema = _type_schema | {
+    "title": "Authzee Identity Type",
+    "description": "A unique name to identity this identity type."
+}
+_resource_type_schema = _type_schema | {
+    "title": "Authzee Resource Type",
+    "description": "A unique name to identity this resource type."
+}
+
 context_definition_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Context Definition",
@@ -92,7 +105,7 @@ context_definition_schema = {
         "schema"
     ],
     "properties": {
-        "context_type": _type_schema,
+        "context_type": _context_type_schema,
         "schema": _schema_schema
     }
 }
@@ -107,7 +120,7 @@ identity_definition_schema = {
         "schema"
     ],
     "properties": {
-        "identity_type": _type_schema,
+        "identity_type": _identity_type_schema,
         "schema": _schema_schema
     }
 }
@@ -123,7 +136,7 @@ resource_definition_schema = {
         "schema"
     ],
     "properties": {
-        "resource_type": _type_schema,
+        "resource_type": _resource_type_schema,
         "actions": {
             "type": "array",
             "uniqueItems": True,
@@ -156,10 +169,10 @@ grant_schema = {
     "required": [
         "effect",
         "actions",
+        "data",
         "query",
         "query_validation",
-        "equality",
-        "data"
+        "equality"
     ],
     "properties": {
         "effect": {
@@ -180,6 +193,10 @@ grant_schema = {
             "items": _action_schema,
             "description": "List of actions this grant applies to or null to match any resource action."
         },
+        "data": {
+            "type": "object",
+            "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+        },
         "query": {
             "type": "string",
             "description": "JMESPath query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
@@ -187,10 +204,6 @@ grant_schema = {
         "query_validation": _query_validation_schema,
         "equality": {
             "description": "Expected value for they query to return.  If the query result matches this value the grant is a considered applicable to the request."
-        },
-        "data": {
-            "type": "object",
-            "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
         }
     }
 }
@@ -337,6 +350,28 @@ _request_query_validation_schema = {
     "description": "Request-level query validation setting. Overrides " + _query_validation_schema['description'],
     "enum": ["grant"] + _query_validation_schema['enum']
 }
+_request_identities_schema = {
+    "description": "Object whose keys are the identity types, and values are an array of instances of that identity type.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [],
+    "patternProperties": {
+        _type_regex: {
+            "type": "array",
+            "items": {
+                "type": "object"
+            }
+        }
+    }
+}
+_request_resource_schema = {
+    "type": "object",
+    "description": "Resource for the request that is an instance of the given resource_type."
+}
+_request_context_schema = {
+    "type": "object",
+    "description": "Context for the request that is an instance of the given context_type."
+}
 request_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Authzee Operation Request",
@@ -347,36 +382,18 @@ request_schema = {
         "action",
         "resource_type",
         "resource",
-        "query_validation",
         "context_type",
-        "context"
+        "context",
+        "query_validation"
     ],
     "properties": {
-        "identities": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [],
-            "patternProperties": {
-                _type_regex: {
-                    "type": "array",
-                    "items": {
-                        "type": "object"
-                    }
-                }
-            }
-        },
+        "identities": _request_identities_schema,
         "action": _action_schema,
-        "resource_type": _type_schema,
-        "resource": {
-            "type": "object",
-            "description": "Resource for the request."
-        },
-        "query_validation": _request_query_validation_schema,
-        "context_type": _type_schema,
-        "context": {
-            "type": "object",
-            "description": "Context for the request."
-        }
+        "resource_type": _resource_type_schema,
+        "resource": _request_resource_schema,
+        "context_type": _context_type_schema,
+        "context": _request_context_schema,
+        "query_validation": _request_query_validation_schema
     }
 }
 validate_request_response_schema = {
@@ -514,6 +531,9 @@ authorize_response_schema = {
         "critical_errors": _operation_errors_schema
     }
 }
+
+_request_level_description = " Applies to all items in the batch unless the batch item overwrites it by specifying a different, non-null value."
+_batch_item_level_description = " Overrides the batch request level if the field exists and is not null."
 batch_request_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Batch Operation Request",
@@ -524,42 +544,73 @@ batch_request_schema = {
         "action",
         "resource_type",
         "context_type",
+        "context",
+        "query_validation",
         "batch"
     ],
     "properties": {
-        "identities": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [],
-            "patternProperties": {
-                _type_regex: {
-                    "type": "object"
-                }
-            }
+        "identities": _request_identities_schema | {
+            "description": _request_identities_schema['description'] + _request_level_description
         },
         "action": _action_schema,
-        "resource_type": _type_schema,
-        "context_type": _type_schema,
+        "resource_type": _resource_type_schema | {
+            "description":  _resource_type_schema['description'] + _request_level_description
+        },
+        "context_type": _context_type_schema,
+        "context": _request_context_schema | {
+            "description": _request_context_schema + _request_level_description
+        },
+        "query_validation": _request_query_validation_schema | {
+            "description": _request_query_validation_schema['description'] + _request_level_description
+        },
         "batch": {
             "type": "array",
             "description": "Batch of resources and contexts to process with shared identities, action, resource type, and context type.",
+            "minItems": 1,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "required": [
-                    "resource",
-                    "query_validation",
-                    "context"
+                    "resource_type"
                 ],
                 "properties": {
-                    "resource": {
-                        "type": "object",
-                        "description": "Resource for this batch item."
+                    "identities": _request_identities_schema | {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": _request_identities_schema['description'] + _batch_item_level_description
                     },
-                    "query_validation": _request_query_validation_schema,
+                    "resource_type": _resource_type_schema | {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description":  _resource_type_schema['description'] + _batch_item_level_description
+                    },
+                    "resource": _request_resource_schema | {
+                        "description": "Resource for this batch item, that is an instance of the given resource_type"
+                    },
+                    "context_type": _context_type_schema | {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": _context_type_schema['description'] + _batch_item_level_description
+                    },
                     "context": {
-                        "type": "object",
-                        "description": "Context for this batch item."
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Context for the request that is an instance of context_type." + _batch_item_level_description
+                    },
+                    "query_validation": _request_query_validation_schema | {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": _request_query_validation_schema['description'] + +_batch_item_level_description
                     }
                 }
             }
@@ -812,6 +863,89 @@ def validate_grants(
         "errors": errors
     }
 
+def _validate_request_identities(
+    identities: Dict[str, AnyJSON],
+    identity_lut: dict,
+    errors: list
+) -> None:
+    for i_type in identities:
+        if i_type not in identity_lut:
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": f"Identity Type '{i_type}' is not valid."
+                }
+            )
+        else:
+            for identity, i_num in zip(identities[i_type], range(len(identities[i_type]))):
+                try:
+                    jsonschema.validate(identity, identity_lut[i_type]['schema'])
+                except jsonschema.exceptions.ValidationError as exc:
+                    errors.append(
+                        {
+                            "is_critical": True,
+                            "message": f"Identity '{i_type}[{i_num}]' is not valid. Schema Error: {exc}"
+                        }
+                    )
+
+
+def _validate_request_resource(
+    resource_type: str,
+    resource: dict,
+    action: str,
+    resource_lut: dict,
+    errors: list
+) -> None:
+    if resource_type not in resource_lut:
+        errors.append(
+            {
+                "is_critical": True,
+                "message": f"Resource type '{resource_type}' is not valid."
+            }
+        )
+    else:
+        try:
+            jsonschema.validate(resource, resource_lut[resource_type]['schema'])
+        except jsonschema.exceptions.ValidationError as exc:
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": f"The request resource is not valid for the '{resource_type}' resource type. Schema Error: {exc}"
+                }
+            )
+
+        if action not in resource_lut[resource_type]['actions']:
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": f"'{action}' is not a valid action for the '{resource_type}' resource type."
+                }
+            )
+
+def _validate_request_context(
+    context_type: str,
+    context: dict,
+    context_lut: dict,
+    errors: list  
+) -> None:
+    if context_type not in context_lut:
+        errors.append(
+            {
+                "is_critical": True,
+                "message": f"Context type '{context_type}' is not valid."
+            }
+        )
+    else:
+        try:
+            jsonschema.validate(context, context_lut[context_type]['schema'])
+        except jsonschema.exceptions.ValidationError as exc:
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": f"The request context is not valid for the the '{context_type}' context type. Schema Error: {exc}"
+                }
+            )
+    
 
 def validate_request(
     request: Dict[str, AnyJSON],
@@ -819,7 +953,6 @@ def validate_request(
     identity_definitions:List[Dict[str, AnyJSON]],
     resource_definitions: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
-    errors = []
     try:
         jsonschema.validate(request, request_schema)
     except jsonschema.exceptions.ValidationError as exc:
@@ -832,74 +965,26 @@ def validate_request(
                 }
             ]
         }
-    
-    context_type_lut = {c['context_type']: c for c in context_definitions}
-    if request['context_type'] not in context_type_lut:
-        errors.append(
-            {
-                "is_critical": True,
-                "message": f"Context type '{request['context_type']}' is not valid."
-            }
-        )
-    else:
-        try:
-            jsonschema.validate(request['context'], context_type_lut[request['context_type']]['schema'])
-        except jsonschema.exceptions.ValidationError as exc:
-            errors.append(
-                {
-                    "is_critical": True,
-                    "message": f"The request context is not valid for the the '{request['context_type']}' context type. Schema Error: {exc}"
-                }
-            )
-    
-    identity_type_lut = {i['identity_type']: i for i in identity_definitions}
-    for i_type in request['identities']:
-        if i_type not in identity_type_lut:
-            errors.append(
-                {
-                    "is_critical": True,
-                    "message": f"Identity Type '{i_type}' is not valid."
-                }
-            )
-        else:
-            for identity, i_num in zip(request['identities'][i_type], range(len(request['identities'][i_type]))):
-                try:
-                    jsonschema.validate(identity, identity_type_lut[i_type]['schema'])
-                except jsonschema.exceptions.ValidationError as exc:
-                    errors.append(
-                        {
-                            "is_critical": True,
-                            "message": f"Identity '{i_type}[{i_num}]' is not valid. Schema Error: {exc}"
-                        }
-                    )
+       
+    errors = []
+    _validate_request_identities(
+        identities=request['identities'],
+        identity_lut={i['identity_type']: i for i in identity_definitions},
+        errors=errors
+    )
+    _validate_request_resource(
+        resource_type=request['resource_type'],
+        resource=request['resource'],
+        action=request['action'],
+        resource_lut={r['resource_type']: r for r in resource_definitions}
+    )
+    _validate_request_context(
+        context_type=request['context_type'],
+        context=request['context'],
+        context_lut={c['context_type']: c for c in context_definitions},
+        errors=errors
+    )
 
-    resource_type_lut = {r['resource_type']: r for r in resource_definitions}
-    if request['resource_type'] not in resource_type_lut:
-        errors.append(
-            {
-                "is_critical": True,
-                "message": f"Resource type '{request['resource_type']}' is not valid."
-            }
-        )
-    else:
-        try:
-            jsonschema.validate(request['resource'], resource_type_lut[request['resource_type']]['schema'])
-        except jsonschema.exceptions.ValidationError as exc:
-            errors.append(
-                {
-                    "is_critical": True,
-                    "message": f"The request resource is not valid for the '{request['resource_type']}' resource type. Schema Error: {exc}"
-                }
-            )
-
-        if request['action'] not in resource_type_lut[request['resource_type']]['actions']:
-            errors.append(
-                {
-                    "is_critical": True,
-                    "message": f"'{request['action']}' is not a valid action for the '{request['resource_type']}' resource type."
-                }
-            )
-    
     return {
         "is_valid": True if len(errors) == 0 else False,
         "errors": errors
@@ -912,7 +997,6 @@ def validate_batch_request(
     identity_definitions:List[Dict[str, AnyJSON]],
     resource_definitions: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
-    request_errors = []
     try:
         jsonschema.validate(batch_request, batch_request_schema)
     except jsonschema.exceptions.ValidationError as exc:
@@ -921,88 +1005,64 @@ def validate_batch_request(
             "errors" : [
                 {
                     "is_critical": True,
-                    "message": f"The batch batch_request is not valid. Schema Error: {exc}"
+                    "message": f"The batch request is not valid. Schema Error: {exc}"
                 }
             ],
             "results": None # return None if we can't validate the schema
         }
-    
-    batch_errors = [[] for _ in range(batch_request['batch'])]
-    context_type_lut = {c['context_type']: c for c in context_definitions}
-    if batch_request['context_type'] not in context_type_lut:
-        request_errors.append(
-            {
-                "is_critical": True,
-                "message": f"Context type '{batch_request['context_type']}' is not valid."
-            }
-        )
-    else:
-        context_schema = context_type_lut[batch_request['context_type']]['schema']
-        for item, errors, index in zip(batch_request['batch'], batch_errors, range(len(batch_errors))):
-            try:
-                jsonschema.validate(item['context'], context_schema)
-            except jsonschema.exceptions.ValidationError as exc:
-                errors.append(
-                    {
-                        "is_critical": True,
-                        "message": f"The request.batch[{index}] item context is not valid for the the '{batch_request['context_type']}' context type. Schema Error: {exc}"
-                    }
-                )
-    
-    identity_type_lut = {i['identity_type']: i for i in identity_definitions}
-    for i_type in batch_request['identities']:
-        if i_type not in identity_type_lut:
-            request_errors.append(
-                {
-                    "is_critical": True,
-                    "message": f"Identity Type '{i_type}' is not valid."
-                }
-            )
-        else:
-            for identity, i_num in zip(batch_request['identities'][i_type], range(len(batch_request['identities'][i_type]))):
-                try:
-                    jsonschema.validate(identity, identity_type_lut[i_type]['schema'])
-                except jsonschema.exceptions.ValidationError as exc:
-                    request_errors.append(
-                        {
-                            "is_critical": True,
-                            "message": f"Identity '{i_type}[{i_num}]' is not valid. Schema Error: {exc}"
-                        }
-                    )
 
-    resource_type_lut = {r['resource_type']: r for r in resource_definitions}
-    if batch_request['resource_type'] not in resource_type_lut:
-        request_errors.append(
+    errors = []
+    batch_item_errors = [[] for _ in range(batch_request['batch'])]
+    identity_lut = {i['identity_type']: i for i in identity_definitions}
+    resource_lut = {r['resource_type']: r for r in resource_definitions}
+    context_lut = {c['context_type']: c for c in context_definitions}
+    _validate_request_identities(
+        identities=batch_request['identities'],
+        identity_lut=identity_lut,
+        errors=errors
+    )
+    if batch_request['resource_type'] not in resource_lut:
+        errors.append(
             {
                 "is_critical": True,
                 "message": f"Resource type '{batch_request['resource_type']}' is not valid."
             }
         )
-    else:
-        resource_schema = resource_type_lut[batch_request['resource_type']]['schema']
-        for item, errors, index in zip(batch_request['batch'], batch_errors, range(len(batch_errors))):
-            try:
-                jsonschema.validate(item['resource'], resource_schema)
-            except jsonschema.exceptions.ValidationError as exc:
-                errors.append(
-                    {
-                        "is_critical": True,
-                        "message": f"The request.batch[{index}] item resource is not valid for the '{batch_request['resource_type']}' resource type. Schema Error: {exc}"
-                    }
-                )
-
-        if batch_request['action'] not in resource_type_lut[batch_request['resource_type']]['actions']:
-            request_errors.append(
-                {
-                    "is_critical": True,
-                    "message": f"'{batch_request['action']}' is not a valid action for the '{batch_request['resource_type']}' resource type."
-                }
+    
+    _validate_request_context(
+        context_type=batch_request['context_type'],
+        context=batch_request['context'],
+        context_lut=context_lut,
+        errors=errors
+    )
+    for item, bi_errors in zip(batch_request['batch'], batch_item_errors):
+        if item.get("identities", None) is not None:
+            _validate_request_identities(
+                identities=item['identities'],
+                identity_lut=identity_lut,
+                errors=bi_errors
+            )
+        _validate_request_resource(
+            resource_type=item.get("resource_type", batch_request['resource_type']),
+            resource=item['resource'],
+            resource_lut=resource_lut,
+            errors=bi_errors
+        )
+        if (
+            item.get("context_type", None) is not None 
+            or item.get("context", None) is not None
+        ):
+            _validate_request_context(
+                context_type=item.get("context_type", batch_request['context_type']),
+                context=item.get("context", batch_request['context_type']),
+                context_lut=context_lut,
+                errors=bi_errors
             )
     
     return {
         "is_valid": True if len(errors) == 0 else False,
-        "errors": request_errors,
-        "batch_errors": [{"request": errors} for errors in batch_errors]
+        "errors": errors,
+        "batch_errors": [{"request": errors} for errors in batch_item_errors]
     }
 
 
@@ -1194,7 +1254,6 @@ def _validate(
             identity_definitions,
             resource_definitions
         )
-
 
     if req_val['is_valid'] is False:
         return req_val
