@@ -543,6 +543,7 @@ batch_request_schema = {
         "identities",
         "action",
         "resource_type",
+        "resource",
         "context_type",
         "context",
         "query_validation",
@@ -556,9 +557,12 @@ batch_request_schema = {
         "resource_type": _resource_type_schema | {
             "description":  _resource_type_schema['description'] + _request_level_description
         },
+        "resource": _request_resource_schema | {
+            "description":  _request_resource_schema['description'] + _request_level_description
+        },
         "context_type": _context_type_schema,
         "context": _request_context_schema | {
-            "description": _request_context_schema + _request_level_description
+            "description": _request_context_schema['description'] + _request_level_description
         },
         "query_validation": _request_query_validation_schema | {
             "description": _request_query_validation_schema['description'] + _request_level_description
@@ -570,9 +574,7 @@ batch_request_schema = {
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": [
-                    "resource_type"
-                ],
+                "required": [],
                 "properties": {
                     "identities": _request_identities_schema | {
                         "type": [
@@ -610,7 +612,7 @@ batch_request_schema = {
                             "string",
                             "null"
                         ],
-                        "description": _request_query_validation_schema['description'] + +_batch_item_level_description
+                        "description": _request_query_validation_schema['description'] + _batch_item_level_description
                     }
                 }
             }
@@ -976,7 +978,8 @@ def validate_request(
         resource_type=request['resource_type'],
         resource=request['resource'],
         action=request['action'],
-        resource_lut={r['resource_type']: r for r in resource_definitions}
+        resource_lut={r['resource_type']: r for r in resource_definitions},
+        errors=errors
     )
     _validate_request_context(
         context_type=request['context_type'],
@@ -1012,7 +1015,7 @@ def validate_batch_request(
         }
 
     errors = []
-    batch_item_errors = [[] for _ in range(batch_request['batch'])]
+    batch_item_errors = [[] for _ in batch_request['batch']]
     identity_lut = {i['identity_type']: i for i in identity_definitions}
     resource_lut = {r['resource_type']: r for r in resource_definitions}
     context_lut = {c['context_type']: c for c in context_definitions}
@@ -1021,14 +1024,13 @@ def validate_batch_request(
         identity_lut=identity_lut,
         errors=errors
     )
-    if batch_request['resource_type'] not in resource_lut:
-        errors.append(
-            {
-                "is_critical": True,
-                "message": f"Resource type '{batch_request['resource_type']}' is not valid."
-            }
-        )
-    
+    _validate_request_resource(
+        resource_type=batch_request['resource_type'],
+        resource=batch_request['resource'],
+        action=batch_request['action'],
+        resource_lut=resource_lut,
+        errors=errors
+    )
     _validate_request_context(
         context_type=batch_request['context_type'],
         context=batch_request['context'],
@@ -1044,7 +1046,8 @@ def validate_batch_request(
             )
         _validate_request_resource(
             resource_type=item.get("resource_type", batch_request['resource_type']),
-            resource=item['resource'],
+            resource=item.get("resource", batch_request['resource']),
+            action=batch_request['action'],
             resource_lut=resource_lut,
             errors=bi_errors
         )
@@ -1111,8 +1114,6 @@ def evaluate_one(
             ]
             if is_q_val_crit is True:
                 result['has_failed'] = True
-                
-        # return right after this anyway
 
     return result
 
@@ -1317,13 +1318,13 @@ def batch_audit(
         results.append(
             audit(
                 {
-                    "identities": batch_request['identities'],
+                    "identities": item.get("identities", batch_request['identities']),
                     "action": batch_request['action'],
-                    "resource_type": batch_request['resource_type'],
-                    "resource": item['resource'],
-                    "context_type": batch_request['context_type'],
-                    "context": item['context'],
-                    "query_validation": item['query_validation']
+                    "resource_type": item.get("resource_type", batch_request['resource_type']),
+                    "resource": item.get("resource", batch_request['resource']),
+                    "context_type": item.get("context_type", batch_request['context_type']),
+                    "context": item.get("context", batch_request['context']),
+                    "query_validation": item.get("query_validation", batch_request['query_validation'])
                 },
                 grants,
                 search
@@ -1347,13 +1348,13 @@ def batch_authorize(
         results.append(
             authorize(
                 {
-                    "identities": batch_request['identities'],
+                    "identities": item.get("identities", batch_request['identities']),
                     "action": batch_request['action'],
-                    "resource_type": batch_request['resource_type'],
-                    "resource": item['resource'],
-                    "context_type": batch_request['context_type'],
-                    "context": item['context'],
-                    "query_validation": item['query_validation']
+                    "resource_type": item.get("resource_type", batch_request['resource_type']),
+                    "resource": item.get("resource", batch_request['resource']),
+                    "context_type": item.get("context_type", batch_request['context_type']),
+                    "context": item.get("context", batch_request['context']),
+                    "query_validation": item.get("query_validation", batch_request['query_validation'])
                 },
                 grants,
                 search

@@ -4,7 +4,12 @@ import json
 import jmespath
 import jmespath.functions
 
-from src.reference import authorize_workflow, audit_workflow
+from src.reference import (
+    audit_workflow,
+    authorize_workflow,
+    batch_audit_workflow,
+    batch_authorize_workflow
+) 
 
 # Define the identities the calling entity has
 identity_definitions = [
@@ -313,11 +318,10 @@ grants = [
             "pop",
             "tie"
         ],
-        "query": "contains(request.identities.Role[].level, 'admin')",
+        "query": "request.context_type == 'NULL' && contains(request.identities.Role[].level, 'admin')",
         "query_validation": "error",
         "equality": True,
-        "data": {},
-        "context_type": "NULL"
+        "data": {}
     },
     { # Allow members of department groups to read balloons in that department
         "effect": "allow",
@@ -337,28 +341,25 @@ grants = [
         "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
         "query_validation": "error",
         "equality": True,
-        "data": {},
-        "context_type": "NULL"
+        "data": {}
     },
     { # Deny pop access for large balloons unless admin
         "effect": "deny",
         "actions": [
             "pop"
         ],       # don't need to check resource type since only Balloon has the 'inflate' action
-        "query": "request.resource.size == 'large' && !contains(request.identities.Role[*].level, 'admin')",
+        "query": "request.context_type == 'NULL' && request.resource.size == 'large' && !contains(request.identities.Role[*].level, 'admin')",
         "query_validation": "error",
         "equality": True,
-        "data": {},
-        "context_type": "NULL"
+        "data": {}
     },
     { # Deny if they don't have any user identities
         "effect": "deny",
         "actions": [],
-        "query": "length(request.identities.User)",
+        "query": "request.context_type == 'NULL' && length(request.identities.User) == `0`",
         "query_validation": "error",
-        "equality": 0,
-        "data": {},
-        "context_type": "NULL"
+        "equality": True,
+        "data": {}
     }
 ]
 
@@ -427,6 +428,7 @@ def my_search(expression: str, data):
 
 # 6.a. Audit which grants are applicable (useful for auditing)
 audit_result = audit_workflow(
+    context_definitions,
     identity_definitions,
     resource_definitions,
     grants,
@@ -436,7 +438,6 @@ audit_result = audit_workflow(
 print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 # Audit Result:
 # {
-#     "completed": true,
 #     "grants": [
 #         {
 #             "effect": "allow",
@@ -446,23 +447,16 @@ print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 #             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
 #             "query_validation": "error",
 #             "equality": true,
-#             "data": {},
-#             "context_schema": {
-#                 "type": "object"
-#             },
-#             "context_validation": "none"
+#             "data": {}
 #         }
 #     ],
-#     "errors": {
-#         "definition": [],
-#         "grant": [],
-#         "jmespath": [],
-#         "request": []
-#     }
+#     "has_failed": false,
+#     "errors": {}
 # }
 
 # 6.b. Make authorization decision
 authorization_result = authorize_workflow(
+    context_definitions,
     identity_definitions,
     resource_definitions, 
     grants,
@@ -472,8 +466,7 @@ authorization_result = authorize_workflow(
 print(f"Authorization Result:\n{json.dumps(authorization_result, indent=4)}")
 # Authorization Result:
 # {
-#     "authorized": true,
-#     "completed": true,
+#     "is_authorized": true,
 #     "grant": {
 #         "effect": "allow",
 #         "actions": [
@@ -482,22 +475,16 @@ print(f"Authorization Result:\n{json.dumps(authorization_result, indent=4)}")
 #         "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
 #         "query_validation": "error",
 #         "equality": true,
-#         "data": {},
-#         "context_schema": {
-#             "type": "object"
-#         },
-#         "context_validation": "none"
+#         "data": {}
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#     "errors": {
-#         "definition": [],
-#         "grant": [],
-#         "jmespath": [],
-#         "request": []
-#     }
+#     "has_failed": false,
+#     "errors": {}
 # }
 
-# 7. Create a batch request. Requests can also be batched for the same identities, action, resource type, and context type.
+# 7. Create a batch request. 
+# Requests can be batched for the same action. They can share all other fields in a normal request. 
+# if the batch item does not specify a request field then it uses the default that is specified in the top level of the batch request. 
 batch_request = {
     "identities": {
         "User": [
@@ -532,75 +519,150 @@ batch_request = {
         ]
         #"OtherID": [] # Can be added if none or any exist for the calling entity
     },
-    "resource_type": "Balloon",
     "action": "inflate",
+    "resource_type": "Balloon",
+    "resource": { 
+        "id": "balloon123",
+        "color": "green",
+        "size": "medium",
+        "material": "latex",
+        "owner_department": "party_planning",
+        "inflated": False
+    },
     "context_type": "MySpecialContext",  # specify the context type, this will only be evaluated against grants that accept this context
-    "resources": [
+    "context": {
+        "Team": "ABC"
+    },
+    "query_validation": "grant",
+    "batch": [
         {
-            "resource": {
+            "resource": { # A common use case is to simply specify different resources for the same request
                 "id": "balloon456",
                 "color": "red",
                 "size": "medium",
                 "material": "latex",
                 "owner_department": "party_planning",
                 "inflated": False
-            },
-            "query_validation": "grant",  # Use grant-level validation settings
-            "context": { # The context for the request
-                "Team": "party_planning"
             }
-        }
+        },
+        { # Can also override any fields in the batch request besides the action.
+            "identities": {
+                "User": [
+                    {
+                        "id": "Store123",
+                        "department": "Store 123",
+                        "owner_department": "IDK",
+                        "location": "Somewhere"
+                    }
+                ],
+                "Group": [
+                    {
+                        "name": "My Special group",
+                        "department": "special_dept", 
+                        "type": "team"
+                    }
+                ]
+            },
+            "resource_type": "BalloonStore",
+            "resource": {
+                "id": "1234",
+                "name": "Special store",
+                "owner_department": "special_dept",
+                "location": "Somewhere"
+            },
+            "context_type": "NULL",  # specify the context type, this will only be evaluated against grants that accept this context
+            "context":  {},
+            "query_validation": "error"
+        },
+        {} # technically you don't have to override any
     ]  
 }
 
 # 6.a. Audit which grants are applicable (useful for auditing)
-audit_batch_result = batch_audit-workflow(
+batch_audit_results = batch_audit_workflow(
+    context_definitions,
     identity_definitions,
     resource_definitions,
     grants,
     batch_request,
     jmespath.search # JMESPath search function or custom function
 )
-print(f"Audit Batch Result:\n{json.dumps(audit_result, indent=4)}")
+print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 # Audit Result - An array of audit results that maps to the batch_request.resources array
 # Each one is processed as if it was a separate request
-# [
-#     {
-#         "completed": true,
-#         "grants": [
-#             {
-#                 "effect": "allow",
-#                 "actions": [
-#                     "inflate"
-#                 ],
-#                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                 "query_validation": "error",
-#                 "equality": true,
-#                 "data": {},
-#                 "context_schema": {
-#                     "type": "object"
-#                 },
-#                 "context_validation": "none"
+# {
+#     "results": [ # for each item in batch there is an item in results
+#         {
+#             "grants": [ # applicable 
+#                 {
+#                     "effect": "allow",
+#                     "actions": [
+#                         "inflate"
+#                     ],
+#                     "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+#                     "query_validation": "error",
+#                     "equality": true,
+#                     "data": {}
+#                 }
+#             ],
+#             "has_failed": false,
+#             "errors": {}
+#         },
+#         {
+#             "grants": [],
+#             "has_failed": false,
+#             "errors": {
+#                 "jmespath": [
+#                     {
+#                         "is_critical": false,
+#                         "message": "A JMESPath error has occurred: In function contains(), invalid type for value: None, expected one of: ['array', 'string'], received: \"null\".",
+#                         "grant": {
+#                             "effect": "allow",
+#                             "actions": [
+#                                 "read",
+#                                 "inflate",
+#                                 "deflate",
+#                                 "pop",
+#                                 "tie"
+#                             ],
+#                             "query": "request.context_type == 'NULL' && contains(request.identities.Role[].level, 'admin')",
+#                             "query_validation": "error",
+#                             "equality": true,
+#                             "data": {}
+#                         }
+#                     },
+#                     {
+#                         "is_critical": false,
+#                         "message": "A JMESPath error has occurred: In function contains(), invalid type for value: None, expected one of: ['array', 'string'], received: \"null\".",
+#                         "grant": {
+#                             "effect": "allow",
+#                             "actions": [
+#                                 "inflate"
+#                             ],
+#                             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+#                             "query_validation": "error",
+#                             "equality": true,
+#                             "data": {}
+#                         }
+#                     }
+#                 ]
 #             }
-#         ],
-#         "errors": {
-#             "definition": [],
-#             "grant": [],
-#             "jmespath": [],
-#             "request": []
 #         }
-#     }
-# ]
+#     ],
+#     "has_failed": false,
+#     "errors": {}
+# }
 
 # 7.b. Make authorization decision
-authorize_batch_result = authorize_batch_workflow(
+batch_authorize_result = batch_authorize_workflow(
+    context_definitions,
     identity_definitions,
     resource_definitions, 
     grants,
     batch_request,
     my_search # JMESPath search function or custom function
 )
-print(f"Authorize Batch Result:\n{json.dumps(authorization_result, indent=4)}")
+print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}")
 # Authorization Result - An array of authorization results that maps to the batch_request.resources array
 # Each one is processed as if it was a separate request
 # [
