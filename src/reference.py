@@ -51,7 +51,6 @@ __all__ = [
     "batch_authorize_workflow"
 ]
 
-import copy
 from typing import Callable, Dict, List, Union
 
 import jmespath
@@ -127,7 +126,7 @@ identity_definition_schema = {
 resource_definition_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Resource Definition",
-    "description": "An resource definition.  Defines a type of resource to use with Authzee.",
+    "description": "A resource definition.  Defines a type of resource to use with Authzee.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -146,7 +145,6 @@ resource_definition_schema = {
     }
 }
 _query_validation_schema = {
-    "type": "string",
     "title": "Grant-Level Query Validation Setting",
     "description": (
         "Grant-level query validation setting. Set how the query errors are treated. "
@@ -154,6 +152,7 @@ _query_validation_schema = {
         "'error' - Includes the 'validate' setting checks, and also adds errors to the result. "
         "'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early."
     ),
+    "type": "string",
     "enum": [
         "validate",
         "error",
@@ -167,6 +166,9 @@ grant_schema = {
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "grant_uuid",
+        "name",
+        "description",
         "effect",
         "actions",
         "data",
@@ -175,6 +177,19 @@ grant_schema = {
         "equality"
     ],
     "properties": {
+        "grant_uuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID for this grant."
+        },
+        "name": {
+            "type": "string",
+            "description": "Short, people friendly name for the grant."
+        },
+        "description": {
+            "type": "string",
+            "description": "Long, people friendly description for the grant."
+        },
         "effect": {
             "type": "string",
             "enum": [
@@ -203,7 +218,7 @@ grant_schema = {
         },
         "query_validation": _query_validation_schema,
         "equality": {
-            "description": "Expected value for they query to return.  If the query result matches this value the grant is a considered applicable to the request."
+            "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
         }
     }
 }
@@ -345,9 +360,9 @@ validate_grants_response_schema = {
     }
 }
 _request_query_validation_schema = {
-    "type": "string",
     "title": "Request-Level Query Validation Setting",
     "description": "Request-level query validation setting. Overrides " + _query_validation_schema['description'],
+    "type": "string",
     "enum": ["grant"] + _query_validation_schema['enum']
 }
 _request_identities_schema = {
@@ -750,6 +765,16 @@ def validate_context_definitions(context_definitions: List[Dict[str, AnyJSON]]) 
                     "definition": c_def
                 }
             )
+        
+        if "type" not in c_def['schema'] or c_def['schema']['type'] != "object": 
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": "Context schemas must declare the the root type to be an object.",
+                    "definition_type": "context",
+                    "definition": c_def
+                } 
+            )
 
     return {
         "is_valid": True if len(errors) == 0 else False,
@@ -785,6 +810,16 @@ def validate_identity_definitions(identity_definitions: List[Dict[str, AnyJSON]]
                     "definition": id_def
                 }
             )
+        
+        if "type" not in id_def['schema'] or id_def['schema']['type'] != "object": 
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": "Identity schemas must declare the the root type to be an object.",
+                    "definition_type": "identity",
+                    "definition": id_def
+                } 
+            )
 
     return {
         "is_valid": True if len(errors) == 0 else False,
@@ -819,6 +854,16 @@ def validate_resource_definitions(resource_definitions: List[Dict[str, AnyJSON]]
                     "definition_type": "resource",
                     "definition": r_def
                 }
+            )
+        
+        if "type" not in r_def['schema'] or r_def['schema']['type'] != "object": 
+            errors.append(
+                {
+                    "is_critical": True,
+                    "message": "Resource schemas must declare the the root type to be an object.",
+                    "definition_type": "resource",
+                    "definition": r_def
+                } 
             )
     
     return {
@@ -1149,6 +1194,7 @@ def audit(
 
 def _get_authz_error(errors):
     return errors if len(errors['jmespath']) > 0 else {}
+
 
 def authorize(
     request: Dict[str, AnyJSON], 

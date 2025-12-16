@@ -23,6 +23,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -->
 
 
+## [0.3.0] - YYYY-MM-DD
+
+### Added
+
+- Batch Audit and Authorize functions added. 
+
+### Changed
+
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security 
+
+
 ## [0.2.0] - 2025-08-16
 
 ### Changed

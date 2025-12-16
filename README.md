@@ -8,17 +8,18 @@ Authzee is a highly expressive grant-based authorization engine.
 
 - **Scalable** - Handle complex authorization scenarios across large systems.
 - **Separation** - Keep authorization rules separate from business code.
-- **Dependable** - Built on top of existing specifications that are widely used. JSON Schema and JMESPath standards.  Authzee has a specification and reference implementation as well.
-- **Extensible** - Easily adapt to new identity types, resources, and authorization patterns.  Extend the JMESPath query language for custom capabilities.
+- **Dependable** - Built on top of existing specifications that are widely used. JSON Schema (Draft 2020-12) and JMESPath standards (or other JSON query language).  Authzee has a specification and reference implementation as well.
+- **Extensible** - Easily adapt to new identity types, resources, and authorization patterns.  Extend the JMESPath query language for custom capabilities. 
 - **ACL** - Access Control List support
 - **RBAC** - Role-Based Access Control support
 - **ABAC** - Attribute-Based Access Control support
 - **ReBAC** - Relationship-Based Access Control support
 - **Ultra expressive** - Create very fine-grained controls that are highly maintainable.
 - **Auditable** - Core auditing functionality built in from the ground up to easily perform access checks.
-- **Agnostic** - Works with any identity provider and resources. New or existing.  Authzee does is not an identity provider and does not provide a means to store and source identity.
-- **Multi-lingual** - Uses widespread standards to make the core easy to create in any language. 
-    - The reference implementation in this repo uses python for ease of access. 
+- **Agnostic** - Works with any identity provider and resources. New or existing.  Authzee is not an identity provider and does not provide a means to store and source identity.
+- **Multi-lingual** - Uses widespread standards that are available in most programming languages. 
+    - The example reference implementation in this repo uses python for ease of access. 
+    - Other single file reference implementations are available as well.
     - The reference implementation only defines the core Authzee engine. Compute and storage implementations are handled at the SDK level for each language. 
 
 
@@ -36,7 +37,7 @@ Authzee is a highly expressive grant-based authorization engine.
 
 ## Basic Example
 
-This example shows all of the basic ideas behind Authzee using the python reference implementation.
+This example shows all of the basic ideas behind Authzee using the python reference implementation [reference.py](./src/reference.py).
 
 Run [basic_example.py](./basic_example.py) from the root of the project after installing the dependencies from the `requirements.txt` file.
 
@@ -51,7 +52,7 @@ from src.reference import authorize_workflow
 identity_definitions = [
     {
         "identity_type": "User", # unique identity type
-        "schema": { # JSON Schema 
+        "schema": { # JSON Schema for Users
             "type": "object",
             "properties": {
                 "id": {
@@ -91,6 +92,11 @@ resource_definitions = [
         ],
         "schema": { # JSON Schema
             "type": "object", 
+            "required": [
+                "id",
+                "color",
+                "size"
+            ],
             "properties": {
                 "id": {
                     "type": "string"
@@ -106,19 +112,41 @@ resource_definitions = [
                         "large"
                     ]
                 }
-            },
-            "required": [
-                "id",
-                "color",
-                "size"
-            ]
-        },
-        "parent_types": [], # parent resource types, if any
-        "child_types": [] # child resource types, if any
+            }
+        }
     }
 ]
 
-# 3. Define Grants - access rules 
+# 3. Define Contexts - Context is extra data that is passed to the request
+context_definitions = [
+    {
+        "context_type": "NULL",
+        "schema": {
+            "type": "null"
+        }
+    },
+    {
+        "context_type": "ANY",
+        "schema": {}
+    },
+    {
+        "context_type": "MySpecialContext",
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "Team"
+            ],
+            "properties": {
+                "Team": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+]
+
+# 4. Define Grants - access rules 
 grants = [
     {
         "effect": "allow", # allow or deny
@@ -126,18 +154,15 @@ grants = [
             "Balloon:Read",
             "pop"
         ],
-        "query": "contains(request.identities.User[*].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} and will return `true` if any of the calling entities, User type identities have the admin role
+        "query": "contains(request.identities.User[0].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
+        # In this case, the above query will return `true` if the calling entity's zeroth User type identity has the admin role
         "query_validation": "validate",
         "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
-        "data": {},
-        "context_schema": {
-            "type": "object"
-        },
-        "context_validation": "none"
+        "data": {}, # extra free from data to store with this grant
     }
 ]
 
-# 4. Create an authorization request
+# 5. Create an authorization request
 request = {
     "identities": { # create zero or more instances of any identity
         "User": [
@@ -156,17 +181,16 @@ request = {
         "color": "green",
         "size": "medium"
     },
-    "parents": {},
-    "children": {},
     "query_validation": "grant", # optionally override grant level query validation
+    "context_type": "MySpecialContext",
     "context": {
-        "TEAM": "ABC" # free from data 
-    },
-    "context_validation": "grant" # optionally override grant level context validation
+        "Team": "ABC"
+    }
 }
 
-# 5. Check authorization
+# 6. Given all of the previous definitions and grants, check if the request is authorized.
 result = authorize_workflow(
+    context_definitions,
     identity_definitions,
     resource_definitions,
     grants,
@@ -174,15 +198,14 @@ result = authorize_workflow(
     jmespath.search
 )
 print(json.dumps(result, indent=4))
-if result["authorized"]:
+if result['is_authorized'] is True:
     print("✅ Access granted!")
 else:
     print("❌ Access denied!")
 
 # OUTPUT:
 # {
-#     "authorized": true,
-#     "completed": true,
+#     "is_authorized": true,
 #     "grant": {
 #         "effect": "allow",
 #         "actions": [
@@ -192,20 +215,11 @@ else:
 #         "query": "contains(request.identities.User[*].role, 'admin')",
 #         "query_validation": "validate",
 #         "equality": true,
-#         "data": {},
-#         "context_schema": {
-#             "type": "object"
-#         },
-#         "context_validation": "none"
+#         "data": {}
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#     "errors": {
-#         "context": [],
-#         "definition": [],
-#         "grant": [],
-#         "jmespath": [],
-#         "request": []
-#     }
+#     "has_failed": false,
+#     "critical_errors": {}
 # }
 # ✅ Access granted!
 ```
@@ -213,12 +227,13 @@ else:
 This basic example shows:
 - A calling entity with a "User" identity "balloon_luvr", requesting to pop a balloon.
 - A grant that allows admin users to read and pop balloons.
-- The authorization succeeds because the calling entity has a user identity with the admin role
+- The authorization succeeds because the calling entity has a user identity with the admin role.  
+
 
 ## Complex Example
 
 This is a more complex example that shows how to handle multiple identities, resources, and grants. 
-It utilizes all these elements to create a more complex request for both the audit and authorize workflows.
+It utilizes all these elements to create a more complex request for the audit, authorize, batch audit, and batch authorize workflows.
 
 Run [complex_example.py](./complex_example.py) from the root of the project after installing the dependencies from the `requirements.txt` file.
 

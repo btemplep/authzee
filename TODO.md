@@ -3,7 +3,7 @@
 - [ ] Add context and remove parent and child
     - [x] update basic example
     - [x] update complex example
-    - [ ] update reference code
+    - [x] update reference code
     - [ ] update readme
     - [ ] update specification
         - Add individual steps to here and responses
@@ -18,6 +18,11 @@
             - I would like the base level Schemas to match what the SDK puts out for the most part
                 - SDKs can add properties to grants etc but should match besides that
             - If an op puts out a request val error, that wouldn't match in the current setup
+            - **Solution** 
+                - Include error types in ops for request validation.  
+                - No workflows in the specification, only ops with all inputs validated. 
+                - Add uuid, name, description to grants in spec
+                - Makes all functionality directly usable from the reference imp
         
         - Must be able to return or raise errors in a consistent fashion for languages without exceptions
     - [ ] update SDK docs

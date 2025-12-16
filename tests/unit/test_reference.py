@@ -1,18 +1,8 @@
-"""Complete test suite for 100% coverage of reference.py"""
+
 import pytest
 import jmespath
 import jsonschema
-from src.reference import (
-    validate_definitions,
-    generate_schemas,
-    validate_grants,
-    validate_request,
-    evaluate_one,
-    audit,
-    authorize,
-    audit_workflow,
-    authorize_workflow
-)
+from src.reference import *
 
 
 @pytest.fixture

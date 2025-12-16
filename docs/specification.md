@@ -1,5 +1,5 @@
 # Authzee Specification 
-## Version 0.2.0
+## Version 0.3.0
 
 This document describes the specification for **Authzee**.
 
@@ -7,11 +7,10 @@ For a quick introduction to the core Authzee engine see the [README](../README).
 
 For language specific use and guidance see the [SDKs](./sdks)
 
-Authzee is a highly expressive grant-based authorization engine.  It uses JSON Schemas to define and validate all inputs and outputs. Grants are evaluated against the request data and grant data using JMESpath to make access control decisions. 
+Authzee is a highly expressive grant-based authorization engine.  It uses JSON Schemas (Draft 2020-12) to define and validate all inputs and outputs. Grants are evaluated against the request data and grant data using a JSON query language of your choice to make access control decisions. JMESpath is preferred because it has a specification and is extensible.
 
 ### Table of Contents
 
-- [Authzee Specification](#authzee-specification)
 - [Definitions](#definitions)
 - [Identity Definitions](#identity-definitions)
 - [Resource Definitions](#resource-definitions)
@@ -27,13 +26,149 @@ Authzee is a highly expressive grant-based authorization engine.  It uses JSON S
 
 ## Definitions
 
+Definitions specific to Authzee and used throughout the spec.
+
 - **Identity** - An object representing a specific type of identity to consider when authorizing.
 - **Resource** - An object representing a specific type of resource to authorize for.
 - **Resource Action (Action)** - A name for a specific action taken on a resource.
-- **Workflow** - A specific authorization process and the detailed steps to complete it.
-- **Authorization Request (Request)** - The object used to specify identities, resources, actions, and other configurations to start a wokflow.
+- **Operation (Op)** - Distinct, named authorization functionalities. Audit, Authorize, Batch Audit, and Batch Authorize.
+- **Authorization Request (Request)** - The object used to specify identities, resources, actions, and other configurations that are passed to functions.
 - **Calling Entity (Entity)** - Who or what is represented by a request.  A calling entity can have many identities of the same and different types. 
-- **Grant** - The unit of authorization that defines the conditions needed for an entity to perform an action on a resource, and the effect, if the grant is applicable.
+- **Grant** - Defines rules for authorization. 
+
+
+## Context Definitions
+
+Context is passed in authorization requests as extra structured data. 
+
+### Context Definition Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Context Definition",
+    "description": "A request context definition.  Defines a type of context that can be passed with Authzee requests.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "context_type",
+        "schema"
+    ],
+    "properties": {
+        "context_type": {
+            "title": "Authzee Context Type",
+            "description": "A unique name to identity this context type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://json-schema.org/draft/2020-12/schema",
+            "$vocabulary": {
+                "https://json-schema.org/draft/2020-12/vocab/core": true,
+                "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+                "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
+                "https://json-schema.org/draft/2020-12/vocab/validation": true,
+                "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+                "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
+                "https://json-schema.org/draft/2020-12/vocab/content": true
+            },
+            "$dynamicAnchor": "meta",
+            "title": "Core and Validation specifications meta-schema",
+            "allOf": [
+                {
+                    "$ref": "meta/core"
+                },
+                {
+                    "$ref": "meta/applicator"
+                },
+                {
+                    "$ref": "meta/unevaluated"
+                },
+                {
+                    "$ref": "meta/validation"
+                },
+                {
+                    "$ref": "meta/meta-data"
+                },
+                {
+                    "$ref": "meta/format-annotation"
+                },
+                {
+                    "$ref": "meta/content"
+                }
+            ],
+            "type": [
+                "object",
+                "boolean"
+            ],
+            "$comment": "This meta-schema also defines keywords that have appeared in previous drafts in order to prevent incompatible extensions as they remain in common use.",
+            "properties": {
+                "definitions": {
+                    "$comment": "\"definitions\" has been replaced by \"$defs\".",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$dynamicRef": "#meta"
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "dependencies": {
+                    "$comment": "\"dependencies\" has been split and replaced by \"dependentSchemas\" and \"dependentRequired\" in order to serve their differing semantics.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "anyOf": [
+                            {
+                                "$dynamicRef": "#meta"
+                            },
+                            {
+                                "$ref": "meta/validation#/$defs/stringArray"
+                            }
+                        ]
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "$recursiveAnchor": {
+                    "$comment": "\"$recursiveAnchor\" has been replaced by \"$dynamicAnchor\".",
+                    "$ref": "meta/core#/$defs/anchorString",
+                    "deprecated": true
+                },
+                "$recursiveRef": {
+                    "$comment": "\"$recursiveRef\" has been replaced by \"$dynamicRef\".",
+                    "$ref": "meta/core#/$defs/uriReferenceString",
+                    "deprecated": true
+                }
+            }
+        }
+    }
+}
+```
+
+### Context Definition Example
+
+```json
+{
+    "context_type": "MyExampleContext",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "aProp": {
+                "type": "string"
+            }
+        }
+    }
+}
+```
+
+### Context Definition Validation
+
+Context definitions are valid if all of the following conditions are met:
+- The definition is valid against the context definition schema
+- The definition's `context_type` is unique among context definitions
+- The definition schema's base type is "object"
 
 
 ## Identity Definitions
@@ -51,7 +186,113 @@ This can also be extended to Identity Provider specific identities like **EntraG
 
 Identity definitions enable flexible representation of complex organizational structures and permission models.
 
-**Identity Definition Example**
+### Identity Definition Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Identity Definition",
+    "description": "An identity definition.  Defines a type of identity to use with Authzee.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "identity_type",
+        "schema"
+    ],
+    "properties": {
+        "identity_type": {
+            "title": "Authzee Identity Type",
+            "description": "A unique name to identity this identity type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://json-schema.org/draft/2020-12/schema",
+            "$vocabulary": {
+                "https://json-schema.org/draft/2020-12/vocab/core": true,
+                "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+                "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
+                "https://json-schema.org/draft/2020-12/vocab/validation": true,
+                "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+                "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
+                "https://json-schema.org/draft/2020-12/vocab/content": true
+            },
+            "$dynamicAnchor": "meta",
+            "title": "Core and Validation specifications meta-schema",
+            "allOf": [
+                {
+                    "$ref": "meta/core"
+                },
+                {
+                    "$ref": "meta/applicator"
+                },
+                {
+                    "$ref": "meta/unevaluated"
+                },
+                {
+                    "$ref": "meta/validation"
+                },
+                {
+                    "$ref": "meta/meta-data"
+                },
+                {
+                    "$ref": "meta/format-annotation"
+                },
+                {
+                    "$ref": "meta/content"
+                }
+            ],
+            "type": [
+                "object",
+                "boolean"
+            ],
+            "$comment": "This meta-schema also defines keywords that have appeared in previous drafts in order to prevent incompatible extensions as they remain in common use.",
+            "properties": {
+                "definitions": {
+                    "$comment": "\"definitions\" has been replaced by \"$defs\".",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$dynamicRef": "#meta"
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "dependencies": {
+                    "$comment": "\"dependencies\" has been split and replaced by \"dependentSchemas\" and \"dependentRequired\" in order to serve their differing semantics.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "anyOf": [
+                            {
+                                "$dynamicRef": "#meta"
+                            },
+                            {
+                                "$ref": "meta/validation#/$defs/stringArray"
+                            }
+                        ]
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "$recursiveAnchor": {
+                    "$comment": "\"$recursiveAnchor\" has been replaced by \"$dynamicAnchor\".",
+                    "$ref": "meta/core#/$defs/anchorString",
+                    "deprecated": true
+                },
+                "$recursiveRef": {
+                    "$comment": "\"$recursiveRef\" has been replaced by \"$dynamicRef\".",
+                    "$ref": "meta/core#/$defs/uriReferenceString",
+                    "deprecated": true
+                }
+            }
+        }
+    }
+}
+```
+
+### Identity Definition Example
 
 ```json
 {
@@ -88,17 +329,139 @@ Identity definitions enable flexible representation of complex organizational st
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `identity_type` | string | ✅ | Unique identifier for this identity type. Must be alphanumeric with underscores only. Used as a key in request identity objects. |
-| `schema` | object | ✅ | JSON Schema (Draft 2020-12) that defines the structure and validation rules for identity objects of this type. All identity instances passed in requests must conform to this schema. |
+### Identity Definition Validation
+
+Identity definitions are valid if all of the following conditions are met:
+- The definition is valid against the identity definition schema
+- The definition's `identity_type` is unique among identity definitions
+- The definition schema's base type is "object"
 
 
 ## Resource Definitions 
 
 Resource definitions describe the types of resources that can be accessed and what actions can be performed on them. These represent "what" is being accessed. 
 
-**Resource Definition Example**
+
+### Resource Definition Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Resource Definition",
+    "description": "A resource definition.  Defines a type of resource to use with Authzee.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "resource_type",
+        "actions",
+        "schema"
+    ],
+    "properties": {
+        "resource_type": {
+            "title": "Authzee Resource Type",
+            "description": "A unique name to identity this resource type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "actions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "title": "Resource Action",
+                "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]*$",
+                "minLength": 1,
+                "maxLength": 512
+            }
+        },
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://json-schema.org/draft/2020-12/schema",
+            "$vocabulary": {
+                "https://json-schema.org/draft/2020-12/vocab/core": true,
+                "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+                "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
+                "https://json-schema.org/draft/2020-12/vocab/validation": true,
+                "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+                "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
+                "https://json-schema.org/draft/2020-12/vocab/content": true
+            },
+            "$dynamicAnchor": "meta",
+            "title": "Core and Validation specifications meta-schema",
+            "allOf": [
+                {
+                    "$ref": "meta/core"
+                },
+                {
+                    "$ref": "meta/applicator"
+                },
+                {
+                    "$ref": "meta/unevaluated"
+                },
+                {
+                    "$ref": "meta/validation"
+                },
+                {
+                    "$ref": "meta/meta-data"
+                },
+                {
+                    "$ref": "meta/format-annotation"
+                },
+                {
+                    "$ref": "meta/content"
+                }
+            ],
+            "type": [
+                "object",
+                "boolean"
+            ],
+            "$comment": "This meta-schema also defines keywords that have appeared in previous drafts in order to prevent incompatible extensions as they remain in common use.",
+            "properties": {
+                "definitions": {
+                    "$comment": "\"definitions\" has been replaced by \"$defs\".",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$dynamicRef": "#meta"
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "dependencies": {
+                    "$comment": "\"dependencies\" has been split and replaced by \"dependentSchemas\" and \"dependentRequired\" in order to serve their differing semantics.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "anyOf": [
+                            {
+                                "$dynamicRef": "#meta"
+                            },
+                            {
+                                "$ref": "meta/validation#/$defs/stringArray"
+                            }
+                        ]
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "$recursiveAnchor": {
+                    "$comment": "\"$recursiveAnchor\" has been replaced by \"$dynamicAnchor\".",
+                    "$ref": "meta/core#/$defs/anchorString",
+                    "deprecated": true
+                },
+                "$recursiveRef": {
+                    "$comment": "\"$recursiveRef\" has been replaced by \"$dynamicRef\".",
+                    "$ref": "meta/core#/$defs/uriReferenceString",
+                    "deprecated": true
+                }
+            }
+        }
+    }
+}
+```
+
+### Resource Definition Example
 
 ```json
 {
@@ -127,30 +490,91 @@ Resource definitions describe the types of resources that can be accessed and wh
                 "type": "integer"
             }
         }
-    },
-    "parent_types": [],
-    "child_types": [
-        "BalloonString"
-    ]
+    }
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `resource_type` | string | ✅ | Unique identifier for this resource type. Must be alphanumeric with underscores only. Used to identify the resource type in authorization requests. |
-| `actions` | array[string] | ✅ | List of unique action names that can be performed on this resource type. Actions can include dots, hyphens, colons, and underscores. Common patterns include using a namespace like "Balloon:inflate". It is best to have actions unique to resource types but it is not strictly enforced.|
-| `schema` | object | ✅ | JSON Schema (Draft 2020-12) that defines the structure and validation rules for resource objects of this type. All resource instances must conform to this schema. |
-| `parent_types` | array[string] | ✅ | Array of resource type names that can be parents of this resource type. Parent resources represent containment relationships (e.g., a BalloonStore contains Balloons). Can be empty if no parents exist. |
-| `child_types` | array[string] | ✅ | Array of resource type names that can be children of this resource type. Child resources are contained by this resource type (e.g., a Balloon contains BalloonStrings). Can be empty if no children exist. |
+
+### Resource Definition Validation
+
+Resource definitions are valid if all of the following conditions are met:
+- The definition is valid against the resource definition schema
+- The definition's `resource_type` is unique among resource definitions
+- The definition schema's base type is "object"
 
 
 ## Grants
 
-Grants are the core authorization unit. They query the request and grant data using JMESPath. 
+Grants are the core unit of authorization. They query the request and grant data using JMESPath. 
 
 The grant schema is generated based on the identity and resource definitions. 
 
-**Grant Example**
+
+### Grant Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Grant",
+    "description": "A grant is an object representing enacted authorization rules.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "effect",
+        "actions",
+        "data",
+        "query",
+        "query_validation",
+        "equality"
+    ],
+    "properties": {
+        "effect": {
+            "type": "string",
+            "enum": [
+                "allow",
+                "deny"
+            ],
+            "description": "Any applicable deny grant will always cause the request to be not authorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and not authorized."
+        },
+        "actions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "title": "Resource Action",
+                "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]*$",
+                "minLength": 1,
+                "maxLength": 512
+            },
+            "description": "List of actions this grant applies to or null to match any resource action."
+        },
+        "data": {
+            "type": "object",
+            "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+        },
+        "query": {
+            "type": "string",
+            "description": "JMESPath query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+        },
+        "query_validation": {
+            "type": "string",
+            "title": "Grant-Level Query Validation Setting",
+            "description": "Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+            "enum": [
+                "validate",
+                "error",
+                "critical"
+            ]
+        },
+        "equality": {
+            "description": "Expected value for they query to return.  If the query result matches this value the grant is a considered applicable to the request."
+        }
+    }
+}
+```
+
+### Grant Example
 
 ```json
 {
@@ -164,27 +588,17 @@ The grant schema is generated based on the identity and resource definitions.
     "equality": true,
     "data": {
         "allowed_groups": "MyGroup"
-    },
-    "context_schema": {
-        "type": "object",
-        "required": [
-            "some_context_field"
-        ]
-    },
-    "context_validation": "none"
+    }
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `effect` | string | ✅ | Whether this grant allows or denies access. Must be either "allow" or "deny". Deny grants always take precedence over allow grants. |
-| `actions` | array | ✅ | List of resource actions this grant applies to. Must match actions defined in resource definitions. If an empty array is given, the grant will match all current and future actions. |
-| `query` | string | ✅ | JMESPath expression that evaluates the request data. Has access to `request` (the full request object) and `grant` (the current grant with its data). The top-level query data structure is: `{"request": <request_object>, "grant": <grant_object>}` |
-| `query_validation` | string | ✅ | How to handle JMESPath query errors. Options: <ul><li>`"validate"` - Query errors cause the grant to be inapplicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
-| `equality` | any | ✅ | Expected result from the query for this grant to be applicable. Can be any JSON value (boolean, string, number, object, array, null). |
-| `data` | object | ✅ | Additional data made available to the query as `grant.data`. Useful for storing metadata or values used in query evaluation. |
-| `context_schema` | object | ✅ | JSON Schema for validating the request context. Used to ensure the request has the required context data for this grant. |
-| `context_validation` | string | ✅ | How to handle context validation. Options: <ul><li>`"none"` - There is no validation</li><li>`"validate"` - Context is validated and if the context is invalid, the grant is not applicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
+
+### Grant Definition Validation
+
+Grant definitions are valid if all of the following conditions are met:
+- The definition is valid against the grant definition schema
+- The definition's `grant_type` is unique among grant definitions
+- The definition schema's base type is "object"
 
 
 ## Requests
@@ -225,8 +639,8 @@ The request schema is generated based on the identity and resource definitions.
             }
         ]
     },
-    "resource_type": "Balloon",
     "action": "inflate",
+    "resource_type": "Balloon",
     "resource": {
         "id": "balloon456",
         "color": "red",
@@ -235,47 +649,26 @@ The request schema is generated based on the identity and resource definitions.
         "owner_department": "party_planning",
         "inflated": false
     },
-    "parents": {
-        "BalloonStore": [
-            {
-                "id": "store123",
-                "name": "Party Central",
-                "owner_department": "party_planning",
-                "location": "Building A"
-            }
-        ]
-    },
-    "children": {
-        "BalloonString": [
-            {
-                "id": "string1",
-                "length": 24.5,
-                "color": "white",
-                "material": "cotton"
-            }
-        ]
-    },
     "query_validation": "error",
+    "context_type": "event",
     "context": {
         "request_source": "web_ui",
         "timestamp": "2023-12-07T10:30:00Z",
         "event_type": "birthday_party"
-    },
-    "context_validation": "grant"
+    }
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `identities` | object | ✅ | Map of identity type names to arrays of identity objects. Each identity type must match a defined identity definition and conform to its schema. |
-| `resource_type` | string | ✅ | The type of resource being accessed. Must match a defined resource definition, `resource_type`. |
-| `action` | string | ✅ | The specific action being requested on the resource. Must be one of the actions defined for the resource type. |
-| `resource` | object | ✅ | The target resource object. Must conform to the schema defined for the resource type. |
-| `parents` | object | ✅ | Map of parent resource type names to arrays of parent resource objects. Only includes types listed in the resource definition's `parent_types`. |
-| `children` | object | ✅ | Map of child resource type names to arrays of child resource objects. Only includes types listed in the resource definition's `child_types`. |
-| `query_validation` | string | ✅ | Request-level override for query validation. Options: <ul><li>`"grant"` - Use the grant level query validation setting</li><li>`"validate"` - Query errors cause the grant to be inapplicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
-| `context` | object | ✅ | Additional context data for authorization decisions. Available to grant queries as `request.context`. The structure can be flexible depending on grant and request level context validation settings. |
-| `context_validation` | string | ✅ | Request-level override for context validation. Options: <ul><li>`"grant"` - Use the grant level context validation setting</li><li>`"none"` - There is no validation</li><li>`"validate"` - Context is validated and if the context is invalid, the grant is not applicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
+### Identity Definition Validation
+
+Identity definitions are valid if all of the following conditions are met:
+- The definition is valid against the identity definition schema
+- The definition's `identity_type` is unique among identity definitions
+- The definition schema's base type is "object"
+
+
+
+
 
 
 ## Workflows

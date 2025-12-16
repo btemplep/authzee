@@ -8,7 +8,7 @@ from src.reference import authorize_workflow
 identity_definitions = [
     {
         "identity_type": "User", # unique identity type
-        "schema": { # JSON Schema 
+        "schema": { # JSON Schema for Users
             "type": "object",
             "properties": {
                 "id": {
@@ -48,6 +48,11 @@ resource_definitions = [
         ],
         "schema": { # JSON Schema
             "type": "object", 
+            "required": [
+                "id",
+                "color",
+                "size"
+            ],
             "properties": {
                 "id": {
                     "type": "string"
@@ -63,27 +68,25 @@ resource_definitions = [
                         "large"
                     ]
                 }
-            },
-            "required": [
-                "id",
-                "color",
-                "size"
-            ]
+            }
         }
     }
 ]
 
-# 3. Define Contexts - extra data that is passed to the request
+# 3. Define Contexts - Context is extra data that is passed to the request
 context_definitions = [
-    {
+    { # no context
         "context_type": "NULL",
         "schema": {
-            "type": "null"
+            "type": "object",
+            "additionalProperties": False
         }
     },
-    {
+    { # any context
         "context_type": "ANY",
-        "schema": {}
+        "schema": {
+            "type": "object"
+        }
     },
     {
         "context_type": "MySpecialContext",
@@ -105,16 +108,19 @@ context_definitions = [
 # 4. Define Grants - access rules 
 grants = [
     {
+        "grant_uuid": "03a11eb3-45cb-48e5-887f-757034ef762a",
+        "name": "Admin Read Pop",
+        "description": "Allow Admins to read and pop balloons.",
         "effect": "allow", # allow or deny
         "actions": [ # any actions from your resources or empty to match all actions
             "Balloon:Read",
             "pop"
         ],
-        "query": "contains(request.identities.User[*].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
-        # In this case, the above query will return `true` if any of the calling entity's User type identities have the admin role
+        "query": "contains(request.identities.User[0].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
+        # In this case, the above query will return `true` if the calling entity's zeroth User type identity has the admin role
         "query_validation": "validate",
         "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
-        "data": {}, # extra free from data to store with grant
+        "data": {}, # extra free from data to store with this grant
     }
 ]
 
@@ -144,7 +150,7 @@ request = {
     }
 }
 
-# 6. Check authorization
+# 6. Given all of the previous definitions and grants, check if the request is authorized.
 result = authorize_workflow(
     context_definitions,
     identity_definitions,
@@ -163,12 +169,15 @@ else:
 # {
 #     "is_authorized": true,
 #     "grant": {
+#         "grant_uuid": "03a11eb3-45cb-48e5-887f-757034ef762a",
+#         "name": "Admin Read Pop",
+#         "description": "Allow Admins to read and pop balloons.",
 #         "effect": "allow",
 #         "actions": [
 #             "Balloon:Read",
 #             "pop"
 #         ],
-#         "query": "contains(request.identities.User[*].role, 'admin')",
+#         "query": "contains(request.identities.User[0].role, 'admin')",
 #         "query_validation": "validate",
 #         "equality": true,
 #         "data": {}
