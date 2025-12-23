@@ -22,7 +22,7 @@ __all__ = [
     "grant_schema",
     "definition_error_schema",
     "grant_error_schema",
-    "jmespath_error_schema",
+    "query_error_schema",
     "request_error_schema",
     "validate_definitions_response_schema",
     "validate_grants_response_schema",
@@ -53,8 +53,6 @@ __all__ = [
 
 from typing import Callable, Dict, List, Union
 
-import jmespath
-import jmespath.exceptions
 import jsonschema
 import jsonschema.exceptions
 
@@ -98,7 +96,7 @@ context_definition_schema = {
     "title": "Context Definition",
     "description": "A request context definition.  Defines a type of context that can be passed with Authzee requests.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "context_type",
         "schema"
@@ -113,7 +111,7 @@ identity_definition_schema = {
     "title": "Identity Definition",
     "description": "An identity definition.  Defines a type of identity to use with Authzee.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "identity_type",
         "schema"
@@ -128,7 +126,7 @@ resource_definition_schema = {
     "title": "Resource Definition",
     "description": "A resource definition.  Defines a type of resource to use with Authzee.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "resource_type",
         "actions",
@@ -164,11 +162,8 @@ grant_schema = {
     "title": "Grant",
     "description": "A grant is an object representing enacted authorization rules.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
-        "grant_uuid",
-        "name",
-        "description",
         "effect",
         "actions",
         "data",
@@ -177,19 +172,6 @@ grant_schema = {
         "equality"
     ],
     "properties": {
-        "grant_uuid": {
-            "type": "string",
-            "format": "uuid",
-            "description": "UUID for this grant."
-        },
-        "name": {
-            "type": "string",
-            "description": "Short, people friendly name for the grant."
-        },
-        "description": {
-            "type": "string",
-            "description": "Long, people friendly description for the grant."
-        },
         "effect": {
             "type": "string",
             "enum": [
@@ -214,7 +196,7 @@ grant_schema = {
         },
         "query": {
             "type": "string",
-            "description": "JMESPath query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+            "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
         },
         "query_validation": _query_validation_schema,
         "equality": {
@@ -224,7 +206,7 @@ grant_schema = {
 }
 _is_critical_schema = {
     "type": "boolean",
-    "description": "If this error is critical, thus causing the the Authzee Operation to exit early."
+    "description": "If this error is critical. Critical errors generally halt further operations."
 }
 _error_message_schema = {
     "type": "string",
@@ -234,7 +216,7 @@ definition_error_schema = {
     "title": "Definition Error",
     "description": "Error when an context, identity, or resource definition is not valid.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "is_critical",
         "message",
@@ -261,7 +243,7 @@ grant_error_schema = {
     "title": "Grant Error",
     "description": "Error when an grant is not valid.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "is_critical",
         "message",
@@ -275,11 +257,11 @@ grant_error_schema = {
         }
     }
 }
-jmespath_error_schema = {
-    "title": "JMESPath Error",
-    "description": "Error when a JMESPath query for a grant produces an error.",
+query_error_schema = {
+    "title": "Query Error",
+    "description": "Error when a JSON query fails.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "is_critical",
         "message",
@@ -295,7 +277,7 @@ request_error_schema = {
     "title": "Authzee Operation Request Error",
     "description": "Error when a request is not valid.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "is_critical",
         "message"
@@ -439,18 +421,14 @@ validate_request_response_schema = {
 _operation_errors_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Operation Response Errors",
-    "description": "Errors returned from Authzee Operations. NOTE: Because requests are tied so closely to operations, request validation errors are also included in the schema.",
+    "description": "Errors returned from Authzee Operations.",
     "type": "object",
     "additionalProperties": False,
     "required": [],
     "properties": {
-        "jmespath": {
+        "query": {
             "type": "array",
-            "items": jmespath_error_schema
-        },
-        "request": {
-            "type": "array",
-            "items": request_error_schema
+            "items": query_error_schema
         }
     }
 }
@@ -480,9 +458,9 @@ evaluate_one_response_schema = {
             "additionalProperties": False,
             "required": [],
             "properties": {
-                "jmespath": {
+                "query": {
                     "type": "array",
-                    "items": jmespath_error_schema
+                    "items": query_error_schema
                 },
                 "request": {
                     "type": "array",
@@ -497,7 +475,7 @@ audit_response_schema = {
     "title": "Audit Response",
     "description": "Response for the audit operation.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "grants",
         "has_failed",
@@ -518,7 +496,7 @@ authorize_response_schema = {
     "title": "Authorize Response",
     "description": "Response for the authorize operation.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "is_authorized",
         "grant",
@@ -540,7 +518,13 @@ authorize_response_schema = {
         },
         "message": {
             "type": "string",
-            "description": "Details about why the request was authorized or not."
+            "description": "Details about why the request was authorized or not.",
+            "enum": [
+                "A critical error has occurred. Therefore, the request is not authorized.",
+                "A deny grant is applicable to the request. Therefore, the request is not authorized.",
+                "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+                "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
+            ]
         },
         "has_failed": _has_failed_schema,
         "critical_errors": _operation_errors_schema
@@ -553,7 +537,7 @@ batch_request_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Batch Operation Request",
     "description": "Request for an Authzee Batch Operation.",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "identities",
         "action",
@@ -680,14 +664,9 @@ _batch_response_errors_schema = {
     "title": "Batch Response Errors",
     "description": "Errors returned from Authzee Batch requests.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [],
-    "properties": {
-        "request": {
-            "type": "array",
-            "items": request_error_schema
-        }
-    }
+    "properties": {}
 }
 _has_failed_batch_schema = {
     "type": "boolean",
@@ -698,7 +677,7 @@ batch_audit_response_schema = {
     "title": "Batch Audit Response",
     "description": "Response for the Batch Audit Operation.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "results",
         "has_failed",
@@ -719,7 +698,7 @@ batch_authorize_response_schema = {
     "title": "Batch Authorize Response",
     "description": "Response for the Batch Authorize Operation.",
     "type": "object",
-    "additionalProperties": False,
+    "additionalProperties": True,
     "required": [
         "results",
         "has_failed",
@@ -1140,7 +1119,7 @@ def evaluate_one(
             }
         ):
             result['applicable'] = True
-    except jmespath.exceptions.JMESPathError as exc:
+    except Exception as exc:
         q_val = grant['query_validation'] if request['query_validation'] == "grant" else request['query_validation']
         is_q_val_crit = q_val == "critical"
         if (
@@ -1150,10 +1129,10 @@ def evaluate_one(
             )
             or is_q_val_crit is True
         ):
-            result['errors']['jmespath'] = [
+            result['errors']['query'] = [
                 {
                     "is_critical": is_q_val_crit,
-                    "message": f"A JMESPath error has occurred: {exc}.",
+                    "message": f"A JSON Query error has occurred: {exc}.",
                     "grant": grant
                 }
             ]
@@ -1172,12 +1151,12 @@ def audit(
         "grants": [],
         "has_failed": False,
         "errors": {
-            "jmespath": []
+            "query": []
         }
     }
     for g in grants:
         g_eval = evaluate_one(request, g, search, False)
-        result['errors']['jmespath'] += g_eval['errors'].get("jmespath", [])
+        result['errors']['query'] += g_eval['errors'].get("query", [])
         if g_eval['has_failed'] is True:
             result['has_failed'] = True
 
@@ -1186,14 +1165,14 @@ def audit(
         elif g_eval['applicable'] is True:
             result['grants'].append(g)
     
-    if len(result['errors']['jmespath']) == 0:
+    if len(result['errors']['query']) == 0:
         result['errors'] = {}
 
     return result
 
 
 def _get_authz_error(errors):
-    return errors if len(errors['jmespath']) > 0 else {}
+    return errors if len(errors['query']) > 0 else {}
 
 
 def authorize(
@@ -1202,7 +1181,7 @@ def authorize(
     search: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     errors =  {
-        "jmespath": []
+        "query": []
     }
     allow_grants = []
     deny_grants = []
@@ -1214,7 +1193,7 @@ def authorize(
     
     for g in deny_grants:
         g_eval = evaluate_one(request, g, search, True)
-        errors['jmespath'] += g_eval['errors'].get("jmespath", [])
+        errors['query'] += g_eval['errors'].get("query", [])
         if g_eval['has_failed'] is True:
             return {
                 "is_authorized": False,
@@ -1235,7 +1214,7 @@ def authorize(
     
     for g in allow_grants:
         g_eval = evaluate_one(request, g, search, True)
-        errors['jmespath'] += g_eval['errors'].get("jmespath", [])
+        errors['query'] += g_eval['errors'].get("query", [])
         if g_eval['has_failed'] is True:
             return {
                 "is_authorized": False,
@@ -1257,7 +1236,7 @@ def authorize(
     return {
         "is_authorized": False,
         "grant": None,
-        "message": "No allow or deny grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
+        "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
         "has_failed": False,
         "critical_errors": _get_authz_error(errors)
     }

@@ -292,9 +292,6 @@ context_definitions = [ # note that context root types must be objects!
 # 4. Define Grants - access rules 
 grants = [
     { 
-        "grant_uuid": "ab57355a-dc2a-4a6e-b642-727069e70a41",
-        "name": "User Read Balloons",
-        "description": "Allow users to read balloons in their department.",
         "effect": "allow",
         "actions": [
             "read"
@@ -306,9 +303,6 @@ grants = [
         "data": {}
     },
     {
-        "grant_uuid": "ad3448fc-8e78-48e4-bbae-c5e8d22b032f",
-        "name": "User Read context team Balloons",
-        "description": "Allow users to read balloons on the context team.",
         "effect": "allow",
         "actions": [
             "read"
@@ -319,9 +313,6 @@ grants = [
         "data": {}
     },
     {
-        "grant_uuid": "74060ab5-7cd5-41f7-96d9-490ee120b411",
-        "name": "Admin null context all",
-        "description": "Allow users with admin role to perform any action if given a null context.",
         "effect": "allow", 
         "actions": [
             "read",
@@ -335,10 +326,7 @@ grants = [
         "equality": True,
         "data": {}
     },
-    { # 
-        "grant_uuid": "66a1a821-f424-49b9-a435-9691a388ee74",
-        "name": "Group read department balloon",
-        "description": "Allow members of department groups to read balloons in that department.",
+    { 
         "effect": "allow",
         "actions": [
             "read"
@@ -348,10 +336,7 @@ grants = [
         "equality": True,
         "data": {}
     },
-    { # 
-        "grant_uuid": "edc82a71-1bad-4a40-9678-1da30e630ac4",
-        "name": "Allow user balloon inflate with role permissions",
-        "description": "Allow inflate access if user has balloon permission in their role, and the balloon is in the users department.",
+    { 
         "effect": "allow",
         "actions": [
             "inflate"
@@ -362,9 +347,6 @@ grants = [
         "data": {}
     },
     {
-        "grant_uuid": "2ad2dc5f-2452-4bd0-8e5f-ef602e16d9e1",
-        "name": "Deny pop for non-admin",
-        "description": "Deny pop access for large balloons unless admin.",
         "effect": "deny",
         "actions": [
             "pop"
@@ -374,10 +356,7 @@ grants = [
         "equality": True,
         "data": {}
     },
-    { # 
-        "grant_uuid": "86d7fc42-9908-4391-b7b0-7bb5ae752ae5",
-        "name": "Deny no identities",
-        "description": "Deny if they don't have any user identities.",
+    {
         "effect": "deny",
         "actions": [],
         "query": "request.context_type == 'NULL' && length(request.identities.User) == `0`",
@@ -464,9 +443,6 @@ print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 # {
 #     "grants": [
 #         {
-#             "grant_uuid": "6a98d38a-2c47-4558-9156-a049a716760b",
-#             "name": "Allow user balloon inflate with role permissions",
-#             "description": "Allow inflate access if user has balloon permission in their role, and the balloon is in the users department.",
 #             "effect": "allow",
 #             "actions": [
 #                 "inflate"
@@ -497,9 +473,6 @@ print(f"Authorization Result:\n{json.dumps(authorization_result, indent=4)}")
 # {
 #     "is_authorized": true,
 #     "grant": {
-#         "grant_uuid": "6a98d38a-2c47-4558-9156-a049a716760b",
-#         "name": "Allow user balloon inflate with role permissions",
-#         "description": "Allow inflate access if user has balloon permission in their role, and the balloon is in the users department.",
 #         "effect": "allow",
 #         "actions": [
 #             "inflate"
@@ -627,9 +600,6 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #         {
 #             "grants": [
 #                 {
-#                     "grant_uuid": "6a98d38a-2c47-4558-9156-a049a716760b",
-#                     "name": "Allow user balloon inflate with role permissions",
-#                     "description": "Allow inflate access if user has balloon permission in their role, and the balloon is in the users department.",
 #                     "effect": "allow",
 #                     "actions": [
 #                         "inflate"
@@ -652,9 +622,6 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #                         "is_critical": false,
 #                         "message": "A JMESPath error has occurred: In function contains(), invalid type for value: None, expected one of: ['array', 'string'], received: \"null\".",
 #                         "grant": {
-#                             "grant_uuid": "8f8c4ee7-eea3-4d81-a736-abe6c3c4c3c3",
-#                             "name": "Admin null context all",
-#                             "description": "Allow users with admin role to perform any action if given a null context.",
 #                             "effect": "allow",
 #                             "actions": [
 #                                 "read",
@@ -673,9 +640,6 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #                         "is_critical": false,
 #                         "message": "A JMESPath error has occurred: In function contains(), invalid type for value: None, expected one of: ['array', 'string'], received: \"null\".",
 #                         "grant": {
-#                             "grant_uuid": "6a98d38a-2c47-4558-9156-a049a716760b",
-#                             "name": "Allow user balloon inflate with role permissions",
-#                             "description": "Allow inflate access if user has balloon permission in their role, and the balloon is in the users department.",
 #                             "effect": "allow",
 #                             "actions": [
 #                                 "inflate"
@@ -692,9 +656,6 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #         {
 #             "grants": [
 #                 {
-#                     "grant_uuid": "6a98d38a-2c47-4558-9156-a049a716760b",
-#                     "name": "Allow user balloon inflate with role permissions",
-#                     "description": "Allow inflate access if user has balloon permission in their role, and the balloon is in the users department.",
 #                     "effect": "allow",
 #                     "actions": [
 #                         "inflate"
@@ -730,9 +691,6 @@ print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}"
 #         {
 #             "is_authorized": true,
 #             "grant": {
-#                 "grant_uuid": "edc82a71-1bad-4a40-9678-1da30e630ac4",
-#                 "name": "Allow user balloon inflate with role permissions",
-#                 "description": "Allow inflate access if user has balloon permission in their role, and the balloon is in the users department.",
 #                 "effect": "allow",
 #                 "actions": [
 #                     "inflate"
@@ -756,9 +714,6 @@ print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}"
 #         {
 #             "is_authorized": true,
 #             "grant": {
-#                 "grant_uuid": "edc82a71-1bad-4a40-9678-1da30e630ac4",
-#                 "name": "Allow user balloon inflate with role permissions",
-#                 "description": "Allow inflate access if user has balloon permission in their role, and the balloon is in the users department.",
 #                 "effect": "allow",
 #                 "actions": [
 #                     "inflate"

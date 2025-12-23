@@ -108,9 +108,6 @@ context_definitions = [
 # 4. Define Grants - access rules 
 grants = [
     {
-        "grant_uuid": "03a11eb3-45cb-48e5-887f-757034ef762a",
-        "name": "Admin Read Pop",
-        "description": "Allow Admins to read and pop balloons.",
         "effect": "allow", # allow or deny
         "actions": [ # any actions from your resources or empty to match all actions
             "Balloon:Read",
@@ -169,9 +166,6 @@ else:
 # {
 #     "is_authorized": true,
 #     "grant": {
-#         "grant_uuid": "03a11eb3-45cb-48e5-887f-757034ef762a",
-#         "name": "Admin Read Pop",
-#         "description": "Allow Admins to read and pop balloons.",
 #         "effect": "allow",
 #         "actions": [
 #             "Balloon:Read",
