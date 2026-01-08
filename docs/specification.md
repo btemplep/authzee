@@ -19,8 +19,8 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
 - Case conventions can be changed to align with language conventions.
 - Input and output data structures can have additional properties where allowed in their respective schemas.  Implementations are expected to build upon the base schemas. 
 - Errors and especially critical errors are left up to implementations to decide the method of presenting the error. Whether it is directly returned from a function, raised via an exception, or by other means. 
-    - Errors and responses are still expected to follow the schemas laid out here. 
-    - For example, an "Authorize" operation that encounters a critical error should always include the response matching the Authorize Response Schema when the error is presented. 
+    - Errors and results are still expected to follow the schemas laid out here. 
+    - For example, an "Authorize" operation that encounters a critical error should always include the result matching the Authorize Result Schema when the error is presented. 
     - For something like a validation error on an identity, the return value or exception should include a data structure that matches the Definition Error Schema.
 - Titles and descriptions included in the schema fields are considered part of the spec.  Check the schemas first for detailed information on the fields. 
 
@@ -61,17 +61,17 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
     - [Batch Request Evaluation](#batch-request-evauluation)
 - [Operations](#operations)
     - [Audit](#audit)
-        - [Audit Response Example](#audit-response-example)
-        - [Audit Response Schema](#audit-response-schema) 
+        - [Audit Result Example](#audit-result-example)
+        - [Audit Result Schema](#audit-result-schema) 
     - [Authorize](#authorize)
-        - [Authorize Response Example](#authorize-response-example)
-        - [Authorize Response Schema](#authorize-response-schema) 
+        - [Authorize Result Example](#authorize-result-example)
+        - [Authorize Result Schema](#authorize-result-schema) 
     - [Batch Audit](#batch-audit)
-        - [Batch Audit Response Example](#batch-audit-response-example)
-        - [Batch Audit Response Schema](#batch-audit-response-schema) 
+        - [Batch Audit Result Example](#batch-audit-result-example)
+        - [Batch Audit Result Schema](#batch-audit-result-schema) 
     - [Batch Authorize](#batch-authorize)
-        - [Batch Authorize Response Example](#batch-authorize-response-example)
-        - [Batch Authorize Response Schema](#batch-authorize-response-schema) 
+        - [Batch Authorize Result Example](#batch-authorize-result-example)
+        - [Batch Authorize Result Schema](#batch-authorize-result-schema) 
 
 
 ## Definition of Terms
@@ -619,14 +619,16 @@ Grants are the Authzee unit of authorization. They query the request and grant d
 {
     "effect": "allow",
     "actions": [
-        "Balloon:Pop",
         "Balloon:Inflate"
     ],
-    "query": "contains(request.identities.Group[? contains(grant.data.allowed_groups, cn)]",
+    "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
     "query_validation": "validate",
     "equality": true,
     "data": {
-        "allowed_groups": "MyGroup"
+        "allowed_departments": [
+            "Maintenance",
+            "Balloon Sales"
+        ]
     }
 }
 ```
@@ -703,7 +705,7 @@ Grant are valid if all of the following conditions are met:
 - The grant is valid against the grant schema
 - The resource actions listed in the grants are all valid against passed in/registered resource definitions.
 
-If an error occurs when validating an grant, a grant error should be returned/raised.
+If an error occurs when validating a grant, a grant error should be returned/raised.
 
 ### Grant Error Schema
 
@@ -924,7 +926,7 @@ Batch requests represent a calling entity's request to perform an operation on a
 - Context Type
 - Context
 
-Grant searches are naturally partitioned on actions.  This allows better balancing of waiting for grant storage queries and computing a list of items linked by resource action. 
+Grants are naturally partitioned on actions. Batch request try to take advantage of this by balancing the time to retrieve grants and process them.
 
 ### Batch Request Example
 
@@ -1183,7 +1185,7 @@ Grant searches are naturally partitioned on actions.  This allows better balanci
 Batch Requests are valid if all of the following conditions are met:
 - The batch request is valid against the batch request schema
 - All root fields are valid as outlined in [Request Validation](#request-validation).
-- Each item in the batch is formatted into a standard request as outlined in [Batch Request Evaluation](#batch-request-validation), and then each request is valid as outlined in [Request Validation](#request-validation)
+- Each item in the batch is formatted into a standard request as outlined in [Batch Request Evaluation](#batch-request-evaluation), and then each request is valid as outlined in [Request Validation](#request-validation)
 
 
 ### Batch Request Error Schema
@@ -1193,29 +1195,62 @@ Currently there are no Batch Request specific errors.
 
 ## Evaluations
 
-Evaluations are the primary unit of work in Authzee.  Authzee operations evaluate requests against grants to determine if a grant is applicable to a request. What is done with the applicable grants is dependent on the operation.  For example, Audit will just return all applicable grants for the request as a way to audit what grants are giving access.
+Evaluations are the primary unit of work in Authzee.  Authzee operations evaluate requests against grants to determine if a grant is applicable to a request. What is done with the applicable grants is dependent on the operation.  For example, Audit will just return all grants and the evaluation results for the request.
 
 
 ### Request Evaluation
 
 > **NOTE**: Use of "AND" stands for logical AND.  Use of "OR" stands for logical OR.
 
-Request evaluation requires that all inputs must be validated: identity definitions, resource definitions, context definitions, request/batch request, and grants.. 
+Request evaluation requires that all inputs must be validated: identity definitions, resource definitions, context definitions, request/batch request, and grants.
 
-Request evaluation requires the request, a grant, and a search function.  
+Request evaluation requires the request, a grant, and an execute function.  
 
-The search function runs a JSON query on JSON data and returns the results. Here is an example in python where the `AnyJSON` type represents the python equivalent of all valid JSON types:
+The execute function runs a JSON query on JSON data and returns the results. Here is an example in python where the `AnyJSON` type represents the python equivalent of all valid JSON types:
 
 ```python
-def search(query: str, data: AnyJSON) -> AnyJSON:
+def execute(expression: str, data: AnyJSON) -> AnyJSON:
     pass
+```
+
+Expected return schema for JSON query execute functions. 
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Result for a JSON query execute function",
+    "description": "Result from evaluating a JSON query against the given input data.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "result",
+        "has_failed",
+        "error_message"
+    ],
+    "properties": {
+        "result": {
+            "description": "Result from running the JSON query."
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the query failed to execute."
+        },
+        "error_message": {
+            "type": [
+                "str",
+                "null"
+            ],
+            "description": "Details of why the query failed. If no errors, then it is null."
+        }
+    }
+}
 ```
 
 A grant is applicable to a request if all of the following are true:
 - The grant has 0 actions OR the request action is in the grant actions.
-- The JSON search function is called with the grant's query as the query parameter, along with the request and grant nested under an object as the data parameter like so: `search(grant.query, {"request": <request body>, "grant": <grant_body>})` 
-- The JSON search function call produces no errors
-- The result of the JSON search function is equal to the grant's equality property value
+- The JSON execute function is called with the grant's query as the `expression` parameter, along with the request and grant nested under an object as the `data` parameter like so: `execute(grant.query, {"request": <request body>, "grant": <grant_body>})` 
+- The JSON  function call produces no errors
+- The result of the JSON execute function is equal to the grant's equality property value
 
 
 ### Batch Request Evaluation
@@ -1241,15 +1276,15 @@ Operations are the core functionality of Authzee. Before running an Authzee oper
 
 ### Audit
 
-The Audit operation is used to evaluate grants that are applicable to a given request, as well as record errors when evaluating grants. 
+The Audit operation is used to collet grant evaluation results against a request. 
 
 Audit Steps for each grant:
-- The grant is evaluated against the request
-- If it is applicable, it is appended to the response grant list
-- If there is an error, it is recorded in the error section. 
-- If an error is critical, `has_failed` is set to `true` and the operation exits.
+- The grants are added to the result.
+- Each grant is evaluated against the request and the result is appended to the results. 
+- If an error occurs and it is critical, `has_failed` is set to `true`, an error is added at the request level, and the operation exits.
 
-#### Audit Response Example
+
+#### Audit Result Example
 
 ```json
 {
@@ -1286,13 +1321,13 @@ Audit Steps for each grant:
 }
 ```
 
-#### Audit Response Schema
+#### Audit Result Schema
 
 ```json
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Audit Response",
-    "description": "Response for the audit operation.",
+    "title": "Audit Result",
+    "description": "Result for the audit operation.",
     "type": "object",
     "additionalProperties": true,
     "required": [
@@ -1370,7 +1405,7 @@ Audit Steps for each grant:
         },
         "errors": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Operation Response Errors",
+            "title": "Operation Result Errors",
             "description": "Errors returned from Authzee Operations.",
             "type": "object",
             "additionalProperties": false,
@@ -1467,11 +1502,11 @@ Audit Steps for each grant:
 
 ### Authorize
 
-The Authorize operation is meant to give an authorization decision for a request. 
+The Authorize operation gives an authorization decision for a request. 
 
 By default, nothing is authorized in Authzee. 
 
-A request is authorized if all of the following are true:
+A request is authorized if **all** of the following are true:
 - A grant with an `allow` effect is applicable to the request
 - No grants with a `deny` effect are applicable to the request. 
 - No critical errors were encountered when processing the request.
@@ -1482,7 +1517,7 @@ A request is not authorized if **any** of the following are true:
 - A critical errors was encountered when processing the request.
 
 
-#### Authorize Response Example
+#### Authorize Result Example
 
 ```json
 {
@@ -1504,13 +1539,13 @@ A request is not authorized if **any** of the following are true:
 }
 ```
 
-#### Authorize Response Schema
+#### Authorize Result Schema
 
 ```json
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Authorize Response",
-    "description": "Response for the authorize operation.",
+    "title": "Authorize Result",
+    "description": "Result for the authorize operation.",
     "type": "object",
     "additionalProperties": true,
     "required": [
@@ -1608,7 +1643,7 @@ A request is not authorized if **any** of the following are true:
         },
         "critical_errors": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Operation Response Errors",
+            "title": "Operation Result Errors",
             "description": "Errors returned from Authzee Operations.",
             "type": "object",
             "additionalProperties": false,
@@ -1705,15 +1740,15 @@ A request is not authorized if **any** of the following are true:
 
 ### Batch Audit
 
-The Audit operation is used to list grants that are applicable to a given request, as well as record errors when evaluating grants. 
+The Batch Audit operation is used to run the Audit operation over a batch request with the same list of given grants. 
 
-#### Batch Audit Response Example
+#### Batch Audit Result Example
 
 ```json
 
 ```
 
-#### Batch Audit Response Schema
+#### Batch Audit Result Schema
 
 ```json
 
@@ -1721,14 +1756,16 @@ The Audit operation is used to list grants that are applicable to a given reques
 
 ### Batch Authorize
 
-#### Batch Authorize Response Example
+The Batch Authorize operation is used to run the Authorize operation over a batch request.  
+
+#### Batch Authorize Result Example
 
 ```json
 
 ```
 
 
-#### Batch Authorize Response Schema
+#### Batch Authorize Result Schema
 
 ```json
 

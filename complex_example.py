@@ -1,5 +1,6 @@
 
 import json
+from typing import Any
 
 import jmespath
 import jmespath.functions
@@ -418,7 +419,22 @@ request = {
     }
 }
 
-# 5.b. (Optional) Add custom JMESPath functions
+# 6.a. Define a function wrapping your preferred JSON query language to return the expected schema.
+def execute(expression: str, data: Any) -> Any:
+    result = {
+        "result": None,
+        "has_failed": False,
+        "error_message": None
+    }
+    try:
+        result['result'] = jmespath.search(expression, data)
+    except Exception as exc:
+        result['has_failed'] = True
+        result['error_message'] = f"A JSON Query error has occurred: {exc}"
+    
+    return result
+
+# 6.b. (Optional) Add custom JMESPath functions
 class CustomFunctions(jmespath.functions.Functions):
     @jmespath.functions.signature({'types': ['number']}, {'types': ['number']})
     def _func_my_add(self, x, y):
@@ -426,17 +442,29 @@ class CustomFunctions(jmespath.functions.Functions):
 
 options = jmespath.Options(custom_functions=CustomFunctions())
 
-def my_search(expression: str, data):
-    return jmespath.search(expression, data, options)
+def my_execute(expression: str, data: Any) -> Any:
+    result = {
+        "result": None,
+        "has_failed": False,
+        "error_message": None
+    }
+    try:
+        result['result'] = jmespath.search(expression, data, options)
+    except Exception as exc:
+        result['has_failed'] = True
+        result['error_message'] = f"A JSON Query error has occurred: {exc}"
+    
+    return result
 
-# 6.a. Audit - Find grants applicable to the request.  As the name says, this is good for auditing access
+
+# 7.a. Audit - Evaluate grants against the request.  As the name says, this is good for auditing access
 audit_result = audit_workflow(
     context_definitions,
     identity_definitions,
     resource_definitions,
     grants,
     request,
-    jmespath.search # JMESPath search function or custom function
+    my_execute
 )
 print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 # Audit Result:
@@ -458,7 +486,7 @@ print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 # }
 
 
-# 6.b. Authorized - Optimized to decide if the given request is authorized
+# 7.b. Authorized - Optimized to decide if the given request is authorized
 # Requests are authorized if they have a matching allow grant and no matching deny grants. 
 authorization_result = authorize_workflow(
     context_definitions,
@@ -466,7 +494,7 @@ authorization_result = authorize_workflow(
     resource_definitions, 
     grants,
     request,
-    my_search # JMESPath search function or custom function
+    my_execute 
 )
 print(f"Authorization Result:\n{json.dumps(authorization_result, indent=4)}")
 # Authorization Result:
@@ -487,7 +515,7 @@ print(f"Authorization Result:\n{json.dumps(authorization_result, indent=4)}")
 #     "critical_errors": {}
 # }
 
-# 7. Create a batch request. 
+# 8. Create a batch request. 
 # Requests can be batched for the same action. They can share all other fields in a normal request. 
 # if the batch item does not specify a request field then it uses the default that is specified in the top level of the batch request. 
 batch_request = {
@@ -583,14 +611,14 @@ batch_request = {
     ]  
 }
 
-# 6.a. Audit which grants are applicable (useful for auditing)
+# 9.a. Evaluate several requests with the same action against grants
 batch_audit_results = batch_audit_workflow(
     context_definitions,
     identity_definitions,
     resource_definitions,
     grants,
     batch_request,
-    jmespath.search # JMESPath search function or custom function
+    my_execute 
 )
 print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 # Audit Result - An array of audit results that maps to the batch_request.resources array
@@ -674,14 +702,14 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #     "errors": {}
 # }
 
-# 7.b. Make authorization decision
+# 9.b. Check if several requests with the same action are authorized.
 batch_authorize_result = batch_authorize_workflow(
     context_definitions,
     identity_definitions,
     resource_definitions, 
     grants,
     batch_request,
-    my_search # JMESPath search function or custom function
+    my_execute 
 )
 print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}")
 # Authorization Result - An array of authorization results that maps to the batch_request.resources array

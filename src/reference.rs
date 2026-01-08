@@ -179,14 +179,14 @@ pub struct EvaluateOneResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuditResponse {
+pub struct AuditResult {
     pub completed: bool,
     pub grants: Vec<Grant>,
     pub errors: Errors,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthorizeResponse {
+pub struct AuthorizeResult {
     pub authorized: bool,
     pub completed: bool,
     pub grant: Option<Grant>,
@@ -541,8 +541,8 @@ pub fn generate_schemas(
     }
     
     let audit_schema = json!({
-        "title": "Audit Response",
-        "description": "Response for the audit workflow.",
+        "title": "Audit Result",
+        "description": "Result for the audit workflow.",
         "type": "object",
         "additionalProperties": false,
         "required": ["grants", "errors"],
@@ -561,8 +561,8 @@ pub fn generate_schemas(
     });
     
     let authorize_schema = json!({
-        "title": "Authorize Response",
-        "description": "Response for the authorize workflow.",
+        "title": "Authorize Result",
+        "description": "Result for the authorize workflow.",
         "type": "object",
         "additionalProperties": false,
         "required": ["authorized", "completed", "grant", "message", "errors"],
@@ -724,11 +724,11 @@ where
     result
 }
 
-pub fn audit<F>(request: &Request, grants: &[Grant], search: F) -> AuditResponse
+pub fn audit<F>(request: &Request, grants: &[Grant], search: F) -> AuditResult
 where
     F: Fn(&str, &JsonValue) -> Result<JsonValue, jmespath::JmesPathError>,
 {
-    let mut result = AuditResponse {
+    let mut result = AuditResult {
         completed: true,
         grants: Vec::new(),
         errors: Errors::default(),
@@ -753,7 +753,7 @@ where
     result
 }
 
-pub fn authorize<F>(request: &Request, grants: &[Grant], search: F) -> AuthorizeResponse
+pub fn authorize<F>(request: &Request, grants: &[Grant], search: F) -> AuthorizeResult
 where
     F: Fn(&str, &JsonValue) -> Result<JsonValue, jmespath::JmesPathError>,
 {
@@ -777,7 +777,7 @@ where
         errors.jmespath.extend(grant_eval.errors.jmespath);
         
         if grant_eval.critical {
-            return AuthorizeResponse {
+            return AuthorizeResult {
                 authorized: false,
                 completed: false,
                 grant: Some(grant.clone()),
@@ -787,7 +787,7 @@ where
         }
         
         if grant_eval.applicable {
-            return AuthorizeResponse {
+            return AuthorizeResult {
                 authorized: false,
                 completed: true,
                 grant: Some(grant.clone()),
@@ -804,7 +804,7 @@ where
         errors.jmespath.extend(grant_eval.errors.jmespath);
         
         if grant_eval.critical {
-            return AuthorizeResponse {
+            return AuthorizeResult {
                 authorized: false,
                 completed: false,
                 grant: Some(grant.clone()),
@@ -814,7 +814,7 @@ where
         }
         
         if grant_eval.applicable {
-            return AuthorizeResponse {
+            return AuthorizeResult {
                 authorized: true,
                 completed: true,
                 grant: Some(grant.clone()),
@@ -824,7 +824,7 @@ where
         }
     }
     
-    AuthorizeResponse {
+    AuthorizeResult {
         authorized: false,
         completed: true,
         grant: None,
@@ -839,7 +839,7 @@ pub fn audit_workflow<F>(
     grants: &[Grant],
     request: &Request,
     search: F,
-) -> AuditResponse
+) -> AuditResult
 where
     F: Fn(&str, &JsonValue) -> Result<JsonValue, jmespath::JmesPathError>,
 {
@@ -849,7 +849,7 @@ where
     let def_val = validate_definitions(identity_defs, resource_defs);
     errors.definition = def_val.errors;
     if !def_val.valid {
-        return AuditResponse {
+        return AuditResult {
             completed: false,
             grants: Vec::new(),
             errors,
@@ -863,7 +863,7 @@ where
     let grant_val = validate_grants(grants, &schemas.grant);
     errors.grant = grant_val.errors;
     if !grant_val.valid {
-        return AuditResponse {
+        return AuditResult {
             completed: false,
             grants: Vec::new(),
             errors,
@@ -874,7 +874,7 @@ where
     let request_val = validate_request(request, &schemas.request);
     errors.request = request_val.errors;
     if !request_val.valid {
-        return AuditResponse {
+        return AuditResult {
             completed: false,
             grants: Vec::new(),
             errors,
@@ -890,7 +890,7 @@ pub fn authorize_workflow<F>(
     grants: &[Grant],
     request: &Request,
     search: F,
-) -> AuthorizeResponse
+) -> AuthorizeResult
 where
     F: Fn(&str, &JsonValue) -> Result<JsonValue, jmespath::JmesPathError>,
 {
@@ -900,7 +900,7 @@ where
     let def_val = validate_definitions(identity_defs, resource_defs);
     errors.definition = def_val.errors;
     if !def_val.valid {
-        return AuthorizeResponse {
+        return AuthorizeResult {
             authorized: false,
             grant: None,
             message: "One or more identity and/or resource definitions are not valid. Therefore, the request is not authorized.".to_string(),
@@ -916,7 +916,7 @@ where
     let grant_val = validate_grants(grants, &schemas.grant);
     errors.grant = grant_val.errors;
     if !grant_val.valid {
-        return AuthorizeResponse {
+        return AuthorizeResult {
             authorized: false,
             grant: None,
             message: "One or more grants are not valid. Therefore, the request is not authorized.".to_string(),
@@ -929,7 +929,7 @@ where
     let request_val = validate_request(request, &schemas.request);
     errors.request = request_val.errors;
     if !request_val.valid {
-        return AuthorizeResponse {
+        return AuthorizeResult {
             authorized: false,
             grant: None,
             message: "The request is not valid. Therefore the request is not authorized.".to_string(),

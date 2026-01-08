@@ -24,16 +24,18 @@ __all__ = [
     "grant_error_schema",
     "query_error_schema",
     "request_error_schema",
-    "validate_definitions_response_schema",
-    "validate_grants_response_schema",
+    "validate_definitions_result_schema",
+    "validate_grants_result_schema",
     "request_schema",
-    "validate_request_response_schema",
-    "audit_response_schema",
-    "authorize_response_schema",
+    "validate_request_result_schema",
+    "query_execute_result_schema",
+    "evaluate_one_result_schema",
+    "audit_result_schema",
+    "authorize_result_schema",
     "batch_request_schema",
-    "validate_batch_request_response_schema",
-    "batch_audit_response_schema",
-    "batch_authorize_response_schema",
+    "validate_batch_request_result_schema",
+    "batch_audit_result_schema",
+    "batch_authorize_result_schema",
     "validate_context_definitions",
     "validate_identity_definitions",
     "validate_resource_definitions",
@@ -264,13 +266,11 @@ query_error_schema = {
     "additionalProperties": True,
     "required": [
         "is_critical",
-        "message",
-        "grant"
+        "message"
     ],
     "properties": {
         "is_critical": _is_critical_schema,
-        "message": _error_message_schema,
-        "grant": grant_schema
+        "message": _error_message_schema
     }
 }
 request_error_schema = {
@@ -291,10 +291,10 @@ _is_valid_schema = {
     "type": "boolean",
     "description": "If the inputs have been successfully validated or not."
 }
-validate_definitions_response_schema = {
+validate_definitions_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Definition Validation Response.",
-    "description": "Definition validation response.",
+    "title": "Definition Validation Result.",
+    "description": "Definition validation result.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -316,10 +316,10 @@ validate_definitions_response_schema = {
         }
     }
 }
-validate_grants_response_schema = {
+validate_grants_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Grant Validation Response.",
-    "description": "Grant Validation Response.",
+    "title": "Grant Validation Result.",
+    "description": "Grant Validation Result.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -393,10 +393,10 @@ request_schema = {
         "query_validation": _request_query_validation_schema
     }
 }
-validate_request_response_schema = {
+validate_request_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Request Validation Response",
-    "description": "Request Validation Response schema.",
+    "title": "Request Validation Result",
+    "description": "Request Validation Result schema.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -420,7 +420,7 @@ validate_request_response_schema = {
 }
 _operation_errors_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Operation Response Errors",
+    "title": "Operation Result Errors",
     "description": "Errors returned from Authzee Operations.",
     "type": "object",
     "additionalProperties": False,
@@ -436,22 +436,51 @@ _has_failed_schema = {
     "type": "boolean",
     "description": "If the request has failed from a critical error or not."
 }
-evaluate_one_response_schema = {
+_query_result_schema = {
+    "description": "Result from running the JSON query."
+}
+query_execute_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Evaluate One Response",
-    "description": "Response from evaluating one grant against a request.",
+    "title": "Result for a JSON query execute function",
+    "description": "Result from evaluating a JSON query against the given input data.",
     "type": "object",
     "additionalProperties": False,
     "required": [
-        "applicable",
+        "result",
+        "has_failed",
+        "error_message"
+    ],
+    "properties": {
+        "result": _query_result_schema,
+        "has_failed": _has_failed_schema,
+        "error_message": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Details of why the query failed. `null` if there are no errors."
+        }
+    }
+}
+_is_applicable_schema = {
+    "type": "boolean",
+    "description": "If the grant is applicable to the request or not."
+}
+evaluate_one_result_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Evaluate One Result",
+    "description": "Result from evaluating one grant against a request.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "is_applicable",
+        "query_result",
         "has_failed",
         "errors"
     ],
     "properties": {
-        "applicable": {
-            "type": "boolean",
-            "description": "If the grant is applicable to the request or not."
-        },
+        "is_applicable": _is_applicable_schema,
+        "query_result": _query_result_schema,
         "has_failed": _has_failed_schema,
         "errors": {
             "type": "object",
@@ -461,40 +490,56 @@ evaluate_one_response_schema = {
                 "query": {
                     "type": "array",
                     "items": query_error_schema
-                },
-                "request": {
-                    "type": "array",
-                    "items": request_error_schema
                 }
             }
         }
     }
 }
-audit_response_schema = {
+_audit_grant_list_schema = {
+    "type": "array",
+    "description": "List of grants that have been processed for the request.",
+    "items": grant_schema
+}
+audit_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Audit Response",
-    "description": "Response for the audit operation.",
+    "title": "Audit Result",
+    "description": "Result for the audit operation.",
     "type": "object",
     "additionalProperties": True,
     "required": [
         "grants",
+        "results",
         "has_failed",
         "errors"
     ],
     "properties": {
-        "grants": {
+        "grants": _audit_grant_list_schema,
+        "results": {
             "type": "array",
-            "description": "List of grants that are applicable to the request.",
-            "items": grant_schema
+            "description": "List of grant evaluation results for each respective grant index.",
+            "items": {
+                "type": "object",
+                "additionalProperties": True,
+                "required": [
+                    "is_applicable",
+                    "query_result",
+                    "errors"
+                ],
+                "properties": {
+                    "is_applicable": _is_applicable_schema,
+                    "query_result": _query_result_schema,
+                    "errors": _operation_errors_schema
+                }
+            }
         },
         "has_failed": _has_failed_schema,
         "errors": _operation_errors_schema
     }
 }
-authorize_response_schema = {
+authorize_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Authorize Response",
-    "description": "Response for the authorize operation.",
+    "title": "Authorize Result",
+    "description": "Result for the authorize operation.",
     "type": "object",
     "additionalProperties": True,
     "required": [
@@ -512,7 +557,10 @@ authorize_response_schema = {
         "grant": {
             "description": "Grant that was responsible for the authorization decision, if applicable.",
             "anyOf": [
-                {"type": "null"},
+                {
+                    "type": "null",
+                    "description": "No grant was involved in the authorization decision."
+                },
                 grant_schema
             ]
         },
@@ -618,10 +666,10 @@ batch_request_schema = {
         }
     }
 }
-validate_batch_request_response_schema = {
+validate_batch_request_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Request Validation Response",
-    "description": "Request Validation Response schema.",
+    "title": "Request Validation Result",
+    "description": "Request Validation Result schema.",
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -659,9 +707,9 @@ validate_batch_request_response_schema = {
         }
     }
 }
-_batch_response_errors_schema = {
+_batch_result_errors_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Batch Response Errors",
+    "title": "Batch Result Errors",
     "description": "Errors returned from Authzee Batch requests.",
     "type": "object",
     "additionalProperties": True,
@@ -672,46 +720,79 @@ _has_failed_batch_schema = {
     "type": "boolean",
     "description": "If the batch request could not be validated and failed or not. "
 }
-batch_audit_response_schema = {
+batch_audit_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Batch Audit Response",
-    "description": "Response for the Batch Audit Operation.",
+    "title": "Batch Audit Result",
+    "description": "Result for the Batch Audit Operation.",
     "type": "object",
     "additionalProperties": True,
     "required": [
-        "results",
+        "grants",
+        "batch_results",
         "has_failed",
         "errors"
     ],
     "properties": {
-        "results": {
+        "grants": _audit_grant_list_schema,
+        "batch_results": {
             "type": "array",
             "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
-            "items": audit_response_schema
+            "items": {
+                "type": "object",
+                "description": "Audit batch item result.",
+                "additionalProperties": True,
+                "required": [
+                    "results",
+                    "has_failed",
+                    "errors"
+                ],
+                "properties": {
+                    "results": {
+                        "type": "array",
+                        "description": "List of grant evaluation results for each respective grant index.",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": True,
+                            "required": [
+                                "is_applicable",
+                                "query_result",
+                                "errors"
+                            ],
+                            "properties": {
+                                "is_applicable": _is_applicable_schema,
+                                "query_result": _query_result_schema,
+                                "errors": _operation_errors_schema
+                            }
+                        }
+                    },
+                    "has_failed": _has_failed_schema,
+                    "errors": _operation_errors_schema
+                }
+            }
         },
         "has_failed": _has_failed_batch_schema,
-        "errors": _batch_response_errors_schema
+        "errors": _batch_result_errors_schema
     }
 }
-batch_authorize_response_schema = {
+batch_authorize_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Batch Authorize Response",
-    "description": "Response for the Batch Authorize Operation.",
+    "title": "Batch Authorize Result",
+    "description": "Result for the Batch Authorize Operation.",
     "type": "object",
     "additionalProperties": True,
     "required": [
-        "results",
+        "batch_results",
         "has_failed",
         "errors"
     ],
     "properties": {
-        "results": {
+        "batch_results": {
             "type": "array",
             "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
-            "items": authorize_response_schema
+            "items": authorize_result_schema
         },
         "has_failed": _has_failed_batch_schema,
-        "errors": _batch_response_errors_schema
+        "errors": _batch_result_errors_schema
     }
 }
 
@@ -1068,13 +1149,19 @@ def validate_batch_request(
                 identity_lut=identity_lut,
                 errors=bi_errors
             )
-        _validate_request_resource(
-            resource_type=item.get("resource_type", batch_request['resource_type']),
-            resource=item.get("resource", batch_request['resource']),
-            action=batch_request['action'],
-            resource_lut=resource_lut,
-            errors=bi_errors
-        )
+        
+        if (
+            item.get("resource_type", None) is not None 
+            or item.get("resource", None) is not None
+        ):
+            _validate_request_resource(
+                resource_type=item.get("resource_type", batch_request['resource_type']),
+                resource=item.get("resource", batch_request['resource']),
+                action=batch_request['action'],
+                resource_lut=resource_lut,
+                errors=bi_errors
+            )
+
         if (
             item.get("context_type", None) is not None 
             or item.get("context", None) is not None
@@ -1096,11 +1183,12 @@ def validate_batch_request(
 def evaluate_one(
     request: Dict[str, AnyJSON], 
     grant: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON],
+    execute: Callable[[str, AnyJSON], AnyJSON],
     only_crits: bool
 ) -> Dict[str, AnyJSON]:
     result = {
-        "applicable": False,
+        "is_applicable": False,
+        "query_result": None,
         "has_failed": False,
         "errors": {}
     }
@@ -1110,16 +1198,18 @@ def evaluate_one(
     ):
         return result
 
-    try:
-        if grant['equality'] == search(
-            grant['query'], 
-            {
-                "request": request,
-                "grant": grant
-            }
-        ):
-            result['applicable'] = True
-    except Exception as exc:
+    query_result = execute(
+        grant['query'], 
+        {
+            "request": request,
+            "grant": grant
+        }
+    )
+    if query_result['has_failed'] is False:
+        result['query_result'] = query_result['result']
+        if query_result['result'] == grant['equality']:
+            result['is_applicable'] = True
+    else:
         q_val = grant['query_validation'] if request['query_validation'] == "grant" else request['query_validation']
         is_q_val_crit = q_val == "critical"
         if (
@@ -1132,8 +1222,7 @@ def evaluate_one(
             result['errors']['query'] = [
                 {
                     "is_critical": is_q_val_crit,
-                    "message": f"A JSON Query error has occurred: {exc}.",
-                    "grant": grant
+                    "message": f"A JSON Query error has occurred: {query_result['error_message']}."
                 }
             ]
             if is_q_val_crit is True:
@@ -1145,44 +1234,44 @@ def evaluate_one(
 def audit(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, List[Dict[str, AnyJSON]]]: 
     result = {
-        "grants": [],
+        "grants": grants,
+        "results": [],
         "has_failed": False,
-        "errors": {
-            "query": []
-        }
+        "errors": {}
     }
     for g in grants:
-        g_eval = evaluate_one(request, g, search, False)
-        result['errors']['query'] += g_eval['errors'].get("query", [])
+        g_eval = evaluate_one(request, g, execute, False)
+        result['results'].append(
+            {
+                "is_applicable": g_eval['is_applicable'],
+                "query_result": g_eval['query_result'],
+                "errors": g_eval['errors']
+            }
+        )
         if g_eval['has_failed'] is True:
             result['has_failed'] = True
+            result['errors'] = {
+                "query": [
+                    {
+                        "is_critical": True,
+                        "message": "A critical error occurred when processing the last returned result."
+                    }
+                ]
+            }
 
             return result 
 
-        elif g_eval['applicable'] is True:
-            result['grants'].append(g)
-    
-    if len(result['errors']['query']) == 0:
-        result['errors'] = {}
-
     return result
-
-
-def _get_authz_error(errors):
-    return errors if len(errors['query']) > 0 else {}
 
 
 def authorize(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
-    errors =  {
-        "query": []
-    }
     allow_grants = []
     deny_grants = []
     for g in grants:
@@ -1192,45 +1281,43 @@ def authorize(
             deny_grants.append(g)
     
     for g in deny_grants:
-        g_eval = evaluate_one(request, g, search, True)
-        errors['query'] += g_eval['errors'].get("query", [])
+        g_eval = evaluate_one(request, g, execute, True)
         if g_eval['has_failed'] is True:
             return {
                 "is_authorized": False,
                 "grant": g,
                 "message": "A critical error has occurred. Therefore, the request is not authorized.",
-                "has_failed": False,
-                "critical_errors": _get_authz_error(errors)
+                "has_failed": True,
+                "critical_errors":g_eval['errors']
             }
         
-        if g_eval['applicable'] is True:
+        if g_eval['is_applicable'] is True:
             return {
                 "is_authorized": False,
                 "grant": g,
                 "message": "A deny grant is applicable to the request. Therefore, the request is not authorized.",
                 "has_failed": False,
-                "critical_errors": _get_authz_error(errors)
+                "critical_errors": {}
             }
     
     for g in allow_grants:
-        g_eval = evaluate_one(request, g, search, True)
-        errors['query'] += g_eval['errors'].get("query", [])
+        g_eval = evaluate_one(request, g, execute, True)
         if g_eval['has_failed'] is True:
             return {
                 "is_authorized": False,
                 "grant": g,
                 "message": "A critical error has occurred. Therefore, the request is not authorized.",
-                "has_failed": False,
-                "critical_errors": _get_authz_error(errors)
+                "has_failed": True,
+                "critical_errors": g_eval['errors']
             }
         
-        if g_eval['applicable'] is True:
+        if g_eval['is_applicable'] is True:
             return {
                 "is_authorized": True,
                 "grant": g,
                 "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
                 "has_failed": False,
-                "critical_errors": _get_authz_error(errors)
+                "critical_errors": {}
             }
     
     return {
@@ -1238,7 +1325,7 @@ def authorize(
         "grant": None,
         "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
         "has_failed": False,
-        "critical_errors": _get_authz_error(errors)
+        "critical_errors": {}
     }
 
 
@@ -1295,7 +1382,7 @@ def audit_workflow(
     resource_definitions: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     val = _validate(
         context_definitions,
@@ -1308,7 +1395,7 @@ def audit_workflow(
     if val['is_valid'] is False:
         return val
 
-    return audit(request, grants, search)
+    return audit(request, grants, execute)
 
 
 def authorize_workflow(
@@ -1317,7 +1404,7 @@ def authorize_workflow(
     resource_definitions: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     val = _validate(
         context_definitions,
@@ -1330,34 +1417,35 @@ def authorize_workflow(
     if val['is_valid'] is False:
         return val
 
-    return authorize(request, grants, search)
+    return authorize(request, grants, execute)
 
 
 def batch_audit(
     batch_request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, List[Dict[str, AnyJSON]]]: 
-    results = []
+    batch_results = []
     for item in batch_request['batch']:
-        results.append(
-            audit(
-                {
-                    "identities": item.get("identities", batch_request['identities']),
-                    "action": batch_request['action'],
-                    "resource_type": item.get("resource_type", batch_request['resource_type']),
-                    "resource": item.get("resource", batch_request['resource']),
-                    "context_type": item.get("context_type", batch_request['context_type']),
-                    "context": item.get("context", batch_request['context']),
-                    "query_validation": item.get("query_validation", batch_request['query_validation'])
-                },
-                grants,
-                search
-            )
+        audit_result = audit(
+            {
+                "identities": item.get("identities", batch_request['identities']),
+                "action": batch_request['action'],
+                "resource_type": item.get("resource_type", batch_request['resource_type']),
+                "resource": item.get("resource", batch_request['resource']),
+                "context_type": item.get("context_type", batch_request['context_type']),
+                "context": item.get("context", batch_request['context']),
+                "query_validation": item.get("query_validation", batch_request['query_validation'])
+            },
+            grants,
+            execute
         )
+        audit_result.pop("grants")
+        batch_results.append(audit_result)
     
     return {
-        "results": results,
+        "grants": grants,
+        "batch_results": batch_results,
         "has_failed": False,
         "errors": {}
     }
@@ -1366,7 +1454,7 @@ def batch_audit(
 def batch_authorize(
     batch_request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, List[Dict[str, AnyJSON]]]: 
     results = []
     for item in batch_request['batch']:
@@ -1382,7 +1470,7 @@ def batch_authorize(
                     "query_validation": item.get("query_validation", batch_request['query_validation'])
                 },
                 grants,
-                search
+                execute
             )
         )
     
@@ -1399,7 +1487,7 @@ def batch_audit_workflow(
     resource_definitions: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     batch_request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     val = _validate(
         context_definitions,
@@ -1412,7 +1500,7 @@ def batch_audit_workflow(
     if val['is_valid'] is False:
         return val
 
-    return batch_audit(batch_request, grants, search)
+    return batch_audit(batch_request, grants, execute)
 
 
 def batch_authorize_workflow(
@@ -1421,7 +1509,7 @@ def batch_authorize_workflow(
     resource_definitions: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     batch_request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     val = _validate(
         context_definitions,
@@ -1434,4 +1522,4 @@ def batch_authorize_workflow(
     if val['is_valid'] is False:
         return val
 
-    return batch_authorize(batch_request, grants, search)
+    return batch_authorize(batch_request, grants, execute)

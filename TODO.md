@@ -1,31 +1,98 @@
 # TODO
 
-- [ ] Add context and remove parent and child
+- [ ] query validate in requests and grants???
+    - Should we call this something more descriptive?
+
+- [ ] evaluate spec - how errors are handled with query validation setting. 
+
+- [ ] Fill in last of spec for operations
+
+- [ ] update all schemas and examples from updates reference
+
+- [ ] Update SDK docs with all new spec
+    - Update all naming conventions to match. 
+
+- [ ] easier way for grants to do identity checks? 
+    - I think this just comes down to adding custom jmespath operations? 
+    - If you add anything outside of the grant level it is going to limit everything else
+    - maybe just run through some scenarios and add some new standard operations
+        - LEFT JOIN
+        - OUTER JOIN
+        - check if identity type exists in request and has length > 0
+
+- [x] Add context and remove parent and child
     - [x] update basic example
     - [x] update complex example
     - [x] update reference code
-    - [ ] update readme
+    - [x] update readme
     - [ ] update specification
-        - Add individual steps to here and responses
-        - main functions should return responses and errors - Now called Operations
-            - audit, authorize, batch_audit, batch_authorize
-        - Workflow functions are for reference only and do not have a set return schemas
-        - has_critical_error vs has_failed
-        - on the sdk side of things requests are validated once and then run the operation
-            - Everything else is separate because they are added separate
-            - but a request validation always goes along with the operation
-            - should a workflow still be a reference?  since it can combine all errors
-            - I would like the base level Schemas to match what the SDK puts out for the most part
-                - SDKs can add properties to grants etc but should match besides that
-            - If an op puts out a request val error, that wouldn't match in the current setup
-            - **Solution** 
-                - Include error types in ops for request validation.  
-                - No workflows in the specification, only ops with all inputs validated. 
-                - Add uuid, name, description to grants in spec
-                - Makes all functionality directly usable from the reference imp
-        
+        - [x] Change response to result
+        - [x] context schema, example, and validation
+        - [x] identity schema, example, and validation
+        - [x] resource schema, example, and validation
         - Must be able to return or raise errors in a consistent fashion for languages without exceptions
-    - [ ] update SDK docs
+    - [x] update SDK docs
+
+- [x] Add to audit the value that the grant evaluated to? 
+    - Is audit really enough 
+    - What is we want to evaluate against all grants and get their values? 
+    - Maybe audit should return all grants????????????!?!?!?!?!?!
+    - Then if they are applicable or not
+    - including the returned query expression
+    - Honestly this make more sense then just the applicable grants - maybe include a flag to only do the applicable? 
+    - That is something to figure out at a later time though?
+    - also include ability to filter grants - same as list grants filters
+        - effect
+        - action
+    - How to handle this with errors for batch_audit? 
+        - Request errors
+        - batch request errors
+        - errors for each grant, for each batch item, since the grant is the list. 
+    - Changing this so that it will have grants as a separate list from results??
+    - **Solution** - yee
+
+- [x] Audit - Should audit split results and grants for errors?
+    - It sucks but if the query error shows the grant then it potentially will duplicate all grants for an audit request
+    - Authorize already includes the grant so it covers any query errors
+    - **solution** - separate them 
+
+- [x] How and should you propagate errors up the chain? 
+    - Critical errors should be propagated up the chain if that cause the layer above it to fail
+    - if audit has a crit, then the request fails then an error should tell why it failed
+        - The execution failed for grant[n] and caused a critical error. 
+    - Where as a whole batch request does not fail just because a batch item does.  So in that scenario the result for a single item should show the error but not at the batch level. 
+
+- [x] standardize json query function input and output
+    - need to have an output schema that helps to identity and pass error messages
+
+- [x] final naming conventions
+    - definitions vs defs - I say defs - full name
+    - reference vs ref - I say ref - ref is good
+
+- [x] What do you want to actually make in the spec? 
+    - Spec should only give core functionality and give enough room to add whatever - SDKs can take more liberty, and the SDK guide is to be more opinionated anyway
+    - **SOLUTION** - General Guidance for the spec
+        - Input and output data structures can be added to for more functionality where the schemas allow. 
+        - Case can be changed to align with language conventions. 
+        - this is just the core spec - it is not the most efficient or best way but the most succinct way to describe Authzee functionality
+        - Errors and especially critical errors are left up to the implementations to decide how to return - from function, exceptions, etc
+        - All that in mind some minimums to consider for SDKs
+            - operations request and response should try to stick to super sets of the core schemas
+            - Errors should try to stick to the schemas as well
+
+
+- [x] on the sdk side of things requests are validated once and then run the operation
+    - Everything else is separate because they are added separate
+    - but a request validation always goes along with the operation
+    - should a workflow still be a reference?  since it can combine all errors
+    - I would like the base level Schemas to match what the SDK puts out for the most part
+        - SDKs can add properties to grants etc but should match besides that
+    - If an op puts out a request val error, that wouldn't match in the current setup
+    - **Solution** 
+        - Include error types in ops for request validation.  
+        - No workflows in the specification, only ops with all inputs validated. 
+        - Add uuid, name, description to grants in spec
+        - Makes all functionality directly usable from the reference imp
 - [x] What to include in batch request? 
     - Technically they only thing you need is action to save on listing the grants
     - the downside is a lot of duplication especially for all identities,

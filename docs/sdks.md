@@ -8,6 +8,342 @@ If this doesn't fit your use case you are free to create your own! Try to stay c
 
 > **NOTE** - This document is not a specification but a list of recommendations.  It may change and will not effect the specification or specification version of Authzee.
 
+
+## Example
+
+
+```python
+
+from authzee import Authzee, InProcessCompute, InProcessStorage
+
+storage = {}
+authz = Authzee(
+    compute_type=InProcessCompute,
+    compute_kwargs={},
+    storage_type=InProcessStorage,
+    storage_kwargs={
+        storage_ptr=storage
+    },
+    grants_page_size=100,
+    grant_refs_page_size=10,
+    parallel_paging=True, # default true
+    raise_crits=True # Default true
+)
+authz.start()
+authz.setup() # one time setup
+context_def = {
+    "context_type": "Team",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "Team"
+        ],
+        "properties": {
+            "Team": {
+                "type": "string"
+            }
+        }
+    }
+}
+authz.register_context_def(context_def)
+authz.update_context_def(context_def)
+# authz.delete_context_def(context_def['context_type'])
+identity_def = {
+    "identity_type": "User",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "username",
+            "email",
+            "department"
+        ],
+        "properties": {
+            "username": {
+                "type": "string
+            },
+            "email": {
+                "type": "string",
+                "department": "Balloon Sales"
+            }
+        }
+    }
+}
+authz.register_identity_def(identity_def)
+authz.update_identity_def(identity_def)
+# authz.delete_identity_def(identity_def['identity_type'])
+authz.register_resource_def(
+    {
+        "resource_type": "Balloon",
+        "actions": [
+            "Balloon:Inflate",
+            "Balloon:Deflate",
+            "Balloon:ListBalloons"
+        ],
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "color",
+                "size",
+                "psi",
+                "is_inflated"
+            ],
+            "properties": {
+                "color": {
+                    "type": "string",
+                    "enum": [
+                        "green",
+                        "purple"
+                    ]
+                },
+                "size": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "psi": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Pounds per square inch of inflated air."
+                },
+                "is_inflated": {
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+)
+authz.enact(
+    {
+        "name": "Balloon Sales and maintenance Inflate",
+        "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+        "tags": {
+            "SomeKey": "SomeVal"
+        }
+        "effect": "allow",
+        "actions": [
+            "Balloon:Inflate"
+        ],
+        "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+        "query_validation": "validate", 
+        "equality": True,
+        "data": {
+            "allowed_departments": [
+                "Maintenance",
+                "Balloon Sales"
+            ]
+        }
+    }
+)
+request = {
+    "identities": {
+        "User": [
+            {
+                "username": "tester",
+                "email": "tester@example.com",
+                "department": "Balloon Sales"
+            }
+        ]
+    },
+    "action": "Balloon:Inflate",
+    "resource_type": "Balloon",
+    "resource": {
+        "color": "green",
+        "size": 2.7,
+        "psi": 7.2,
+        "is_inflated": True
+    },
+    "context_type": "Team",
+    "context": {
+        "Team": "My Team"
+    },
+    "query_validation": "grant"
+}
+authorize_result = authz.authorize(request)
+print(authorize_result)
+# {
+#     "is_authorized": True,
+#     "grant": {
+#         "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927"
+#         "name": "Balloon Sales and maintenance Inflate",
+#         "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+#         "effect": "allow",
+#         "actions": [
+#             "Balloon:Inflate"
+#         ],
+#         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#         "query_validation": "validate", 
+#         "equality": True,
+#         "data": {
+#             "allowed_departments": [
+#                 "Maintenance",
+#                 "Balloon Sales"
+#             ]
+#         }
+#     },
+#     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#     "has_failed": False,
+#     "critical_errors": {}
+# }
+
+audit_page_result = authz.audit_page(request)
+print(audit_page_result)
+# {
+#     "results": [
+#         {
+#             "is_applicable": True,
+#             "query_result": True,
+#             "grant": {
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927"
+#                 "name": "Balloon Sales and maintenance Inflate",
+#                 "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+#                 "effect": "allow",
+#                 "actions": [
+#                     "Balloon:Inflate"
+#                 ],
+#                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#                 "query_validation": "validate", 
+#                 "equality": True,
+#                 "data": {
+#                     "allowed_departments": [
+#                         "Maintenance",
+#                         "Balloon Sales"
+#                     ]
+#                 }
+#             },
+#             "errors": {}
+#         }
+#     ],
+#     "has_failed": False,
+#     "errors": {},
+#     "next_ref": None
+# }
+
+batch_request = {
+    "identities": {
+        "User": [
+            {
+                "username": "tester",
+                "email": "tester@example.com",
+                "department": "Balloon Sales"
+            }
+        ]
+    },
+    "action": "Balloon:Inflate",
+    "resource_type": "Balloon",
+    "resource": {
+        "color": "green",
+        "size": 2.7,
+        "psi": 7.2,
+        "is_inflated": True
+    },
+    "context_type": "Team",
+    "context": {
+        "Team": "My Team"
+    },
+    "query_validation": "grant"
+    "batch": [
+        {}, # run the request with all the defaults from the root request
+        {
+            "identities": {
+                "User": [
+                    {
+                        "username": "tester2",
+                        "email": "tester2@example.com",
+                        "department": "Balloon Popper"
+                    }
+                ]
+            }
+        }
+    ]
+}
+batch_authorize_result = authz.batch_authorize(batch_request)
+print(patch_authorize_result)
+# {
+#     "batch_results": [
+#         {
+#             "is_authorized": True,
+#             "grant": {
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927"
+#                 "name": "Balloon Sales and maintenance Inflate",
+#                 "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+#                 "effect": "allow",
+#                 "actions": [
+#                     "Balloon:Inflate"
+#                 ],
+#                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#                 "query_validation": "validate", 
+#                 "equality": True,
+#                 "data": {
+#                     "allowed_departments": [
+#                         "Maintenance",
+#                         "Balloon Sales"
+#                     ]
+#                 }
+#             },
+#             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#             "has_failed": False,
+#             "critical_errors": {}
+#         },
+#         {
+#             "is_authorized": False,
+#             "grant": None,
+#             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
+#             "has_failed": False,
+#             "critical_errors": {}s
+#         }
+#     ],
+#     "has_failed": False,
+#     "errors": {}
+# }
+
+batch_audit_result = authz.batch_audit_page(batch_request)
+print(batch_audit_result)
+# {
+#     "results": [
+#         {
+#             "grant": {
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927"
+#                 "name": "Balloon Sales and maintenance Inflate",
+#                 "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+#                 "effect": "allow",
+#                 "actions": [
+#                     "Balloon:Inflate"
+#                 ],
+#                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#                 "query_validation": "validate", 
+#                 "equality": True,
+#                 "data": {
+#                     "allowed_departments": [
+#                         "Maintenance",
+#                         "Balloon Sales"
+#                     ]
+#                 }
+#             },
+#             "batch_results": [
+#                 {
+#                     "is_applicable": True,
+#                     "query_result": True,
+#                     "errors": {}
+#                 },
+#                 {
+#                     "is_applicable": False,
+#                     "query_result": False,
+#                     "errors": {}
+#                 }
+#             ]
+#         }
+#     ],
+#     "has_failed": False,
+#     "errors": {},
+#     "next_ref": None
+# }
+```
+
+
+
+
 ### Table of Contents
 
 - [Available SDKs](#available-sdks)
@@ -19,8 +355,9 @@ If this doesn't fit your use case you are free to create your own! Try to stay c
     - [Module Locality](#module-locality)
     - [Storage Latches](#storage-latches)
     - [Standard Types](#standard-types)
+- [SDK Full Example](#sdk-full-example)
 - [Standard JMESPath Extensions](#standard-jmespath-extensions)
-    - [INNER JOIN](#inner-join)
+    - [INNER JOIN](#inner-join) TODO - Add other joins: left and outer
     - [regex Find](#regex-find)
     - [regex Find All](#regex-find-all)
     - [regex Groups](#regex-groups)
@@ -61,7 +398,7 @@ The suggested architecture for the high level API of SDKs is to have a primary c
 > - Methods -> struct methods or functions that act on a struct 
 
 Under this object, identity definitions, resource definitions, and the JMESPath search function are static.
-The Authzee object is created with a compute module and a storage module. The compute module will be used to provide the compute resources for running workflows, and the storage module will be used to store and retrieve grants and other compute state objects. 
+The Authzee object is created with a compute module and a storage module. The compute module will be used to provide the compute resources for running operations, and the storage module will be used to store and retrieve grants and other compute state objects. 
 
 > **NOTE** - The Standard describes the minimum expectations of what an Authzee SDK should meet.  SDKs are welcome to have more functionality!!!
 
@@ -82,85 +419,170 @@ The majority of this document will focus on the high level APIs that are more ea
 The low level APIs should also exist, and directly follow the specification for Authzee. 
 This is to give a core point of logic for the higher level APIs, and the ability to use a Authzee specification-like interface directly.  
 
-It should include these values to import:
+It should include these variables to import:
 
-- `identity_definition_schema` - The current identity definition schema.
-- `resource_definition_schema` - The current resource definition schema.
 - `authzee_version` - The current version of the Authzee specification supported.
+- `context_definition_schema` - Context Definition Schema
+- `identity_definition_schema` - Identity Definition Schema
+- `resource_definition_schema` - Resource Definition Schema
+- `grant_schema` - Grant Schema
+- `definition_error_schema` - Definition Type Error Schema
+- `grant_error_schema` - Grant Type Error Schema
+- `query_error_schema` - Query Type Error Schema
+- `request_error_schema` - Request Type Error Schema
+- `validate_definitions_result_schema` - Return value schema for `validate_definitions` function
+- `validate_grants_result_schema` - Return value schema for `validate_grants` function
+- `request_schema` - Authzee Request Schema
+- `validate_request_result_schema` - Return value schema for `validate_request` function
+- `evaluate_one_result_schema` - Return value schema for the `evaluate_one` function
+- `audit_result_schema` - Return value schema for the `audit` operation/function
+- `authorize_result_schema` - Return value schema for the `authorization` operation/function
+- `batch_request_schema` - Authzee Batch Request Schema
+- `validate_batch_request_result_schema` - Return value schema for the `validate_batch_request` function
+- `batch_audit_result_schema` - Return value schema for the `batch_audit` operation/function
+- `batch_authorize_result_schema` - Return value schema for the `batch_authorize` operation/function
 
 It should include these functions from the authzee reference:
 
+
 ```python
-def validate_definitions(
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]]
+def validate_context_definitions(
+    context_definitions: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
+
 ```python
-def generate_schemas(
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]]
+def validate_identity_definitions(
+    identity_definitions: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
+
+```python
+def validate_resource_definitions(
+    resource_definitions: List[Dict[str, AnyJSON]]
+) -> Dict[str, AnyJSON]:
+```
+
 ```python
 def validate_grants(
-    grants: List[Dict[str, AnyJSON]], 
-    schema: Dict[str, AnyJSON]
+    grants: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
+
 ```python
 def validate_request(
-    request: Dict[str, AnyJSON], schema: 
-    Dict[str, AnyJSON]
+    request: Dict[str, AnyJSON],
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions:List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
+
+```python
+def validate_batch_request(
+    batch_request: Dict[str, AnyJSON],
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions:List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]]
+) -> Dict[str, AnyJSON]:
+```
+
+The `evaluate_one` function is for evaluating a request against one grant.
+
 ```python
 def evaluate_one(
     request: Dict[str, AnyJSON], 
     grant: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON],
+    only_crits: bool
 ) -> Dict[str, AnyJSON]:
 ```
+
 ```python
 def audit(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON]
-) -> Dict[str, List[Dict[str, AnyJSON]]]:
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, List[Dict[str, AnyJSON]]]: 
 ```
+
+
 ```python
 def authorize(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
 ```
+
+> **NOTE** - Workflow functions perform all steps that need to be done for an operation.  They will return different result depending on if there are failure.  The are included as a way to very easily test low level functionality. 
+
 ```python
 def audit_workflow(
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]],
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
-):
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
 ```
+
 ```python
 def authorize_workflow(
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]],
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
-):
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
+```
+
+```python
+def batch_audit(
+    batch_request: Dict[str, AnyJSON], 
+    grants: List[Dict[str, AnyJSON]],
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, List[Dict[str, AnyJSON]]]: 
+```
+
+```python
+def batch_authorize(
+    batch_request: Dict[str, AnyJSON], 
+    grants: List[Dict[str, AnyJSON]],
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, List[Dict[str, AnyJSON]]]: 
+```
+
+```python
+def batch_audit_workflow(
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]],
+    grants: List[Dict[str, AnyJSON]],
+    batch_request: Dict[str, AnyJSON],
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
+```
+
+```python
+def batch_authorize_workflow(
+    context_definitions: List[Dict[str, AnyJSON]],
+    identity_definitions: List[Dict[str, AnyJSON]],
+    resource_definitions: List[Dict[str, AnyJSON]],
+    grants: List[Dict[str, AnyJSON]],
+    batch_request: Dict[str, AnyJSON],
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
 ```
 
 
 ## Authzee Class
 
 The `Authzee` class should take these arguments when created:
-- Identity Definitions
-- Resource Definitions
-- JMESPath search function
+- JSON execute function
 - Compute Module type and arguments
 - Storage Module type and arguments
 
@@ -197,10 +619,91 @@ def teardown() -> None:
 - tear down backend resources 
 - destructive - may lose all storage and compute etc.
 
+
+```python
+def get_context_definitions_page(
+    page_ref: str | None, 
+    page_size: int
+) -> ContextDefinitionsPage:
+```
+
+```python
+def get_context_definition(context_type: str) -> ContextDefinition:
+```
+
+```python
+def register_context_definition(context_definition: ContextDefinition) -> ContextDefinition:
+```
+- Add a new Context Definition
+
+```python 
+def update_context_definition(context_definition: ContextDefinition) -> ContextDefinition:
+```
+- Update a context definition
+
+```python
+def delete_context_definition(context_type: str) -> None:
+```
+
+```python
+def get_identity_definitions_page(
+    page_ref: str | None, 
+    page_size: int
+) -> IdentityDefinitionsPage:
+```
+
+```python
+def get_identity_definition(identity_type: str) -> IdentityDefinition:
+```
+
+```python
+def register_identity_definition(identity_definition: IdentityDefinition) -> IdentityDefinition:
+```
+- Add a new Identity Definition
+
+```python 
+def update_identity_definition(identity_definition: IdentityDefinition) -> IdentityDefinition:
+```
+- Update a identity definition
+
+```python
+def delete_identity_definition(identity_type: str) -> None:
+```
+
+```python
+def get_resource_definitions_page(
+    page_ref: str | None, 
+    page_size: int
+) -> ResourceDefinitionsPage:
+```
+
+```python
+def get_resource_definition(resource_type: str) -> ResourceDefinition:
+```
+
+```python
+def register_resource_definition(resource_definition: ResourceDefinition) -> ResourceDefinition:
+```
+- Add a new Resource Definition
+
+```python 
+def update_resource_definition(resource_definition: ResourceDefinition) -> ResourceDefinition:
+```
+- Update a resource definition
+
+```python
+def delete_resource_definition(resource_type: str) -> None:
+```
+
 ```python
 def enact(new_grant: NewGrant) -> Grant:
 ```
 - add a new grant.
+
+```python
+def amend(grant: Grant) -> Grant:
+```
+- update a grant
 
 ```python
 def repeal(grant_uuid: UUID) -> None:
@@ -243,7 +746,7 @@ def audit_page(
     refs_page_size: int
 ) -> AuditPage:
 ```
-- Run the Audit Workflow for a page of results.
+- Run the Audit Operation for a page of results.
 - Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
 
 ```python
@@ -254,14 +757,37 @@ def authorize(
     refs_page_size: int
 ) -> AuthorizeResult:
 ```
-- Run the Authorize Workflow.
+- Run the Authorize Operation.
+
+```python
+def batch_audit_page(
+    batch_request: AuthzeeBatchRequest, 
+    page_ref: str | None, 
+    page_size: int, 
+    parallel_paging: bool, 
+    refs_page_size: int
+) -> BatchAuditPage:
+```
+- Run the Batch Audit Operation for a page of results.
+- Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
+
+```python
+def batch_authorize(
+    batch_request: AuthzeeBatchRequest, 
+    page_size: int, 
+    grants_page_size: int, 
+    refs_page_size: int
+) -> BatchAuthorizeResult:
+```
+- Run the Batch Authorize Operation.
 
 
 ## Compute Modules
 
-Compute modules provide a standard API for running workflows on compute.  Compute Modules should not be used directly but through the Authzee class.
+Compute modules provide a standard API for running operation on compute.  Compute Modules should not be used directly but through the Authzee class.
 They have direct access to the storage module and use it to retrieve grants. 
 They may also use the storage module to create and retrieve latches that help with compute state.  Especially for compute that is spread across multiple systems.
+The compute modules are 
 
 > **NOTE** - If the language supports async, then the compute module functions are expected to be async. Even if the underlying functionality is not async, this is to simplify the API between the `Authzee` app and the compute modules.  As well as avoid having to create a sync and async version of each compute module. 
 
@@ -271,16 +797,14 @@ Compute modules objects should implement these methods:
 
 ```python
 def start(
-    identity_defs: List[IdentityDef], 
-    resource_defs: List[ResourceDef], 
-    search: Callable[[str, Any], Any], 
+    execute: Callable[[str, Any], Any], 
     storage_type: Type[StorageModule], 
     storage_kwargs: Dict[str, Any]
 ) -> None:
 ```
 - start up compute module
 - run before use
-- After this method is complete these public instance vars or getters must be available:
+- After this method is complete these public instance vars or getters must be available and stable:
     - locality - Compute [Module Locality](#module-locality) 
     - parallel_paging_supported - if the compute module supports processing grants with parallel paging
 
@@ -302,6 +826,7 @@ def teardown() -> None:
 - tear down backend resources 
 - destructive - may lose all long lasting compute resources
 
+
 ```python
 def audit_page(
     request: AuthzeeRequest, 
@@ -311,7 +836,7 @@ def audit_page(
     refs_page_size: int
 ) -> AuditPage:
 ```
-- Run the Audit Workflow for a page of results.
+- Run the Audit operation for a page of results.
 - Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
 
 ```python
@@ -322,7 +847,29 @@ def authorize(
     refs_page_size: int
 ) -> AuthorizeResult:
 ```
-- Run the Authorize Workflow.
+- Run the Authorize operation.
+
+```python
+def batch_audit_page(
+    batch_request: AuthzeeBatchRequest, 
+    page_ref: str | None, 
+    page_size: int, 
+    parallel_paging: bool, 
+    refs_page_size: int
+) -> BatchAuditPage:
+```
+- Run the Batch Audit Operation for a page of results.
+- Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
+
+```python
+def batch_authorize(
+    batch_request: AuthzeeBatchRequest, 
+    page_size: int, 
+    grants_page_size: int, 
+    refs_page_size: int
+) -> BatchAuthorizeResult:
+```
+- Run the Batch Authorize Operation.
 
 
 ## Storage Modules
@@ -366,9 +913,64 @@ def teardown() -> None:
 - destructive - may lose all long lasting compute resources
 
 ```python
+def get_identity_definitions_page(
+    page_ref: str | None, 
+    page_size: int
+) -> IdentityDefinitionsPage:
+```
+
+```python
+def get_identity_definition(identity_type: str) -> IdentityDefinition:
+```
+
+```python
+def register_identity_definition(identity_definition: IdentityDefinition) -> IdentityDefinition:
+```
+- Add a new Identity Definition
+
+```python 
+def update_identity_definition(identity_definition: IdentityDefinition) -> IdentityDefinition:
+```
+- Update a identity definition
+
+```python
+def delete_identity_definition(identity_type: str) -> None:
+```
+
+```python
+def get_resource_definitions_page(
+    page_ref: str | None, 
+    page_size: int
+) -> ResourceDefinitionsPage:
+```
+
+```python
+def get_resource_definition(resource_type: str) -> ResourceDefinition:
+```
+
+```python
+def register_resource_definition(resource_definition: ResourceDefinition) -> ResourceDefinition:
+```
+- Add a new Resource Definition
+
+```python 
+def update_resource_definition(resource_definition: ResourceDefinition) -> ResourceDefinition:
+```
+- Update a resource definition
+
+```python
+def delete_resource_definition(resource_type: str) -> None:
+```
+
+```python
 def enact(new_grant: NewGrant) -> Grant:
 ```
 - add a new grant.
+
+```python
+def amend(grant: Grant) -> Grant:
+```
+- update a grant
 
 ```python
 def repeal(grant_uuid: UUID) -> None:
@@ -426,7 +1028,7 @@ def delete_latch(storage_latch_uuid) -> None:
 def cleanup_latches(before: Datetime) -> None:
 ```
 - Delete all latches before the specified datetime.
-- Workflows should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
+- operations should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
 
 > **NOTE** - When listing grants there are 2 filters: `effect` and `action`.  Storage modules should partition grants on these 2 fields.
 
@@ -475,15 +1077,18 @@ Storage latches are flag like objects kept in the storage module.
 Storage latches can only be created, set, or deleted. 
 They cannot be unset. 
 
-Compute modules may call on the storage module to create latches to manage the state of workflows.  When compute is shared over the network this becomes a necessary piece to communicate different workflow statuses.
+Compute modules may call on the storage module to create latches to manage the state of operations.  When compute is shared over the network this becomes a necessary piece to communicate different operation statuses.
 
 
 ## Standard Types
 
 The input and output objects (data class instances, struct instances) should take a standard form when dealing with the Authzee class. The Authzee class provides the only public API to the SDKs, but the compute and storage classes are expected to provide consistent APIs to make compute and storage classes interchangeable. 
 
+The SDKs build on some existing data structures from the spec and use some totally new.
+
 Standard Types:
 - [page_ref](#page_ref)
+- [ContextDef](#context-def)
 - [Grant](#grant)
 - [NewGrant](#newgrant)
 - [GrantsPage](#grantspage)
@@ -491,16 +1096,21 @@ Standard Types:
 - [AuthzeeRequest](#authzeerequest)
 - [AuditPage](#auditpage)
 - [AuthorizeResult](#authorizeresult)
+- [AuthzeeBatchRequest](#authzeebatchrequest)
+- [BatchAuditPage](#batchauditpage)
+- [BatchAuthorizeResult](#batchauthorizeresult)
 
 ### page_ref
 
 Authzee relies on pagination to make it's operations scalable. 
-`page_ref` represents a string token to a specific page of resources.  To get the first page of a resource the `page_ref` should have a `null` value.  `next_ref` is present in responses to be passed on the next function call to retrieve the next page.  When `next_ref` is a `null` value, the current page is considered the last and should not be passed back to the function.
+`page_ref` represents a string token to a specific page of resources.  To get the first page of a resource the `page_ref` should have a `null` value.  `next_ref` is present in results to be passed on the next function call to retrieve the next page.  When `next_ref` is a `null` value, the current page is considered the last and should not be passed back to the function.
 
 
 ### Grant
 
 Grants should offer more flexibility over the reference implementation, and should be standard across the SDKs.
+
+#### Grant Example
 
 ```json
 {
@@ -531,6 +1141,9 @@ Grants should offer more flexibility over the reference implementation, and shou
 }
 ```
 
+#### Grant Schema
+
+
 They should provide these additional fields over the [Grant Specification](./specification.md#grants), and they should also be available to query during runtime. 
 
 | Field | Type | Required | Description |
@@ -540,18 +1153,23 @@ They should provide these additional fields over the [Grant Specification](./spe
 | `description` | string |  ✅ | People friendly long description for the grant. |
 | `tags` | object[string, string] | ✅ | Additional people metadata for the grant. An object whose keys and values are strings. |
 
-Generally speaking, grants should only be created or deleted, never updated. 
-This simplifies many storage and compute structures and allows for more scalability. 
 
 
 ### NewGrant
 
 Used when creating a new grant.  The same as [Grant](#grant) without the `grant_uuid` field as that is generated by Authzee.
 
+#### NewGrant Example
+
+
+#### NewGrant Schema
+
 
 ### GrantsPage
 
 A single page of [Grants](#grant).
+
+#### GrantsPage Example
 
 ```json
 {
@@ -565,10 +1183,13 @@ A single page of [Grants](#grant).
 | `grants` | array[Grant]| ✅ | The array of grants. |
 | `next_ref` | string OR null |  ✅ | A token used to reference the next page of grants to retrieve from Authzee/the storage module. |
 
+#### GrantsPage Schema
 
 ### PageRefsPage
 
 A page of page references.
+
+#### PageRefsPage Example
 
 ```json
 {
@@ -579,6 +1200,8 @@ A page of page references.
 }
 ```
 
+#### PageRefsPage Schema
+
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `page_refs` | array[strings] | ✅ | An array of page references that can be used to retrieve several pages of a resource in parallel. |
@@ -587,23 +1210,66 @@ A page of page references.
 
 ### AuthzeeRequest
 
-The standard "Request" object used to initiate an Authzee workflow. Should match the [Authzee Request Specification](./specification.md#requests), where some fields are updated depending on the identity and resource definitions.
+The standard "Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests), where some fields are updated depending on the identity and resource definitions.
+
+#### AuthzeeRequest Example
+
+#### AuthzeeRequest Schema
+
+
 
 
 ### AuditPage
 
-A page of Audit Workflow results.  Conforms to the [Audit Workflow Results](./specification.md#audit-workflow-result), where some fields are updated depending on the identity and resource definitions. It will also have a `next_ref` field for pagination. 
+A page of Audit operation results.  Conforms to the [Audit Operation Results](./specification.md#audit-operation-result), where some fields are updated depending on the identity and resource definitions. It will also have a `next_ref` field for pagination. 
+
+#### AuditPage Example
+
+#### AuditPage Schema
 
 
 ### AuthorizeResult
 
-The [Authorize Workflow Results](./specification.md#authorize-workflow-response), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource definitions.
+The [Authorize operation Results](./specification.md#authorize-operation-result), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource definitions.
+
+#### AuthorizeResult Example
+
+#### AuthorizeResult Schema
+
+
+### AuthzeeBatchRequest
+
+The standard "Batch Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests), where some fields are updated depending on the identity and resource definitions.
+
+#### AuthzeeBatchRequest Example
+
+#### AuthzeeAuthzeeBatchRequestRequest Schema
+
+
+
+
+### BatchAuditPage
+
+A page of Audit operation results.  Conforms to the [Audit operation Results](./specification.md#audit-operation-result), where some fields are updated depending on the identity and resource definitions. It will also have a `next_ref` field for pagination. 
+
+#### BatchAuditPage Example
+
+#### BatchAuditPage Schema
+
+
+### BatchAuthorizeResult
+
+The [Authorize operation Results](./specification.md#authorize-operation-result), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource definitions.
+
+#### BatchAuthorizeResult Example
+
+#### BatchAuthorizeResult Schema
 
 
 ## Standard JMESPath Extensions
 
-JMESPath libraries offer the ability extend functionality by making new functions available in JMESPath queries. 
-Authzee purposely takes a JMESPath search function as an argument so that custom functions can be used. Authzee SDKs should also offer a set of JMESPath functions out of the box the are helpful to Authzee grant queries.
+JMESPath libraries offer the ability extend functionality by making new functions available in JMESPath queries. JMESPath is also the preferred JSON query language for Authzee.
+Because of this, Authzee SDKs should also offer a set of out of the box JMESPath functions the are helpful to Authzee grant queries.
 
 - [INNER JOIN](#inner-join) - Join 2 arrays in a fashion similar to an SQL INNER JOIN. 
 - [regex Find](#regex-find) - Run a regex pattern on a string or array of strings to find the first match.

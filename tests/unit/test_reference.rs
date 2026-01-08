@@ -223,8 +223,8 @@ mod tests {
 
         // Test other schemas
         assert_eq!(schemas.errors["title"], "Workflow Errors");
-        assert_eq!(schemas.audit["title"], "Audit Response");
-        assert_eq!(schemas.authorize["title"], "Authorize Response");
+        assert_eq!(schemas.audit["title"], "Audit Result");
+        assert_eq!(schemas.authorize["title"], "Authorize Result");
     }
 
     #[test]

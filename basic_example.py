@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 import jmespath
 
@@ -147,14 +148,31 @@ request = {
     }
 }
 
-# 6. Given all of the previous definitions and grants, check if the request is authorized.
+
+# 6. Define a function wrapping your preferred JSON query language to return the expected schema.
+def execute(expression: str, data: Any) -> Any:
+    result = {
+        "result": None,
+        "has_failed": False,
+        "error_message": None
+    }
+    try:
+        result['result'] = jmespath.search(expression, data)
+    except Exception as exc:
+        result['has_failed'] = True
+        result['error_message'] = f"A JSON Query error has occurred: {exc}"
+    
+    return result
+
+
+# 7. Given all of the previous definitions and grants, check if the request is authorized.
 result = authorize_workflow(
     context_definitions,
     identity_definitions,
     resource_definitions,
     grants,
     request,
-    jmespath.search
+    execute
 )
 print(json.dumps(result, indent=4))
 if result['is_authorized'] is True:

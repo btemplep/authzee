@@ -740,7 +740,7 @@ class TestWorkflows:
 
 
 class TestAuditSchemas:
-    def test_audit_response_schema(self, identity_defs, resource_defs, basic_request):
+    def test_audit_result_schema(self, identity_defs, resource_defs, basic_request):
         schemas = generate_schemas(identity_defs, resource_defs)
         grants = [{
             "effect": "allow",
@@ -753,12 +753,12 @@ class TestAuditSchemas:
             "context_validation": "none"
         }]
         result = audit(basic_request, grants, jmespath.search)
-        # Validate audit response against schema
+        # Validate audit result against schema
         jsonschema.validate(result, schemas["audit"])
 
 
 class TestAuthorizeSchemas:
-    def test_authorize_response_schema(self, identity_defs, resource_defs, basic_request):
+    def test_authorize_result_schema(self, identity_defs, resource_defs, basic_request):
         schemas = generate_schemas(identity_defs, resource_defs)
         grants = [{
             "effect": "allow",
@@ -771,12 +771,12 @@ class TestAuthorizeSchemas:
             "context_validation": "none"
         }]
         result = authorize(basic_request, grants, jmespath.search)
-        # Validate authorize response against schema
+        # Validate authorize result against schema
         jsonschema.validate(result, schemas["authorize"])
 
 
 class TestWorkflowSchemas:
-    def test_audit_workflow_response_schema(self, identity_defs, resource_defs, basic_request):
+    def test_audit_workflow_result_schema(self, identity_defs, resource_defs, basic_request):
         schemas = generate_schemas(identity_defs, resource_defs)
         grants = [{
             "effect": "allow",
@@ -789,10 +789,10 @@ class TestWorkflowSchemas:
             "context_validation": "none"
         }]
         result = audit_workflow(identity_defs, resource_defs, grants, basic_request, jmespath.search)
-        # Validate workflow response against schema
+        # Validate workflow result against schema
         jsonschema.validate(result, schemas["audit"])
 
-    def test_authorize_workflow_response_schema(self, identity_defs, resource_defs, basic_request):
+    def test_authorize_workflow_result_schema(self, identity_defs, resource_defs, basic_request):
         schemas = generate_schemas(identity_defs, resource_defs)
         grants = [{
             "effect": "allow",
@@ -805,5 +805,5 @@ class TestWorkflowSchemas:
             "context_validation": "none"
         }]
         result = authorize_workflow(identity_defs, resource_defs, grants, basic_request, jmespath.search)
-        # Validate workflow response against schema
+        # Validate workflow result against schema
         jsonschema.validate(result, schemas["authorize"])
