@@ -77,7 +77,7 @@ pub struct Grant {
     pub effect: Effect,
     pub actions: Vec<String>,
     pub query: String,
-    pub query_validation: QueryValidation,
+    pub evaluation_handler: QueryValidation,
     pub equality: JsonValue,
     pub data: JsonValue,
     pub context_schema: JsonValue,
@@ -92,7 +92,7 @@ pub struct Request {
     pub resource: JsonValue,
     pub parents: HashMap<String, Vec<JsonValue>>,
     pub children: HashMap<String, Vec<JsonValue>>,
-    pub query_validation: QueryValidation,
+    pub evaluation_handler: QueryValidation,
     pub context: HashMap<String, JsonValue>,
     pub context_validation: ContextValidation,
 }
@@ -386,7 +386,7 @@ pub fn generate_schemas(
         "description": "A grant is an object representing a enacted authorization rule.",
         "type": "object",
         "additionalProperties": false,
-        "required": ["effect", "actions", "query", "query_validation", "equality", "data", "context_schema", "context_validation"],
+        "required": ["effect", "actions", "query", "evaluation_handler", "equality", "data", "context_schema", "context_validation"],
         "properties": {
             "effect": {
                 "type": "string",
@@ -406,11 +406,11 @@ pub fn generate_schemas(
                 "type": "string",
                 "description": "JMESPath query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
             },
-            "query_validation": {
+            "evaluation_handler": {
                 "type": "string",
                 "title": "Grant-Level Query Validation Setting",
                 "description": "Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early.",
-                "enum": ["validate", "error", "critical"]
+                "enum": ["evaluate", "error", "critical"]
             },
             "equality": {
                 "description": "Expected value for they query to return. If the query result matches this value the grant is a considered applicable to the request."
@@ -426,7 +426,7 @@ pub fn generate_schemas(
                 "type": "string",
                 "title": "Grant-Level Context Validation",
                 "description": "Grant-level context validation setting. Set how the request context is validated against the grant context schema. 'none' - there is no validation. 'validate' - Context is validated and if the context is invalid, the grant is not applicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early.",
-                "enum": ["none", "validate", "error", "critical"]
+                "enum": ["none", "evaluate", "error", "critical"]
             }
         }
     });
@@ -458,9 +458,9 @@ pub fn generate_schemas(
                 "required": [],
                 "properties": {}
             },
-            "query_validation": {
+            "evaluation_handler": {
                 "type": "string",
-                "enum": ["grant", "validate", "error", "critical"]
+                "enum": ["grant", "evaluate", "error", "critical"]
             },
             "context": {
                 "type": "object",
@@ -470,7 +470,7 @@ pub fn generate_schemas(
             },
             "context_validation": {
                 "type": "string",
-                "enum": ["grant", "none", "validate", "error", "critical"]
+                "enum": ["grant", "none", "evaluate", "error", "critical"]
             }
         }
     });
@@ -499,7 +499,7 @@ pub fn generate_schemas(
             "description": format!("'{}' resource type request for an Authzee workflow.", r_type),
             "type": "object",
             "additionalProperties": false,
-            "required": ["identities", "resource_type", "action", "resource", "parents", "children", "query_validation", "context", "context_validation"],
+            "required": ["identities", "resource_type", "action", "resource", "parents", "children", "evaluation_handler", "context", "context_validation"],
             "properties": {
                 "identities": {"$ref": "#/$defs/identities"},
                 "action": {
@@ -530,7 +530,7 @@ pub fn generate_schemas(
                         }))
                     }).collect::<serde_json::Map<String, JsonValue>>()
                 },
-                "query_validation": {"$ref": "#/$defs/query_validation"},
+                "evaluation_handler": {"$ref": "#/$defs/evaluation_handler"},
                 "context": {"$ref": "#/$defs/context"},
                 "context_validation": {"$ref": "#/$defs/context_validation"}
             }
@@ -701,9 +701,9 @@ where
             }
         }
         Err(jmespath_error) => {
-            let q_val = match request.query_validation {
-                QueryValidation::Grant => &grant.query_validation,
-                _ => &request.query_validation,
+            let q_val = match request.evaluation_handler {
+                QueryValidation::Grant => &grant.evaluation_handler,
+                _ => &request.evaluation_handler,
             };
             
             let is_critical = matches!(q_val, QueryValidation::Critical);
@@ -975,7 +975,7 @@ mod tests {
                 effect: Effect::Allow,
                 actions: vec!["read".to_string()],
                 query: "request.resource.id".to_string(),
-                query_validation: QueryValidation::Validate,
+                evaluation_handler: QueryValidation::Validate,
                 equality: json!("doc1"),
                 data: json!({}),
                 context_schema: json!({"type": "object"}),
@@ -994,7 +994,7 @@ mod tests {
             resource: json!({"id": "doc1"}),
             parents: HashMap::new(),
             children: HashMap::new(),
-            query_validation: QueryValidation::Grant,
+            evaluation_handler: QueryValidation::Grant,
             context: HashMap::new(),
             context_validation: ContextValidation::Grant,
         };

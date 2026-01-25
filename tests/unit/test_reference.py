@@ -53,7 +53,7 @@ def basic_request():
         "resource": {"id": "doc1", "owner": "user1"},
         "parents": {},
         "children": {},
-        "query_validation": "grant",
+        "evaluation_handler": "grant",
         "context": {},
         "context_validation": "grant"
     }
@@ -146,7 +146,7 @@ class TestValidateGrants:
                 "effect": "allow",
                 "actions": ["read"],
                 "query": "`true`",
-                "query_validation": "validate",
+                "evaluation_handler": "evaluate",
                 "equality": True,
                 "data": {},
                 "context_schema": {"type": "object"},
@@ -244,7 +244,7 @@ class TestEvaluateOne:
     def test_context_validation_validate_with_valid_context(self, basic_request):
         grant = {
             "actions": ["read"],
-            "context_validation": "validate",
+            "context_validation": "evaluate",
             "query": "`true`",
             "equality": True,
             "context_schema": {"type": "object"}
@@ -255,7 +255,7 @@ class TestEvaluateOne:
     def test_context_validation_validate_with_invalid_context(self, basic_request):
         grant = {
             "actions": ["read"],
-            "context_validation": "validate",
+            "context_validation": "evaluate",
             "query": "`true`",
             "equality": True,
             "context_schema": {"type": "object", "required": ["missing"]}
@@ -296,7 +296,7 @@ class TestEvaluateOne:
             "actions": ["read"],
             "context_validation": "none",
             "query": "invalid_jmespath_query[",
-            "query_validation": "error",
+            "evaluation_handler": "error",
             "equality": True
         }
         result = evaluate_one(basic_request, grant, jmespath.search, False)
@@ -310,7 +310,7 @@ class TestEvaluateOne:
             "actions": ["read"],
             "context_validation": "none",
             "query": "invalid_jmespath_query[",
-            "query_validation": "critical",
+            "evaluation_handler": "critical",
             "equality": True
         }
         result = evaluate_one(basic_request, grant, jmespath.search, False)
@@ -355,7 +355,7 @@ class TestEvaluateOne:
         }
         grant = {
             "actions": ["read"],
-            "context_validation": "validate",  # Will be overridden
+            "context_validation": "evaluate",  # Will be overridden
             "query": "`true`",
             "equality": True,
             "context_schema": {"type": "object", "required": ["missing"]}
@@ -384,24 +384,24 @@ class TestEvaluateOne:
         result = evaluate_one(basic_request, grant, jmespath.search, False)
         assert result["applicable"] is False
 
-    def test_jmespath_error_with_validate_query_validation(self, basic_request):
+    def test_jmespath_error_with_validate_evaluation_handler(self, basic_request):
         grant = {
             "actions": ["read"],
             "context_validation": "none",
             "query": "invalid[syntax",
-            "query_validation": "validate",
+            "evaluation_handler": "evaluate",
             "equality": True
         }
         result = evaluate_one(basic_request, grant, jmespath.search, False)
         assert result["applicable"] is False
         assert len(result["errors"]["jmespath"]) == 0  # validate doesn't add errors
 
-    def test_jmespath_error_with_error_query_validation_only_crits_false(self, basic_request):
+    def test_jmespath_error_with_error_evaluation_handler_only_crits_false(self, basic_request):
         grant = {
             "actions": ["read"],
             "context_validation": "none",
             "query": "invalid[syntax",
-            "query_validation": "error",
+            "evaluation_handler": "error",
             "equality": True
         }
         result = evaluate_one(basic_request, grant, jmespath.search, False)
@@ -409,24 +409,24 @@ class TestEvaluateOne:
         assert len(result["errors"]["jmespath"]) > 0
         assert result["errors"]["jmespath"][0]["critical"] is False
 
-    def test_jmespath_error_with_error_query_validation_only_crits_true(self, basic_request):
+    def test_jmespath_error_with_error_evaluation_handler_only_crits_true(self, basic_request):
         grant = {
             "actions": ["read"],
             "context_validation": "none",
             "query": "invalid[syntax",
-            "query_validation": "error",
+            "evaluation_handler": "error",
             "equality": True
         }
         result = evaluate_one(basic_request, grant, jmespath.search, True)
         assert result["applicable"] is False
         assert len(result["errors"]["jmespath"]) == 0  # Should not add when only_crits=True
 
-    def test_jmespath_error_with_critical_query_validation(self, basic_request):
+    def test_jmespath_error_with_critical_evaluation_handler(self, basic_request):
         grant = {
             "actions": ["read"],
             "context_validation": "none",
             "query": "invalid[syntax",
-            "query_validation": "critical",
+            "evaluation_handler": "critical",
             "equality": True
         }
         result = evaluate_one(basic_request, grant, jmespath.search, True)
@@ -435,18 +435,18 @@ class TestEvaluateOne:
         assert len(result["errors"]["jmespath"]) > 0
         assert result["errors"]["jmespath"][0]["critical"] is True
 
-    def test_request_query_validation_override(self):
+    def test_request_evaluation_handler_override(self):
         request = {
             "action": "read",
             "context_validation": "none",
-            "query_validation": "error",  # Override grant setting
+            "evaluation_handler": "error",  # Override grant setting
             "context": {}
         }
         grant = {
             "actions": ["read"],
             "context_validation": "none",
             "query": "invalid[syntax",
-            "query_validation": "validate",  # Will be overridden
+            "evaluation_handler": "evaluate",  # Will be overridden
             "equality": True
         }
         result = evaluate_one(request, grant, jmespath.search, False)
@@ -672,7 +672,7 @@ class TestWorkflows:
                 "effect": "allow",
                 "actions": ["read"],
                 "query": "`true`",
-                "query_validation": "validate",
+                "evaluation_handler": "evaluate",
                 "equality": True,
                 "data": {},
                 "context_schema": {"type": "object"},
@@ -689,7 +689,7 @@ class TestWorkflows:
                 "effect": "allow",
                 "actions": ["read"],
                 "query": "`true`",
-                "query_validation": "validate",
+                "evaluation_handler": "evaluate",
                 "equality": True,
                 "data": {},
                 "context_schema": {"type": "object"},
@@ -706,7 +706,7 @@ class TestWorkflows:
                 "effect": "allow",
                 "actions": ["read"],
                 "query": "`true`",
-                "query_validation": "validate",
+                "evaluation_handler": "evaluate",
                 "equality": True,
                 "data": {},
                 "context_schema": {"type": "object"},
@@ -725,7 +725,7 @@ class TestWorkflows:
                 "effect": "allow",
                 "actions": ["read"],
                 "query": "`true`",
-                "query_validation": "validate",
+                "evaluation_handler": "evaluate",
                 "equality": True,
                 "data": {},
                 "context_schema": {"type": "object"},
@@ -746,7 +746,7 @@ class TestAuditSchemas:
             "effect": "allow",
             "actions": ["read"],
             "query": "`true`",
-            "query_validation": "validate",
+            "evaluation_handler": "evaluate",
             "equality": True,
             "data": {},
             "context_schema": {"type": "object"},
@@ -764,7 +764,7 @@ class TestAuthorizeSchemas:
             "effect": "allow",
             "actions": ["read"],
             "query": "`true`",
-            "query_validation": "validate",
+            "evaluation_handler": "evaluate",
             "equality": True,
             "data": {},
             "context_schema": {"type": "object"},
@@ -782,7 +782,7 @@ class TestWorkflowSchemas:
             "effect": "allow",
             "actions": ["read"],
             "query": "`true`",
-            "query_validation": "validate",
+            "evaluation_handler": "evaluate",
             "equality": True,
             "data": {},
             "context_schema": {"type": "object"},
@@ -798,7 +798,7 @@ class TestWorkflowSchemas:
             "effect": "allow",
             "actions": ["read"],
             "query": "`true`",
-            "query_validation": "validate",
+            "evaluation_handler": "evaluate",
             "equality": True,
             "data": {},
             "context_schema": {"type": "object"},

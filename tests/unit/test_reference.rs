@@ -39,7 +39,7 @@ mod tests {
             effect: Effect::Allow,
             actions: vec!["read".to_string()],
             query: "request.resource.id".to_string(),
-            query_validation: QueryValidation::Validate,
+            evaluation_handler: QueryValidation::Validate,
             equality: json!("doc1"),
             data: json!({}),
             context_schema: json!({"type": "object"}),
@@ -59,7 +59,7 @@ mod tests {
             resource: json!({"id": "doc1"}),
             parents: HashMap::new(),
             children: HashMap::new(),
-            query_validation: QueryValidation::Grant,
+            evaluation_handler: QueryValidation::Grant,
             context: HashMap::new(),
             context_validation: ContextValidation::Grant,
         }
@@ -246,7 +246,7 @@ mod tests {
             effect: Effect::Allow,
             actions: vec!["invalid_action".to_string()], // This action doesn't exist in schema
             query: "request.resource.id".to_string(),
-            query_validation: QueryValidation::Validate,
+            evaluation_handler: QueryValidation::Validate,
             equality: json!("doc1"),
             data: json!({}),
             context_schema: json!({"type": "object"}),
@@ -417,7 +417,7 @@ mod tests {
     fn test_evaluate_one_jmespath_error_validate() {
         let request = create_basic_request();
         let mut grant = create_basic_grant();
-        grant.query_validation = QueryValidation::Validate;
+        grant.evaluation_handler = QueryValidation::Validate;
 
         let result = evaluate_one(&request, &grant, jmespath_search_error);
         assert!(!result.critical);
@@ -429,7 +429,7 @@ mod tests {
     fn test_evaluate_one_jmespath_error_error() {
         let request = create_basic_request();
         let mut grant = create_basic_grant();
-        grant.query_validation = QueryValidation::Error;
+        grant.evaluation_handler = QueryValidation::Error;
 
         let result = evaluate_one(&request, &grant, jmespath_search_error);
         assert!(!result.critical);
@@ -442,7 +442,7 @@ mod tests {
     fn test_evaluate_one_jmespath_error_critical() {
         let request = create_basic_request();
         let mut grant = create_basic_grant();
-        grant.query_validation = QueryValidation::Critical;
+        grant.evaluation_handler = QueryValidation::Critical;
 
         let result = evaluate_one(&request, &grant, jmespath_search_error);
         assert!(result.critical);
@@ -454,10 +454,10 @@ mod tests {
     #[test]
     fn test_evaluate_one_jmespath_error_grant_level() {
         let mut request = create_basic_request();
-        request.query_validation = QueryValidation::Grant; // Use grant level
+        request.evaluation_handler = QueryValidation::Grant; // Use grant level
         
         let mut grant = create_basic_grant();
-        grant.query_validation = QueryValidation::Error; // Grant level is error
+        grant.evaluation_handler = QueryValidation::Error; // Grant level is error
 
         let result = evaluate_one(&request, &grant, jmespath_search_error);
         assert!(!result.critical);
@@ -482,7 +482,7 @@ mod tests {
     fn test_evaluate_critical_error() {
         let request = create_basic_request();
         let mut grant = create_basic_grant();
-        grant.query_validation = QueryValidation::Critical;
+        grant.evaluation_handler = QueryValidation::Critical;
         let grants = vec![grant];
 
         let result = audit(&request, &grants, jmespath_search_error);
@@ -563,7 +563,7 @@ mod tests {
         let request = create_basic_request();
         let mut deny_grant = create_basic_grant();
         deny_grant.effect = Effect::Deny;
-        deny_grant.query_validation = QueryValidation::Critical;
+        deny_grant.evaluation_handler = QueryValidation::Critical;
         let grants = vec![deny_grant];
 
         let result = authorize(&request, &grants, jmespath_search_error);
@@ -577,7 +577,7 @@ mod tests {
     fn test_authorize_critical_error_in_allow() {
         let request = create_basic_request();
         let mut allow_grant = create_basic_grant();
-        allow_grant.query_validation = QueryValidation::Critical;
+        allow_grant.evaluation_handler = QueryValidation::Critical;
         let grants = vec![allow_grant];
 
         let result = authorize(&request, &grants, jmespath_search_error);
@@ -745,7 +745,7 @@ mod tests {
     }
 
     #[test]
-    fn test_query_validation_serialization() {
+    fn test_evaluation_handler_serialization() {
         let variants = vec![
             QueryValidation::Grant,
             QueryValidation::Validate,
@@ -753,7 +753,7 @@ mod tests {
             QueryValidation::Critical,
         ];
         
-        let expected = vec!["grant", "validate", "error", "critical"];
+        let expected = vec!["grant", "evaluate", "error", "critical"];
         
         for (variant, expected_str) in variants.iter().zip(expected.iter()) {
             let json_val = serde_json::to_value(variant).unwrap();
@@ -771,7 +771,7 @@ mod tests {
             ContextValidation::Critical,
         ];
         
-        let expected = vec!["grant", "none", "validate", "error", "critical"];
+        let expected = vec!["grant", "none", "evaluate", "error", "critical"];
         
         for (variant, expected_str) in variants.iter().zip(expected.iter()) {
             let json_val = serde_json::to_value(variant).unwrap();

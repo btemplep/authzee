@@ -126,7 +126,7 @@ authz.enact(
             "Balloon:Inflate"
         ],
         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-        "query_validation": "validate", 
+        "evaluation_handler": "evaluate", 
         "equality": True,
         "data": {
             "allowed_departments": [
@@ -158,7 +158,7 @@ request = {
     "context": {
         "Team": "My Team"
     },
-    "query_validation": "grant"
+    "evaluation_handler": "grant"
 }
 authorize_result = authz.authorize(request)
 print(authorize_result)
@@ -173,7 +173,7 @@ print(authorize_result)
 #             "Balloon:Inflate"
 #         ],
 #         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#         "query_validation": "validate", 
+#         "evaluation_handler": "evaluate", 
 #         "equality": True,
 #         "data": {
 #             "allowed_departments": [
@@ -203,7 +203,7 @@ print(audit_page_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#                 "query_validation": "validate", 
+#                 "evaluation_handler": "evaluate", 
 #                 "equality": True,
 #                 "data": {
 #                     "allowed_departments": [
@@ -242,7 +242,7 @@ batch_request = {
     "context": {
         "Team": "My Team"
     },
-    "query_validation": "grant"
+    "evaluation_handler": "grant"
     "batch": [
         {}, # run the request with all the defaults from the root request
         {
@@ -273,7 +273,7 @@ print(patch_authorize_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#                 "query_validation": "validate", 
+#                 "evaluation_handler": "evaluate", 
 #                 "equality": True,
 #                 "data": {
 #                     "allowed_departments": [
@@ -312,7 +312,7 @@ print(batch_audit_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#                 "query_validation": "validate", 
+#                 "evaluation_handler": "evaluate", 
 #                 "equality": True,
 #                 "data": {
 #                     "allowed_departments": [
@@ -1126,7 +1126,7 @@ Grants should offer more flexibility over the reference implementation, and shou
         "Balloon:Inflate"
     ],
     "query": "contains(request.identities.Group[? contains(grant.data.allowed_groups, cn)]",
-    "query_validation": "validate",
+    "evaluation_handler": "evaluate",
     "equality": true,
     "data": {
         "allowed_groups": "MyGroup"

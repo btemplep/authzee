@@ -116,7 +116,7 @@ grants = [
         ],
         "query": "contains(request.identities.User[0].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
         # In this case, the above query will return `true` if the calling entity's zeroth User type identity has the admin role
-        "query_validation": "validate",
+        "evaluation_handler": "evaluate",
         "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
         "data": {}, # extra free from data to store with this grant
     }
@@ -141,7 +141,7 @@ request = {
         "color": "green",
         "size": "medium"
     },
-    "query_validation": "grant", # optionally override grant level query validation
+    "evaluation_handler": "grant", # optionally override grant level evaluation
     "context_type": "MySpecialContext",
     "context": {
         "Team": "ABC"
@@ -190,7 +190,7 @@ else:
 #             "pop"
 #         ],
 #         "query": "contains(request.identities.User[0].role, 'admin')",
-#         "query_validation": "validate",
+#         "evaluation_handler": "evaluate",
 #         "equality": true,
 #         "data": {}
 #     },

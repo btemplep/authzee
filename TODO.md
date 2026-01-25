@@ -1,9 +1,5 @@
 # TODO
 
-- [ ] query validate in requests and grants???
-    - Should we call this something more descriptive?
-
-- [ ] evaluate spec - how errors are handled with query validation setting. 
 
 - [ ] Fill in last of spec for operations
 
@@ -19,6 +15,28 @@
         - LEFT JOIN
         - OUTER JOIN
         - check if identity type exists in request and has length > 0
+
+
+- [x] query errors no longer include grant, but how do we tell what grant happened during the query error? 
+    - Just put it in the message as grant[n] was an error? 
+    - for requests or worse, batch requests we could duplicate grant per each batch item which means a lot could be here
+    - If there are 100 batch items and 100 grants, then the number of grants returned would be `(items x grants) + grants`
+        - 10100 results which just isn't good for what is supposed to be 
+    - nevermind this works as needed
+
+- [x] evaluate spec - how errors are handled with query validation setting.  
+    - **Solution** - the same as below???
+
+- [x] query validate in requests and grants???
+    - Should we call this something more descriptive?
+    - query_error_handling
+    - evaluation_errors
+    - evaluation_handling
+    - eval_error_handling
+    - **Solution** - evaluation_handler
+        - evaluation
+        - error
+        - critical
 
 - [x] Add context and remove parent and child
     - [x] update basic example

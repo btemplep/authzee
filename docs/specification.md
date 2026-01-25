@@ -101,7 +101,7 @@ Context is included in requests as extra structured data.  The definition includ
     "schema": {
         "type": "object",
         "properties": {
-            "aProp": {
+            "myProperty": {
                 "type": "string"
             }
         }
@@ -568,6 +568,19 @@ If an error occurs when validating an resource definition, a [Definition Error](
 
 The following are errors that are expected when context, identity, or resource definitions fail validation. 
 
+### Definition Error Example
+
+```json
+{
+    "is_critical": false,
+    "message": "The definition was bad because of the thing",
+    "definition_type": "context",
+    "definition": {
+        "bad": "definition",
+        "thisCouldBe": "AnyType"
+    }
+}
+```
 
 ### Definition Error Schema
 
@@ -622,7 +635,7 @@ Grants are the Authzee unit of authorization. They query the request and grant d
         "Balloon:Inflate"
     ],
     "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-    "query_validation": "validate",
+    "evaluation_handler": "evaluate",
     "equality": true,
     "data": {
         "allowed_departments": [
@@ -648,7 +661,7 @@ Grants are the Authzee unit of authorization. They query the request and grant d
         "actions",
         "data",
         "query",
-        "query_validation",
+        "evaluation_handler",
         "equality"
     ],
     "properties": {
@@ -658,7 +671,7 @@ Grants are the Authzee unit of authorization. They query the request and grant d
                 "allow",
                 "deny"
             ],
-            "description": "Any applicable deny grant will always cause the request to be not authorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and not authorized."
+            "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
         },
         "actions": {
             "type": "array",
@@ -671,7 +684,7 @@ Grants are the Authzee unit of authorization. They query the request and grant d
                 "minLength": 1,
                 "maxLength": 512
             },
-            "description": "List of actions this grant applies to or an empty array to match all actions."
+            "description": "List of actions this grant applies to or null to match any resource action."
         },
         "data": {
             "type": "object",
@@ -681,18 +694,18 @@ Grants are the Authzee unit of authorization. They query the request and grant d
             "type": "string",
             "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
         },
-        "query_validation": {
+        "evaluation_handler": {
+            "title": "Grant-Level Evaluation Handler Setting",
+            "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
             "type": "string",
-            "title": "Grant-Level Query Validation Setting",
-            "description": "Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
             "enum": [
-                "validate",
+                "evaluate",
                 "error",
                 "critical"
             ]
         },
         "equality": {
-            "description": "Expected value for they query to return.  If the query result matches this value the grant is a considered applicable to the request."
+            "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
         }
     }
 }
@@ -706,6 +719,17 @@ Grant are valid if all of the following conditions are met:
 - The resource actions listed in the grants are all valid against passed in/registered resource definitions.
 
 If an error occurs when validating a grant, a grant error should be returned/raised.
+
+### Grant Error Example
+
+```json
+{
+    "is_critical": false,
+    "message": "This is a bad grant!",
+    "grant": "anything can be here"
+}
+```
+
 
 ### Grant Error Schema
 
@@ -788,7 +812,7 @@ Requests represent a calling entity's request for perform an operation on identi
         "owner_department": "party_planning",
         "inflated": false
     },
-    "query_validation": "error",
+    "evaluation_handler": "error",
     "context_type": "event",
     "context": {
         "request_source": "web_ui",
@@ -813,7 +837,7 @@ Requests represent a calling entity's request for perform an operation on identi
         "resource",
         "context_type",
         "context",
-        "query_validation"
+        "evaluation_handler"
     ],
     "properties": {
         "identities": {
@@ -862,13 +886,13 @@ Requests represent a calling entity's request for perform an operation on identi
             "type": "object",
             "description": "Context for the request that is an instance of the given context_type."
         },
-        "query_validation": {
-            "title": "Request-Level Query Validation Setting",
-            "description": "Request-level query validation setting. Overrides Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+        "evaluation_handler": {
+            "title": "Request-Level Evaluation Error Handling Setting",
+            "description": "Request-level Evaluation Handler Setting. Can be used to override grant level evaluation handling. 'grant' - Use the grant level setting. No override. 'evaluation' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result. 'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
             "type": "string",
             "enum": [
                 "grant",
-                "validate",
+                "evaluate",
                 "error",
                 "critical"
             ]
@@ -890,6 +914,16 @@ Requests are valid if all of the following conditions are met:
 - The context instance is valid against the schema of the matching context definition.
 
 If an error occurs when validating a request, a request error should be returned/raised.
+
+## Request Error Example
+
+```json
+{
+    "is_critical": true,
+    "message": "The given request was bad!"
+}
+```
+
 
 ### Request Error Schema
 
@@ -926,7 +960,7 @@ Batch requests represent a calling entity's request to perform an operation on a
 - Context Type
 - Context
 
-Grants are naturally partitioned on actions. Batch request try to take advantage of this by balancing the time to retrieve grants and process them.
+Grants are naturally partitioned on actions. Batch requests try to take advantage of this by balancing the time to retrieve grants vs the time to process them.
 
 ### Batch Request Example
 
@@ -978,7 +1012,7 @@ Grants are naturally partitioned on actions. Batch request try to take advantage
     "context": {
         "Team": "ABC"
     },
-    "query_validation": "grant",
+    "evaluation_handler": "grant",
     "batch": [
         {
             "resource": { 
@@ -1017,7 +1051,7 @@ Grants are naturally partitioned on actions. Batch request try to take advantage
             },
             "context_type": "NULL", 
             "context":  {},
-            "query_validation": "error"
+            "evaluation_handler": "error"
         },
         {} 
     ]  
@@ -1039,7 +1073,7 @@ Grants are naturally partitioned on actions. Batch request try to take advantage
         "resource",
         "context_type",
         "context",
-        "query_validation",
+        "evaluation_handler",
         "batch"
     ],
     "properties": {
@@ -1089,13 +1123,13 @@ Grants are naturally partitioned on actions. Batch request try to take advantage
             "type": "object",
             "description": "Context for the request that is an instance of the given context_type. Applies to all items in the batch unless the batch item overwrites it by specifying a different, non-null value."
         },
-        "query_validation": {
-            "title": "Request-Level Query Validation Setting",
-            "description": "Request-level query validation setting. Overrides Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early. Applies to all items in the batch unless the batch item overwrites it by specifying a different, non-null value.",
+        "evaluation_handler": {
+            "title": "Request-Level Evaluation Error Handling Setting",
+            "description": "Request-level Evaluation Handler Setting. Can be used to override grant level evaluation handling. 'grant' - Use the grant level setting. No override. 'evaluation' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result. 'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early. Applies to all items in the batch unless the batch item overwrites it by specifying a different, non-null value.",
             "type": "string",
             "enum": [
                 "grant",
-                "validate",
+                "evaluate",
                 "error",
                 "critical"
             ]
@@ -1159,16 +1193,16 @@ Grants are naturally partitioned on actions. Batch request try to take advantage
                         ],
                         "description": "Context for the request that is an instance of context_type. Overrides the batch request level if the field exists and is not null."
                     },
-                    "query_validation": {
-                        "title": "Request-Level Query Validation Setting",
-                        "description": "Request-level query validation setting. Overrides Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early. Overrides the batch request level if the field exists and is not null.",
+                    "evaluation_handler": {
+                        "title": "Request-Level Evaluation Error Handling Setting",
+                        "description": "Request-level Evaluation Handler Setting. Can be used to override grant level evaluation handling. 'grant' - Use the grant level setting. No override. 'evaluation' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result. 'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early. Overrides the batch request level if the field exists and is not null.",
                         "type": [
                             "string",
                             "null"
                         ],
                         "enum": [
                             "grant",
-                            "validate",
+                            "evaluate",
                             "error",
                             "critical"
                         ]
@@ -1195,7 +1229,7 @@ Currently there are no Batch Request specific errors.
 
 ## Evaluations
 
-Evaluations are the primary unit of work in Authzee.  Authzee operations evaluate requests against grants to determine if a grant is applicable to a request. What is done with the applicable grants is dependent on the operation.  For example, Audit will just return all grants and the evaluation results for the request.
+Evaluations are the primary unit of work in Authzee.  Authzee operations evaluate requests against grants to determine if a grant is applicable to a request. What is done with the applicable grants is dependent on the operation.  
 
 
 ### Request Evaluation
@@ -1233,14 +1267,14 @@ Expected return schema for JSON query execute functions.
         },
         "has_failed": {
             "type": "boolean",
-            "description": "If the query failed to execute."
+            "description": "If the request has failed from a critical error or not."
         },
         "error_message": {
             "type": [
-                "str",
+                "string",
                 "null"
             ],
-            "description": "Details of why the query failed. If no errors, then it is null."
+            "description": "Details of why the query failed. `null` if there are no errors."
         }
     }
 }
@@ -1249,7 +1283,7 @@ Expected return schema for JSON query execute functions.
 A grant is applicable to a request if all of the following are true:
 - The grant has 0 actions OR the request action is in the grant actions.
 - The JSON execute function is called with the grant's query as the `expression` parameter, along with the request and grant nested under an object as the `data` parameter like so: `execute(grant.query, {"request": <request body>, "grant": <grant_body>})` 
-- The JSON  function call produces no errors
+- The JSON query execute function call produces no errors
 - The result of the JSON execute function is equal to the grant's equality property value
 
 
@@ -1276,7 +1310,7 @@ Operations are the core functionality of Authzee. Before running an Authzee oper
 
 ### Audit
 
-The Audit operation is used to collet grant evaluation results against a request. 
+The Audit operation is used to collect grant evaluation results against a request. 
 
 Audit Steps for each grant:
 - The grants are added to the result.
@@ -1295,29 +1329,20 @@ Audit Steps for each grant:
                 "inflate"
             ],
             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-            "query_validation": "error",
+            "evaluation_handler": "error",
             "equality": true,
             "data": {}
         }
     ],
-    "has_failed": false,
-    "errors": {
-        "query": {
-            "is_critical": false,
-            "message": "A JSON Query error has occurred.",
-            "grant": {
-                "effect": "allow",
-                "actions": [
-                    "inflate",
-                    "Balloon:Read"4
-                ],
-                "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department_unknown",
-                "query_validation": "error",
-                "equality": true,
-                "data": {}
-            }
+    "results": [
+        {
+            "is_applicable": true,
+            "query_result": true,
+            "errors": {}
         }
-    }
+    ],
+    "has_failed": false,
+    "errors": {}
 }
 ```
 
@@ -1332,13 +1357,14 @@ Audit Steps for each grant:
     "additionalProperties": true,
     "required": [
         "grants",
+        "results",
         "has_failed",
         "errors"
     ],
     "properties": {
         "grants": {
             "type": "array",
-            "description": "List of grants that are applicable to the request.",
+            "description": "List of grants that have been processed for the request.",
             "items": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "title": "Grant",
@@ -1350,7 +1376,7 @@ Audit Steps for each grant:
                     "actions",
                     "data",
                     "query",
-                    "query_validation",
+                    "evaluation_handler",
                     "equality"
                 ],
                 "properties": {
@@ -1360,7 +1386,7 @@ Audit Steps for each grant:
                             "allow",
                             "deny"
                         ],
-                        "description": "Any applicable deny grant will always cause the request to be not authorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and not authorized."
+                        "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
                     },
                     "actions": {
                         "type": "array",
@@ -1383,18 +1409,73 @@ Audit Steps for each grant:
                         "type": "string",
                         "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
                     },
-                    "query_validation": {
-                        "title": "Grant-Level Query Validation Setting",
-                        "description": "Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                    "evaluation_handler": {
+                        "title": "Grant-Level Evaluation Handler Setting",
+                        "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
                         "type": "string",
                         "enum": [
-                            "validate",
+                            "evaluate",
                             "error",
                             "critical"
                         ]
                     },
                     "equality": {
                         "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                    }
+                }
+            }
+        },
+        "results": {
+            "type": "array",
+            "description": "List of grant evaluation results for each respective grant index.",
+            "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                    "is_applicable",
+                    "query_result",
+                    "errors"
+                ],
+                "properties": {
+                    "is_applicable": {
+                        "type": "boolean",
+                        "description": "If the grant is applicable to the request or not."
+                    },
+                    "query_result": {
+                        "description": "Result from running the JSON query."
+                    },
+                    "errors": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Operation Result Errors",
+                        "description": "Errors returned from Authzee Operations.",
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [],
+                        "properties": {
+                            "query": {
+                                "type": "array",
+                                "items": {
+                                    "title": "Query Error",
+                                    "description": "Error when a JSON query fails.",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "required": [
+                                        "is_critical",
+                                        "message"
+                                    ],
+                                    "properties": {
+                                        "is_critical": {
+                                            "type": "boolean",
+                                            "description": "If this error is critical. Critical errors generally halt further operations."
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Detailed message about what caused the error."
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1414,82 +1495,22 @@ Audit Steps for each grant:
                 "query": {
                     "type": "array",
                     "items": {
-                        "title": "JSON Query Error",
+                        "title": "Query Error",
                         "description": "Error when a JSON query fails.",
                         "type": "object",
                         "additionalProperties": true,
                         "required": [
                             "is_critical",
-                            "message",
-                            "grant"
+                            "message"
                         ],
                         "properties": {
                             "is_critical": {
                                 "type": "boolean",
-                                "description": "If this error is critical, thus causing the the Authzee Operation to exit early."
+                                "description": "If this error is critical. Critical errors generally halt further operations."
                             },
                             "message": {
                                 "type": "string",
                                 "description": "Detailed message about what caused the error."
-                            },
-                            "grant": {
-                                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                                "title": "Grant",
-                                "description": "A grant is an object representing enacted authorization rules.",
-                                "type": "object",
-                                "additionalProperties": true,
-                                "required": [
-                                    "effect",
-                                    "actions",
-                                    "data",
-                                    "query",
-                                    "query_validation",
-                                    "equality"
-                                ],
-                                "properties": {
-                                    "effect": {
-                                        "type": "string",
-                                        "enum": [
-                                            "allow",
-                                            "deny"
-                                        ],
-                                        "description": "Any applicable deny grant will always cause the request to be not authorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and not authorized."
-                                    },
-                                    "actions": {
-                                        "type": "array",
-                                        "uniqueItems": true,
-                                        "items": {
-                                            "title": "Resource Action",
-                                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
-                                            "type": "string",
-                                            "pattern": "^[A-Za-z0-9_.:-]*$",
-                                            "minLength": 1,
-                                            "maxLength": 512
-                                        },
-                                        "description": "List of actions this grant applies to or null to match any resource action."
-                                    },
-                                    "data": {
-                                        "type": "object",
-                                        "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
-                                    },
-                                    "query": {
-                                        "type": "string",
-                                        "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
-                                    },
-                                    "query_validation": {
-                                        "title": "Grant-Level Query Validation Setting",
-                                        "description": "Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
-                                        "type": "string",
-                                        "enum": [
-                                            "validate",
-                                            "error",
-                                            "critical"
-                                        ]
-                                    },
-                                    "equality": {
-                                        "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
-                                    }
-                                }
                             }
                         }
                     }
@@ -1529,7 +1550,7 @@ A request is not authorized if **any** of the following are true:
             "pop"
         ],
         "query": "contains(request.identities.User[0].role, 'admin')",
-        "query_validation": "validate",
+        "evaluation_handler": "evaluate",
         "equality": true,
         "data": {}
     },
@@ -1564,7 +1585,8 @@ A request is not authorized if **any** of the following are true:
             "description": "Grant that was responsible for the authorization decision, if applicable.",
             "anyOf": [
                 {
-                    "type": "null"
+                    "type": "null",
+                    "description": "No grant was involved in the authorization decision."
                 },
                 {
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1577,7 +1599,7 @@ A request is not authorized if **any** of the following are true:
                         "actions",
                         "data",
                         "query",
-                        "query_validation",
+                        "evaluation_handler",
                         "equality"
                     ],
                     "properties": {
@@ -1587,7 +1609,7 @@ A request is not authorized if **any** of the following are true:
                                 "allow",
                                 "deny"
                             ],
-                            "description": "Any applicable deny grant will always cause the request to be not authorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and not authorized."
+                            "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
                         },
                         "actions": {
                             "type": "array",
@@ -1610,12 +1632,12 @@ A request is not authorized if **any** of the following are true:
                             "type": "string",
                             "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
                         },
-                        "query_validation": {
-                            "title": "Grant-Level Query Validation Setting",
-                            "description": "Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                        "evaluation_handler": {
+                            "title": "Grant-Level Evaluation Handler Setting",
+                            "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
                             "type": "string",
                             "enum": [
-                                "validate",
+                                "evaluate",
                                 "error",
                                 "critical"
                             ]
@@ -1658,8 +1680,7 @@ A request is not authorized if **any** of the following are true:
                         "additionalProperties": true,
                         "required": [
                             "is_critical",
-                            "message",
-                            "grant"
+                            "message"
                         ],
                         "properties": {
                             "is_critical": {
@@ -1669,65 +1690,6 @@ A request is not authorized if **any** of the following are true:
                             "message": {
                                 "type": "string",
                                 "description": "Detailed message about what caused the error."
-                            },
-                            "grant": {
-                                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                                "title": "Grant",
-                                "description": "A grant is an object representing enacted authorization rules.",
-                                "type": "object",
-                                "additionalProperties": true,
-                                "required": [
-                                    "effect",
-                                    "actions",
-                                    "data",
-                                    "query",
-                                    "query_validation",
-                                    "equality"
-                                ],
-                                "properties": {
-                                    "effect": {
-                                        "type": "string",
-                                        "enum": [
-                                            "allow",
-                                            "deny"
-                                        ],
-                                        "description": "Any applicable deny grant will always cause the request to be not authorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and not authorized."
-                                    },
-                                    "actions": {
-                                        "type": "array",
-                                        "uniqueItems": true,
-                                        "items": {
-                                            "title": "Resource Action",
-                                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
-                                            "type": "string",
-                                            "pattern": "^[A-Za-z0-9_.:-]*$",
-                                            "minLength": 1,
-                                            "maxLength": 512
-                                        },
-                                        "description": "List of actions this grant applies to or null to match any resource action."
-                                    },
-                                    "data": {
-                                        "type": "object",
-                                        "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
-                                    },
-                                    "query": {
-                                        "type": "string",
-                                        "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
-                                    },
-                                    "query_validation": {
-                                        "title": "Grant-Level Query Validation Setting",
-                                        "description": "Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
-                                        "type": "string",
-                                        "enum": [
-                                            "validate",
-                                            "error",
-                                            "critical"
-                                        ]
-                                    },
-                                    "equality": {
-                                        "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
-                                    }
-                                }
                             }
                         }
                     }
@@ -1740,18 +1702,245 @@ A request is not authorized if **any** of the following are true:
 
 ### Batch Audit
 
-The Batch Audit operation is used to run the Audit operation over a batch request with the same list of given grants. 
+The Batch Audit operation is used to run the Audit operation over a batch request with the same list of grants. 
 
 #### Batch Audit Result Example
 
 ```json
-
+{
+    "grants": [
+        {
+            "effect": "allow",
+            "actions": [
+                "inflate"
+            ],
+            "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+            "evaluation_handler": "error",
+            "equality": true,
+            "data": {}
+        }
+    ],
+    "batch_results": [
+        {
+            "results": [
+                {
+                    "is_applicable": true,
+                    "query_result": true,
+                    "errors": {}
+                }
+            ],
+            "has_failed": false,
+            "errors": {}
+        }
+    ],
+    "has_failed": false,
+    "errors": {}
+}
 ```
+
 
 #### Batch Audit Result Schema
 
 ```json
-
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch Audit Result",
+    "description": "Result for the Batch Audit Operation.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "grants",
+        "batch_results",
+        "has_failed",
+        "errors"
+    ],
+    "properties": {
+        "grants": {
+            "type": "array",
+            "description": "List of grants that have been processed for the request.",
+            "items": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "Grant",
+                "description": "A grant is an object representing enacted authorization rules.",
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                    "effect",
+                    "actions",
+                    "data",
+                    "query",
+                    "evaluation_handler",
+                    "equality"
+                ],
+                "properties": {
+                    "effect": {
+                        "type": "string",
+                        "enum": [
+                            "allow",
+                            "deny"
+                        ],
+                        "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                    },
+                    "actions": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                            "title": "Resource Action",
+                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_.:-]*$",
+                            "minLength": 1,
+                            "maxLength": 512
+                        },
+                        "description": "List of actions this grant applies to or null to match any resource action."
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                    },
+                    "evaluation_handler": {
+                        "title": "Grant-Level Evaluation Handler Setting",
+                        "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                        "type": "string",
+                        "enum": [
+                            "evaluate",
+                            "error",
+                            "critical"
+                        ]
+                    },
+                    "equality": {
+                        "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                    }
+                }
+            }
+        },
+        "batch_results": {
+            "type": "array",
+            "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
+            "items": {
+                "type": "object",
+                "description": "Audit batch item result.",
+                "additionalProperties": true,
+                "required": [
+                    "results",
+                    "has_failed",
+                    "errors"
+                ],
+                "properties": {
+                    "results": {
+                        "type": "array",
+                        "description": "List of grant evaluation results for each respective grant index.",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "required": [
+                                "is_applicable",
+                                "query_result",
+                                "errors"
+                            ],
+                            "properties": {
+                                "is_applicable": {
+                                    "type": "boolean",
+                                    "description": "If the grant is applicable to the request or not."
+                                },
+                                "query_result": {
+                                    "description": "Result from running the JSON query."
+                                },
+                                "errors": {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "title": "Operation Result Errors",
+                                    "description": "Errors returned from Authzee Operations.",
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [],
+                                    "properties": {
+                                        "query": {
+                                            "type": "array",
+                                            "items": {
+                                                "title": "Query Error",
+                                                "description": "Error when a JSON query fails.",
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "required": [
+                                                    "is_critical",
+                                                    "message"
+                                                ],
+                                                "properties": {
+                                                    "is_critical": {
+                                                        "type": "boolean",
+                                                        "description": "If this error is critical. Critical errors generally halt further operations."
+                                                    },
+                                                    "message": {
+                                                        "type": "string",
+                                                        "description": "Detailed message about what caused the error."
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "has_failed": {
+                        "type": "boolean",
+                        "description": "If the request has failed from a critical error or not."
+                    },
+                    "errors": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Operation Result Errors",
+                        "description": "Errors returned from Authzee Operations.",
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [],
+                        "properties": {
+                            "query": {
+                                "type": "array",
+                                "items": {
+                                    "title": "Query Error",
+                                    "description": "Error when a JSON query fails.",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "required": [
+                                        "is_critical",
+                                        "message"
+                                    ],
+                                    "properties": {
+                                        "is_critical": {
+                                            "type": "boolean",
+                                            "description": "If this error is critical. Critical errors generally halt further operations."
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Detailed message about what caused the error."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the batch request could not be validated and failed or not. "
+        },
+        "errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Batch Result Errors",
+            "description": "Errors returned from Authzee Batch requests.",
+            "type": "object",
+            "additionalProperties": true,
+            "required": [],
+            "properties": {}
+        }
+    }
+}
 ```
 
 ### Batch Authorize

@@ -299,7 +299,7 @@ grants = [
         ],
         "query": "contains(request.identities.User[].department, request.resource.owner_department)", 
         # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
-        "query_validation": "error", # if the query has an error return it
+        "evaluation_handler": "error", # if the query has an error return it
         "equality": True,
         "data": {}
     },
@@ -309,7 +309,7 @@ grants = [
             "read"
         ],       # you can use the query to limit by context types
         "query": "request.context_type == 'MySpecialContext' && contains(request.identities.User[].department, request.context.Team)",
-        "query_validation": "error", # if the query has an error return it
+        "evaluation_handler": "error", # if the query has an error return it
         "equality": True,
         "data": {}
     },
@@ -323,7 +323,7 @@ grants = [
             "tie"
         ],
         "query": "request.context_type == 'NULL' && contains(request.identities.Role[].level, 'admin')",
-        "query_validation": "error",
+        "evaluation_handler": "error",
         "equality": True,
         "data": {}
     },
@@ -333,7 +333,7 @@ grants = [
             "read"
         ], # because the read action is for multiple resources we can check the resource type first. 
         "query": "request.resource_type == 'BalloonStore' && contains(request.identities.Group[?type=='department'].department, request.resource.owner_department)",
-        "query_validation": "error", 
+        "evaluation_handler": "error", 
         "equality": True,
         "data": {}
     },
@@ -343,7 +343,7 @@ grants = [
             "inflate"
         ],                                                                               # don't need to check resource type since only Balloon has the 'inflate' action
         "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-        "query_validation": "error",
+        "evaluation_handler": "error",
         "equality": True,
         "data": {}
     },
@@ -353,7 +353,7 @@ grants = [
             "pop"
         ],       # don't need to check resource type since only Balloon has the 'inflate' action
         "query": "request.context_type == 'NULL' && request.resource.size == 'large' && !contains(request.identities.Role[*].level, 'admin')",
-        "query_validation": "error",
+        "evaluation_handler": "error",
         "equality": True,
         "data": {}
     },
@@ -361,7 +361,7 @@ grants = [
         "effect": "deny",
         "actions": [],
         "query": "request.context_type == 'NULL' && length(request.identities.User) == `0`",
-        "query_validation": "error",
+        "evaluation_handler": "error",
         "equality": True,
         "data": {}
     }
@@ -412,7 +412,7 @@ request = {
         "owner_department": "party_planning",
         "inflated": False
     },
-    "query_validation": "grant",  # Use grant-level validation settings
+    "evaluation_handler": "grant",  # Use grant-level validation settings
     "context_type": "MySpecialContext",  # specify the context type, this will only be evaluated against grants that accept this context
     "context": { # The context for the request
         "Team": "party_planning"
@@ -476,7 +476,7 @@ print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 #                 "inflate"
 #             ],
 #             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#             "query_validation": "error",
+#             "evaluation_handler": "error",
 #             "equality": true,
 #             "data": {}
 #         }
@@ -506,7 +506,7 @@ print(f"Authorization Result:\n{json.dumps(authorization_result, indent=4)}")
 #             "inflate"
 #         ],
 #         "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#         "query_validation": "error",
+#         "evaluation_handler": "error",
 #         "equality": true,
 #         "data": {}
 #     },
@@ -566,7 +566,7 @@ batch_request = {
     "context": {
         "Team": "ABC"
     },
-    "query_validation": "grant",
+    "evaluation_handler": "grant",
     "batch": [
         {
             "resource": { # A common use case is to simply specify different resources for the same request
@@ -605,7 +605,7 @@ batch_request = {
             },
             "context_type": "NULL",  # specify the context type, this will only be evaluated against grants that accept this context
             "context":  {},
-            "query_validation": "error"
+            "evaluation_handler": "error"
         },
         {} # technically you don't have to override any
     ]  
@@ -633,7 +633,7 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #                         "inflate"
 #                     ],
 #                     "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                     "query_validation": "error",
+#                     "evaluation_handler": "error",
 #                     "equality": true,
 #                     "data": {}
 #                 }
@@ -659,7 +659,7 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #                                 "tie"
 #                             ],
 #                             "query": "request.context_type == 'NULL' && contains(request.identities.Role[].level, 'admin')",
-#                             "query_validation": "error",
+#                             "evaluation_handler": "error",
 #                             "equality": true,
 #                             "data": {}
 #                         }
@@ -673,7 +673,7 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #                                 "inflate"
 #                             ],
 #                             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                             "query_validation": "error",
+#                             "evaluation_handler": "error",
 #                             "equality": true,
 #                             "data": {}
 #                         }
@@ -689,7 +689,7 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #                         "inflate"
 #                     ],
 #                     "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                     "query_validation": "error",
+#                     "evaluation_handler": "error",
 #                     "equality": true,
 #                     "data": {}
 #                 }
@@ -724,7 +724,7 @@ print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}"
 #                     "inflate"
 #                 ],
 #                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                 "query_validation": "error",
+#                 "evaluation_handler": "error",
 #                 "equality": true,
 #                 "data": {}
 #             },
@@ -747,7 +747,7 @@ print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}"
 #                     "inflate"
 #                 ],
 #                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                 "query_validation": "error",
+#                 "evaluation_handler": "error",
 #                 "equality": true,
 #                 "data": {}
 #             },

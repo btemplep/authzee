@@ -11,8 +11,8 @@ Core workflow:
 7. An operation is ran on the request or batch request.
     - audit - List grants that evaluate to a match for the request
     - authorize - Evaluate grants to determine if a request is authorized
-    - batch_audit - audit but on a batch with the same identities, action, resource_type, and context_type
-    - batch_authorize - authorize but on a batch with the same identities, action, resource_type, and context_type
+    - batch_audit - audit but on a batch with the same resource_action
+    - batch_authorize - authorize but on a batch with the same resource_action
 """
 
 __all__ = [
@@ -144,17 +144,17 @@ resource_definition_schema = {
         "schema": _schema_schema
     }
 }
-_query_validation_schema = {
-    "title": "Grant-Level Query Validation Setting",
+_evaluation_handler_schema = {
+    "title": "Grant-Level Evaluation Handler Setting",
     "description": (
-        "Grant-level query validation setting. Set how the query errors are treated. "
-        "'validate' - Query errors cause the grant to be inapplicable to the request. "
-        "'error' - Includes the 'validate' setting checks, and also adds errors to the result. "
+        "Set how evaluation errors are handled."
+        "'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result."
+        "'error' - Includes the 'validate' setting checks, and also includes errors in the result. "
         "'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early."
     ),
     "type": "string",
     "enum": [
-        "validate",
+        "evaluate",
         "error",
         "critical"
     ]
@@ -170,7 +170,7 @@ grant_schema = {
         "actions",
         "data",
         "query",
-        "query_validation",
+        "evaluation_handler",
         "equality"
     ],
     "properties": {
@@ -181,9 +181,9 @@ grant_schema = {
                 "deny"
             ],
             "description": (
-                "Any applicable deny grant will always cause the request to be not authorized. "
+                "Any applicable deny grant will always cause the request to be unauthorized. "
                 "If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. "
-                "If there no applicable allow or deny grants, requests are implicitly denied and not authorized."
+                "If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
             )
         },
         "actions": {
@@ -200,7 +200,7 @@ grant_schema = {
             "type": "string",
             "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
         },
-        "query_validation": _query_validation_schema,
+        "evaluation_handler": _evaluation_handler_schema,
         "equality": {
             "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
         }
@@ -341,11 +341,17 @@ validate_grants_result_schema = {
         }
     }
 }
-_request_query_validation_schema = {
-    "title": "Request-Level Query Validation Setting",
-    "description": "Request-level query validation setting. Overrides " + _query_validation_schema['description'],
+_request_evaluation_handler_schema = {
+    "title": "Request-Level Evaluation Error Handling Setting",
+    "description": (
+        "Request-level Evaluation Handler Setting. Can be used to override grant level evaluation handling. "
+        "'grant' - Use the grant level setting. No override. "
+        "'evaluation' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result. "
+        "'error' - Includes the 'validate' setting checks, and also includes errors in the result. "
+        "'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early."
+    ),
     "type": "string",
-    "enum": ["grant"] + _query_validation_schema['enum']
+    "enum": ["grant"] + _evaluation_handler_schema['enum']
 }
 _request_identities_schema = {
     "description": "Object whose keys are the identity types, and values are an array of instances of that identity type.",
@@ -381,7 +387,7 @@ request_schema = {
         "resource",
         "context_type",
         "context",
-        "query_validation"
+        "evaluation_handler"
     ],
     "properties": {
         "identities": _request_identities_schema,
@@ -390,7 +396,7 @@ request_schema = {
         "resource": _request_resource_schema,
         "context_type": _context_type_schema,
         "context": _request_context_schema,
-        "query_validation": _request_query_validation_schema
+        "evaluation_handler": _request_evaluation_handler_schema
     }
 }
 validate_request_result_schema = {
@@ -593,7 +599,7 @@ batch_request_schema = {
         "resource",
         "context_type",
         "context",
-        "query_validation",
+        "evaluation_handler",
         "batch"
     ],
     "properties": {
@@ -611,8 +617,8 @@ batch_request_schema = {
         "context": _request_context_schema | {
             "description": _request_context_schema['description'] + _request_level_description
         },
-        "query_validation": _request_query_validation_schema | {
-            "description": _request_query_validation_schema['description'] + _request_level_description
+        "evaluation_handler": _request_evaluation_handler_schema | {
+            "description": _request_evaluation_handler_schema['description'] + _request_level_description
         },
         "batch": {
             "type": "array",
@@ -654,12 +660,12 @@ batch_request_schema = {
                         ],
                         "description": "Context for the request that is an instance of context_type." + _batch_item_level_description
                     },
-                    "query_validation": _request_query_validation_schema | {
+                    "evaluation_handler": _request_evaluation_handler_schema | {
                         "type": [
                             "string",
                             "null"
                         ],
-                        "description": _request_query_validation_schema['description'] + _batch_item_level_description
+                        "description": _request_evaluation_handler_schema['description'] + _batch_item_level_description
                     }
                 }
             }
@@ -1210,7 +1216,7 @@ def evaluate_one(
         if query_result['result'] == grant['equality']:
             result['is_applicable'] = True
     else:
-        q_val = grant['query_validation'] if request['query_validation'] == "grant" else request['query_validation']
+        q_val = grant['evaluation_handler'] if request['evaluation_handler'] == "grant" else request['evaluation_handler']
         is_q_val_crit = q_val == "critical"
         if (
             (
@@ -1435,7 +1441,7 @@ def batch_audit(
                 "resource": item.get("resource", batch_request['resource']),
                 "context_type": item.get("context_type", batch_request['context_type']),
                 "context": item.get("context", batch_request['context']),
-                "query_validation": item.get("query_validation", batch_request['query_validation'])
+                "evaluation_handler": item.get("evaluation_handler", batch_request['evaluation_handler'])
             },
             grants,
             execute
@@ -1467,7 +1473,7 @@ def batch_authorize(
                     "resource": item.get("resource", batch_request['resource']),
                     "context_type": item.get("context_type", batch_request['context_type']),
                     "context": item.get("context", batch_request['context']),
-                    "query_validation": item.get("query_validation", batch_request['query_validation'])
+                    "evaluation_handler": item.get("evaluation_handler", batch_request['evaluation_handler'])
                 },
                 grants,
                 execute
