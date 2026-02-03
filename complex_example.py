@@ -13,7 +13,7 @@ from src.reference import (
 ) 
 
 # Define the identities the calling entity may have
-identity_definitions = [
+identity_defs = [
     {
         "identity_type": "User",
         "schema": {
@@ -108,7 +108,7 @@ identity_definitions = [
 ]
 
 # 2. Define resources that can be accessed
-resource_definitions = [
+resource_defs = [
     {
         "resource_type": "BalloonStore",
         "actions": [
@@ -221,7 +221,7 @@ resource_definitions = [
 ]
 
 # 3. Define Contexts - extra data that is passed to the request
-context_definitions = [ # note that context root types must be objects!
+context_defs = [ # note that context root types must be objects!
     { # no context
         "context_type": "NULL",
         "schema": {
@@ -459,9 +459,9 @@ def my_execute(expression: str, data: Any) -> Any:
 
 # 7.a. Audit - Evaluate grants against the request.  As the name says, this is good for auditing access
 audit_result = audit_workflow(
-    context_definitions,
-    identity_definitions,
-    resource_definitions,
+    context_defs,
+    identity_defs,
+    resource_defs,
     grants,
     request,
     my_execute
@@ -489,9 +489,9 @@ print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 # 7.b. Authorized - Optimized to decide if the given request is authorized
 # Requests are authorized if they have a matching allow grant and no matching deny grants. 
 authorization_result = authorize_workflow(
-    context_definitions,
-    identity_definitions,
-    resource_definitions, 
+    context_defs,
+    identity_defs,
+    resource_defs, 
     grants,
     request,
     my_execute 
@@ -613,9 +613,9 @@ batch_request = {
 
 # 9.a. Evaluate several requests with the same action against grants
 batch_audit_results = batch_audit_workflow(
-    context_definitions,
-    identity_definitions,
-    resource_definitions,
+    context_defs,
+    identity_defs,
+    resource_defs,
     grants,
     batch_request,
     my_execute 
@@ -704,9 +704,9 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 
 # 9.b. Check if several requests with the same action are authorized.
 batch_authorize_result = batch_authorize_workflow(
-    context_definitions,
-    identity_definitions,
-    resource_definitions, 
+    context_defs,
+    identity_defs,
+    resource_defs, 
     grants,
     batch_request,
     my_execute 

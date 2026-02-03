@@ -3,7 +3,7 @@
 Core workflow:
 
 1. Context, identity, and resource definitions are created to limit inputs.
-2. Definitions are validated with their respective function: ``validate_context_definitions``, ``validate_identity_definitions``, and ``validate_resource_definitions``
+2. Definitions are validated with their respective function: ``validate_context_defs``, ``validate_identity_defs``, and ``validate_resource_defs``
 3. Grants are created to allow or deny actions on resources.
 4. Grants are validated with the ``validate_grants`` function.
 5. Requests or batch requests are created to perform Authzee operations.
@@ -24,7 +24,7 @@ __all__ = [
     "grant_error_schema",
     "query_error_schema",
     "request_error_schema",
-    "validate_definitions_result_schema",
+    "validate_defs_result_schema",
     "validate_grants_result_schema",
     "request_schema",
     "validate_request_result_schema",
@@ -36,9 +36,9 @@ __all__ = [
     "validate_batch_request_result_schema",
     "batch_audit_result_schema",
     "batch_authorize_result_schema",
-    "validate_context_definitions",
-    "validate_identity_definitions",
-    "validate_resource_definitions",
+    "validate_context_defs",
+    "validate_identity_defs",
+    "validate_resource_defs",
     "validate_grants",
     "validate_request",
     "validate_batch_request",
@@ -291,7 +291,7 @@ _is_valid_schema = {
     "type": "boolean",
     "description": "If the inputs have been successfully validated or not."
 }
-validate_definitions_result_schema = {
+validate_defs_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Definition Validation Result.",
     "description": "Definition validation result.",
@@ -803,17 +803,17 @@ batch_authorize_result_schema = {
 }
 
 
-def validate_context_definitions(context_definitions: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
+def validate_context_defs(context_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
     errors = []
     context_types = set()
-    for c_def in context_definitions:
+    for c_def in context_defs:
         try:
             jsonschema.validate(c_def, context_definition_schema)
         except jsonschema.exceptions.ValidationError as exc:
             errors.append(
                 {
                     "is_critical": True,
-                    "message": f"Context definition is not valid. Schema Error: {exc}'",
+                    "message": f"Context def is not valid. Schema Error: {exc}'",
                     "definition_type": "context",
                     "definition": c_def
                 }
@@ -848,10 +848,10 @@ def validate_context_definitions(context_definitions: List[Dict[str, AnyJSON]]) 
     }
 
 
-def validate_identity_definitions(identity_definitions: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
+def validate_identity_defs(identity_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
     errors = []
     id_types = []
-    for id_def in identity_definitions:
+    for id_def in identity_defs:
         try:
             jsonschema.validate(id_def, identity_definition_schema)
         except jsonschema.exceptions.ValidationError as exc:
@@ -893,10 +893,10 @@ def validate_identity_definitions(identity_definitions: List[Dict[str, AnyJSON]]
     }
 
 
-def validate_resource_definitions(resource_definitions: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
+def validate_resource_defs(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
     errors = []
     r_types = set()
-    for r_def in resource_definitions:
+    for r_def in resource_defs:
         try:
             jsonschema.validate(r_def, resource_definition_schema)
         except jsonschema.exceptions.ValidationError as exc:
@@ -940,10 +940,10 @@ def validate_resource_definitions(resource_definitions: List[Dict[str, AnyJSON]]
 
 def validate_grants(
     grants: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]]
+    resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
     actions = set()
-    for r_def in resource_definitions:
+    for r_def in resource_defs:
         for action in r_def['actions']:
             actions.add(action)
 
@@ -1062,9 +1062,9 @@ def _validate_request_context(
 
 def validate_request(
     request: Dict[str, AnyJSON],
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions:List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]]
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs:List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
     try:
         jsonschema.validate(request, request_schema)
@@ -1082,20 +1082,20 @@ def validate_request(
     errors = []
     _validate_request_identities(
         identities=request['identities'],
-        identity_lut={i['identity_type']: i for i in identity_definitions},
+        identity_lut={i['identity_type']: i for i in identity_defs},
         errors=errors
     )
     _validate_request_resource(
         resource_type=request['resource_type'],
         resource=request['resource'],
         action=request['action'],
-        resource_lut={r['resource_type']: r for r in resource_definitions},
+        resource_lut={r['resource_type']: r for r in resource_defs},
         errors=errors
     )
     _validate_request_context(
         context_type=request['context_type'],
         context=request['context'],
-        context_lut={c['context_type']: c for c in context_definitions},
+        context_lut={c['context_type']: c for c in context_defs},
         errors=errors
     )
 
@@ -1107,9 +1107,9 @@ def validate_request(
 
 def validate_batch_request(
     batch_request: Dict[str, AnyJSON],
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions:List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]]
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs:List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
     try:
         jsonschema.validate(batch_request, batch_request_schema)
@@ -1127,9 +1127,9 @@ def validate_batch_request(
 
     errors = []
     batch_item_errors = [[] for _ in batch_request['batch']]
-    identity_lut = {i['identity_type']: i for i in identity_definitions}
-    resource_lut = {r['resource_type']: r for r in resource_definitions}
-    context_lut = {c['context_type']: c for c in context_definitions}
+    identity_lut = {i['identity_type']: i for i in identity_defs}
+    resource_lut = {r['resource_type']: r for r in resource_defs}
+    context_lut = {c['context_type']: c for c in context_defs}
     _validate_request_identities(
         identities=batch_request['identities'],
         identity_lut=identity_lut,
@@ -1336,42 +1336,42 @@ def authorize(
 
 
 def _validate(
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
     is_batch: bool
 ) -> Dict[str, AnyJSON]:
-    c_val = validate_context_definitions(context_definitions)
+    c_val = validate_context_defs(context_defs)
     if c_val['is_valid'] is False:
         return c_val
     
-    i_val = validate_identity_definitions(identity_definitions)
+    i_val = validate_identity_defs(identity_defs)
     if i_val['is_valid'] is False:
         return i_val
     
-    r_val = validate_resource_definitions(resource_definitions)
+    r_val = validate_resource_defs(resource_defs)
     if r_val['is_valid'] is False:
         return r_val
 
-    g_val = validate_grants(grants, resource_definitions)
+    g_val = validate_grants(grants, resource_defs)
     if g_val['is_valid'] is False:
         return g_val
     
     if is_batch is True:
         req_val = validate_batch_request(
             request,
-            context_definitions,
-            identity_definitions,
-            resource_definitions
+            context_defs,
+            identity_defs,
+            resource_defs
         )
     else:
         req_val = validate_request(
             request,
-            context_definitions,
-            identity_definitions,
-            resource_definitions
+            context_defs,
+            identity_defs,
+            resource_defs
         )
 
     if req_val['is_valid'] is False:
@@ -1383,17 +1383,17 @@ def _validate(
 
 
 def audit_workflow(
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
     execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     val = _validate(
-        context_definitions,
-        identity_definitions,
-        resource_definitions,
+        context_defs,
+        identity_defs,
+        resource_defs,
         grants,
         request,
         False
@@ -1405,17 +1405,17 @@ def audit_workflow(
 
 
 def authorize_workflow(
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
     execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     val = _validate(
-        context_definitions,
-        identity_definitions,
-        resource_definitions,
+        context_defs,
+        identity_defs,
+        resource_defs,
         grants,
         request,
         False
@@ -1488,17 +1488,17 @@ def batch_authorize(
 
 
 def batch_audit_workflow(
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     batch_request: Dict[str, AnyJSON],
     execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     val = _validate(
-        context_definitions,
-        identity_definitions,
-        resource_definitions,
+        context_defs,
+        identity_defs,
+        resource_defs,
         grants,
         batch_request,
         True
@@ -1510,17 +1510,17 @@ def batch_audit_workflow(
 
 
 def batch_authorize_workflow(
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     batch_request: Dict[str, AnyJSON],
     execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     val = _validate(
-        context_definitions,
-        identity_definitions,
-        resource_definitions,
+        context_defs,
+        identity_defs,
+        resource_defs,
         grants,
         batch_request,
         True

@@ -46,9 +46,11 @@ context_def = {
         }
     }
 }
-authz.register_context_def(context_def)
-authz.update_context_def(context_def)
-# authz.delete_context_def(context_def['context_type'])
+authz.put_context_def(identity_def) # register a new context definition or update an existing by context_type
+get_context_defs_page() # manually paginate registered context definitions
+list_context_defs() # Auto paginate context definitions - if the language allows
+# authz.delete_context_def(context_def['context_type']) # delete a context def by type
+
 identity_def = {
     "identity_type": "User",
     "schema": {
@@ -70,10 +72,12 @@ identity_def = {
         }
     }
 }
-authz.register_identity_def(identity_def)
-authz.update_identity_def(identity_def)
-# authz.delete_identity_def(identity_def['identity_type'])
-authz.register_resource_def(
+authz.put_identity_def(identity_def) # register a new identity definition or update an existing by identity_type
+get_identity_defs_page() # manually paginate registered identity definitions
+list_identity_defs() # Auto paginate identity definitions - if the language allows
+# authz.delete_identity_def(identity_def['identity_type']) # delete a identity def by type
+
+authz.put_resource_def( # register a new resource definition or update an existing by resource_type
     {
         "resource_type": "Balloon",
         "actions": [
@@ -114,7 +118,11 @@ authz.register_resource_def(
         }
     }
 )
-authz.enact(
+get_resource_defs_page() # manually paginate registered resource definitions
+list_resource_defs() # Auto paginate resource definitions - if the language allows
+# authz.delete_resource_def(resource['resource_type']) # delete a resource definition by resource type
+
+grant = authz.enact( # Enact a grant and it will now be used when making authorization decisions. 
     {
         "name": "Balloon Sales and maintenance Inflate",
         "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
@@ -136,6 +144,11 @@ authz.enact(
         }
     }
 )
+get_grants_page() # get a page of grants
+get_page_refs_page() # get a page of references to grant pages.  Used for parallel pagination
+list_grants() # Auto paginate grants - if the language allows
+# authz.repeal(grant['grant_uuid']) # Repeal to delete a grant and it does not effect authorization any more. 
+
 request = {
     "identities": {
         "User": [
@@ -246,7 +259,7 @@ batch_request = {
     "batch": [
         {}, # run the request with all the defaults from the root request
         {
-            "identities": {
+            "identities": { # A batch item can override any field besides the action
                 "User": [
                     {
                         "username": "tester2",
@@ -372,9 +385,9 @@ SDKs are considered:
 - **SDK Standard** - Follows the Authzee SDK standard.  It's not a bad thing if the library does not follow the standard.  You can expect a different interface than the official SDKs. 
 - **Official** - Branded as the official Authzee SDK for a language. Again, not a bad thing if the library isn't official.
 
-| Language | Code Repo | Package - Repo | Authzee Compliant | Maintained | SDK Standard | Official |
-|---|---|---|:---:|:---:|:---:|:---:|
-| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ✅ | ✅ | ✅ | ✅ |
+| Language | Code Repo | Package - Repo | Authzee Compliant | Maintained | SDK Standard | Official | Notes |
+|---|---|---|:---:|:---:|:---:|:---:|:---:|
+| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ✅ | ✅ | ✅ | ✅ | In progress for updating to the new standard |
 
 <!-- 
 Green checks for all that are compliant
@@ -397,7 +410,7 @@ The suggested architecture for the high level API of SDKs is to have a primary c
 > - Class instances or objects -> struct instances
 > - Methods -> struct methods or functions that act on a struct 
 
-Under this object, identity definitions, resource definitions, and the JMESPath search function are static.
+Under this object, the JSON query search function is static.
 The Authzee object is created with a compute module and a storage module. The compute module will be used to provide the compute resources for running operations, and the storage module will be used to store and retrieve grants and other compute state objects. 
 
 > **NOTE** - The Standard describes the minimum expectations of what an Authzee SDK should meet.  SDKs are welcome to have more functionality!!!
@@ -416,7 +429,7 @@ The Authzee object is created with a compute module and a storage module. The co
 Authzee SDKs should offer both a high and low level APIs.  
 The majority of this document will focus on the high level APIs that are more easily consumed. 
 
-The low level APIs should also exist, and directly follow the specification for Authzee. 
+The low level APIs should also exist, and directly follow the specification/reference for Authzee. 
 This is to give a core point of logic for the higher level APIs, and the ability to use a Authzee specification-like interface directly.  
 
 It should include these variables to import:
@@ -430,7 +443,7 @@ It should include these variables to import:
 - `grant_error_schema` - Grant Type Error Schema
 - `query_error_schema` - Query Type Error Schema
 - `request_error_schema` - Request Type Error Schema
-- `validate_definitions_result_schema` - Return value schema for `validate_definitions` function
+- `validate_defs_result_schema` - Return value schema for `validate_defs` function
 - `validate_grants_result_schema` - Return value schema for `validate_grants` function
 - `request_schema` - Authzee Request Schema
 - `validate_request_result_schema` - Return value schema for `validate_request` function
@@ -446,45 +459,39 @@ It should include these functions from the authzee reference:
 
 
 ```python
-def validate_context_definitions(
-    context_definitions: List[Dict[str, AnyJSON]]
-) -> Dict[str, AnyJSON]:
+def validate_context_defs(context_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
 ```
 
 ```python
-def validate_identity_definitions(
-    identity_definitions: List[Dict[str, AnyJSON]]
-) -> Dict[str, AnyJSON]:
+def validate_identity_defs(identity_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
 ```
 
 ```python
-def validate_resource_definitions(
-    resource_definitions: List[Dict[str, AnyJSON]]
-) -> Dict[str, AnyJSON]:
+def validate_resource_defs(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
 ```
 
 ```python
 def validate_grants(
     grants: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]]
+    resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
 
 ```python
 def validate_request(
     request: Dict[str, AnyJSON],
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions:List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]]
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs:List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
 
 ```python
 def validate_batch_request(
     batch_request: Dict[str, AnyJSON],
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions:List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]]
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs:List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
 
@@ -516,13 +523,13 @@ def authorize(
 ) -> Dict[str, AnyJSON]:
 ```
 
-> **NOTE** - Workflow functions perform all steps that need to be done for an operation.  They will return different result depending on if there are failure.  The are included as a way to very easily test low level functionality. 
+> **NOTE** - Workflow functions perform all steps that need to be done for an operation.  They will return different result depending on if there are failures.  The are included as a way to easily test low level functionality and are just a simplification of the spec. 
 
 ```python
 def audit_workflow(
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
     execute: Callable[[str, AnyJSON], AnyJSON]
@@ -531,9 +538,9 @@ def audit_workflow(
 
 ```python
 def authorize_workflow(
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
     execute: Callable[[str, AnyJSON], AnyJSON]
@@ -558,9 +565,9 @@ def batch_authorize(
 
 ```python
 def batch_audit_workflow(
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     batch_request: Dict[str, AnyJSON],
     execute: Callable[[str, AnyJSON], AnyJSON]
@@ -569,9 +576,9 @@ def batch_audit_workflow(
 
 ```python
 def batch_authorize_workflow(
-    context_definitions: List[Dict[str, AnyJSON]],
-    identity_definitions: List[Dict[str, AnyJSON]],
-    resource_definitions: List[Dict[str, AnyJSON]],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     batch_request: Dict[str, AnyJSON],
     execute: Callable[[str, AnyJSON], AnyJSON]
@@ -621,78 +628,78 @@ def teardown() -> None:
 
 
 ```python
-def get_context_definitions_page(
+def get_context_defs_page(
     page_ref: str | None, 
     page_size: int
 ) -> ContextDefinitionsPage:
 ```
 
 ```python
-def get_context_definition(context_type: str) -> ContextDefinition:
+def get_context_def(context_type: str) -> ContextDefinition:
 ```
 
 ```python
-def register_context_definition(context_definition: ContextDefinition) -> ContextDefinition:
+def register_context_def(context_def: ContextDefinition) -> ContextDefinition:
 ```
 - Add a new Context Definition
 
 ```python 
-def update_context_definition(context_definition: ContextDefinition) -> ContextDefinition:
+def update_context_def(context_def: ContextDefinition) -> ContextDefinition:
 ```
-- Update a context definition
+- Update a context def
 
 ```python
-def delete_context_definition(context_type: str) -> None:
+def delete_context_def(context_type: str) -> None:
 ```
 
 ```python
-def get_identity_definitions_page(
+def get_identity_defs_page(
     page_ref: str | None, 
     page_size: int
 ) -> IdentityDefinitionsPage:
 ```
 
 ```python
-def get_identity_definition(identity_type: str) -> IdentityDefinition:
+def get_identity_def(identity_type: str) -> IdentityDefinition:
 ```
 
 ```python
-def register_identity_definition(identity_definition: IdentityDefinition) -> IdentityDefinition:
+def register_identity_def(identity_def: IdentityDefinition) -> IdentityDefinition:
 ```
 - Add a new Identity Definition
 
 ```python 
-def update_identity_definition(identity_definition: IdentityDefinition) -> IdentityDefinition:
+def update_identity_def(identity_def: IdentityDefinition) -> IdentityDefinition:
 ```
-- Update a identity definition
+- Update a identity def
 
 ```python
-def delete_identity_definition(identity_type: str) -> None:
+def delete_identity_def(identity_type: str) -> None:
 ```
 
 ```python
-def get_resource_definitions_page(
+def get_resource_defs_page(
     page_ref: str | None, 
     page_size: int
 ) -> ResourceDefinitionsPage:
 ```
 
 ```python
-def get_resource_definition(resource_type: str) -> ResourceDefinition:
+def get_resource_def(resource_type: str) -> ResourceDefinition:
 ```
 
 ```python
-def register_resource_definition(resource_definition: ResourceDefinition) -> ResourceDefinition:
+def register_resource_def(resource_def: ResourceDefinition) -> ResourceDefinition:
 ```
 - Add a new Resource Definition
 
 ```python 
-def update_resource_definition(resource_definition: ResourceDefinition) -> ResourceDefinition:
+def update_resource_def(resource_def: ResourceDefinition) -> ResourceDefinition:
 ```
-- Update a resource definition
+- Update a resource def
 
 ```python
-def delete_resource_definition(resource_type: str) -> None:
+def delete_resource_def(resource_type: str) -> None:
 ```
 
 ```python
@@ -913,53 +920,53 @@ def teardown() -> None:
 - destructive - may lose all long lasting compute resources
 
 ```python
-def get_identity_definitions_page(
+def get_identity_defs_page(
     page_ref: str | None, 
     page_size: int
 ) -> IdentityDefinitionsPage:
 ```
 
 ```python
-def get_identity_definition(identity_type: str) -> IdentityDefinition:
+def get_identity_def(identity_type: str) -> IdentityDefinition:
 ```
 
 ```python
-def register_identity_definition(identity_definition: IdentityDefinition) -> IdentityDefinition:
+def register_identity_def(identity_def: IdentityDefinition) -> IdentityDefinition:
 ```
 - Add a new Identity Definition
 
 ```python 
-def update_identity_definition(identity_definition: IdentityDefinition) -> IdentityDefinition:
+def update_identity_def(identity_def: IdentityDefinition) -> IdentityDefinition:
 ```
-- Update a identity definition
+- Update a identity def
 
 ```python
-def delete_identity_definition(identity_type: str) -> None:
+def delete_identity_def(identity_type: str) -> None:
 ```
 
 ```python
-def get_resource_definitions_page(
+def get_resource_defs_page(
     page_ref: str | None, 
     page_size: int
 ) -> ResourceDefinitionsPage:
 ```
 
 ```python
-def get_resource_definition(resource_type: str) -> ResourceDefinition:
+def get_resource_def(resource_type: str) -> ResourceDefinition:
 ```
 
 ```python
-def register_resource_definition(resource_definition: ResourceDefinition) -> ResourceDefinition:
+def register_resource_def(resource_def: ResourceDefinition) -> ResourceDefinition:
 ```
 - Add a new Resource Definition
 
 ```python 
-def update_resource_definition(resource_definition: ResourceDefinition) -> ResourceDefinition:
+def update_resource_def(resource_def: ResourceDefinition) -> ResourceDefinition:
 ```
-- Update a resource definition
+- Update a resource def
 
 ```python
-def delete_resource_definition(resource_type: str) -> None:
+def delete_resource_def(resource_type: str) -> None:
 ```
 
 ```python
@@ -1210,7 +1217,7 @@ A page of page references.
 
 ### AuthzeeRequest
 
-The standard "Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests), where some fields are updated depending on the identity and resource definitions.
+The standard "Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests), where some fields are updated depending on the identity and resource defs.
 
 #### AuthzeeRequest Example
 
@@ -1221,7 +1228,7 @@ The standard "Request" object used to initiate an Authzee operation. Should matc
 
 ### AuditPage
 
-A page of Audit operation results.  Conforms to the [Audit Operation Results](./specification.md#audit-operation-result), where some fields are updated depending on the identity and resource definitions. It will also have a `next_ref` field for pagination. 
+A page of Audit operation results.  Conforms to the [Audit Operation Results](./specification.md#audit-operation-result), where some fields are updated depending on the identity and resource defs. It will also have a `next_ref` field for pagination. 
 
 #### AuditPage Example
 
@@ -1230,7 +1237,7 @@ A page of Audit operation results.  Conforms to the [Audit Operation Results](./
 
 ### AuthorizeResult
 
-The [Authorize operation Results](./specification.md#authorize-operation-result), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource definitions.
+The [Authorize operation Results](./specification.md#authorize-operation-result), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource defs.
 
 #### AuthorizeResult Example
 
@@ -1239,7 +1246,7 @@ The [Authorize operation Results](./specification.md#authorize-operation-result)
 
 ### AuthzeeBatchRequest
 
-The standard "Batch Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests), where some fields are updated depending on the identity and resource definitions.
+The standard "Batch Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests), where some fields are updated depending on the identity and resource defs.
 
 #### AuthzeeBatchRequest Example
 
@@ -1250,7 +1257,7 @@ The standard "Batch Request" object used to initiate an Authzee operation. Shoul
 
 ### BatchAuditPage
 
-A page of Audit operation results.  Conforms to the [Audit operation Results](./specification.md#audit-operation-result), where some fields are updated depending on the identity and resource definitions. It will also have a `next_ref` field for pagination. 
+A page of Audit operation results.  Conforms to the [Audit operation Results](./specification.md#audit-operation-result), where some fields are updated depending on the identity and resource defs. It will also have a `next_ref` field for pagination. 
 
 #### BatchAuditPage Example
 
@@ -1259,7 +1266,7 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
 
 ### BatchAuthorizeResult
 
-The [Authorize operation Results](./specification.md#authorize-operation-result), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource definitions.
+The [Authorize operation Results](./specification.md#authorize-operation-result), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource defs.
 
 #### BatchAuthorizeResult Example
 

@@ -6,7 +6,7 @@ import jmespath
 from src.reference import authorize_workflow
 
 # 1. Define the identities the calling entity has
-identity_definitions = [
+identity_defs = [
     {
         "identity_type": "User", # unique identity type
         "schema": { # JSON Schema for Users
@@ -37,7 +37,7 @@ identity_definitions = [
 ]
 
 # 2. Define resources that can be accessed
-resource_definitions = [
+resource_defs = [
     {
         "resource_type": "Balloon", # Resource types must be unique
         "actions": [
@@ -75,7 +75,7 @@ resource_definitions = [
 ]
 
 # 3. Define Contexts - Context is extra data that is passed to the request
-context_definitions = [
+context_defs = [
     { # no context
         "context_type": "NULL",
         "schema": {
@@ -165,11 +165,11 @@ def execute(expression: str, data: Any) -> Any:
     return result
 
 
-# 7. Given all of the previous definitions and grants, check if the request is authorized.
+# 7. Given all of the previous defs and grants, check if the request is authorized.
 result = authorize_workflow(
-    context_definitions,
-    identity_definitions,
-    resource_definitions,
+    context_defs,
+    identity_defs,
+    resource_defs,
     grants,
     request,
     execute

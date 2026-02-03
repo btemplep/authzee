@@ -32,8 +32,8 @@ Release 0.3.0 includes many key changes to increase flexibility and scalability,
 - Batch Audit and Authorize operations 
     - Now send several requests for the same resource actions at once to optimize storage and compute. 
 - Context and Context Definitions.  Context is structured data with a schema that is passed with a request now. They are also unique types.
-- SDK standard to register, update, and delete definitions
-- SKD standard to register, update, and delete grants
+- SDK standard to put, and delete defs
+- SKD standard to register, and delete grants
 
 ### Changed
 
