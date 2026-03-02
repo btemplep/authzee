@@ -1946,7 +1946,7 @@ The Batch Audit operation is used to run the Audit operation over a batch reques
 
 ### Batch Authorize
 
-The Batch Authorize operation is used to run the Authorize operation over a batch request.  
+The Batch Authorize operation is used to run the Authorize operation for a batch request.  
 
 #### Batch Authorize Result Example
 

@@ -35,9 +35,7 @@ def resource_defs():
                     "owner": {"type": "string"}
                 },
                 "required": ["id"]
-            },
-            "parent_types": [],
-            "child_types": []
+            }
         }
     ]
 
