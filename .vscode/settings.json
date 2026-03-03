@@ -32,6 +32,7 @@
         "hset",
         "htmlcov",
         "initargs",
+        "itype",
         "ivar",
         "jmes",
         "jmespath",

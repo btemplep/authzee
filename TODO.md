@@ -1,14 +1,19 @@
 # TODO
 
+- [ ] SDK - How to architect interactions?
+    - Should everything just go through the compute class including validation?
+        - Validation deferred to compute 
+            - can be a whole different step that authzee app runs on compute before orchestrating further 
+        - Validation done in Authzee
+            - Positives
+                - is reduced code
+                - compute modules are easier to make
+            - negatives
+                - Largish batch requests could take a while to validate a batch request
+    - a bigger question of how does this scale outside of the authzee app and what do I want that to look like. 
+    - Like how much compute should be offloaded? 
 
-- [ ] Fill in last of spec for operations
-
-- [ ] update all schemas and examples from updates reference
-
-- [ ] Update SDK docs with all new spec
-    - Update all naming conventions to match. 
-
-- [ ] easier way for grants to do identity checks? 
+- [x] easier way for grants to do identity checks? 
     - I think this just comes down to adding custom jmespath operations? 
     - If you add anything outside of the grant level it is going to limit everything else
     - maybe just run through some scenarios and add some new standard operations
@@ -16,6 +21,47 @@
         - OUTER JOIN
         - check if identity type exists in request and has length > 0
 
+
+- [x] SDK - Updates for defs and grants
+    - Instead of register and update just a put - This makes it more stateless
+    - Stateless PUT and DELETE - no need for locks 
+    - put with simultaneous put is whoever get's there first
+    - put with delete, whoever gets there first. 
+    - **Solution** use puts - at least for something like a database that has only one table it's just left up to whoever succeeds first
+    - for other things like S3 there will still need to be a source of truth for this if we want it to be eventually consistent
+    - what if defs are puts, but grants are create and delete only? 
+    - **Solution** part 2 - should only create grants and generate UUID client side.  We try to check if UUID exists but there is no guarantee what will happen if you put a grant with the same UUID
+
+- [x] add ability for full scan to repeal grant which will scan all tables for that grant UUID and delete it
+    - Much slower but allows a way to clean up corrupted grants. 
+
+- [x] Update SDK docs with all new spec
+    - Update all naming conventions to match. 
+    - still need to do authorize results types and after - these are only filled in with the spec types
+
+
+- [x] naming for page refs 
+    - ref and next_ref
+    - page_ref and next_page_ref
+        - This one especially for get_grants_page_refs_page
+
+- [x] Fill in last of spec for operations
+
+
+- [x] SDK - should grants be updatable? 
+    - If they are updatable then they should be by name so it is more stateless
+    - For human management it makes sense to make them able to update and also by name
+    - But for scaling this means they will need to be removed from tables and added to several tables and it is not stateless
+    - 2 writes at the same time could leave the grants in a corrupted state
+        - a added it to an actions table but then deleted while the other actions are still being added
+    - for defs, they are only held in one place and can be updated as long as it spreads from a single source
+    - **SOLUTION**Grants should be create and delete only then. 
+
+- [x] final naming conventions
+    - definitions vs defs - I say defs - full name
+    - reference vs ref - I say ref - ref is good
+    - I WANT THE SHORT VERSIONS
+    - **solution** - short version
 
 - [x] query errors no longer include grant, but how do we tell what grant happened during the query error? 
     - Just put it in the message as grant[n] was an error? 
@@ -83,9 +129,7 @@
 - [x] standardize json query function input and output
     - need to have an output schema that helps to identity and pass error messages
 
-- [x] final naming conventions
-    - definitions vs defs - I say defs - full name
-    - reference vs ref - I say ref - ref is good
+
 
 - [x] What do you want to actually make in the spec? 
     - Spec should only give core functionality and give enough room to add whatever - SDKs can take more liberty, and the SDK guide is to be more opinionated anyway

@@ -147,7 +147,7 @@ grant = authz.enact( # Create or update a grant and it will now be used when mak
 get_grants_page() # get a page of grants
 get_grants_page_refs_page() # get a page of references to grant pages.  Used for parallel pagination.  Only supported as available for storage backends
 list_grants() # Auto paginate grants - if the language allows
-# authz.repeal(grant['grant_uuid']) # Repeal to delete a grant and it does not effect authorization any more. 
+# authz.repeal(grant['grant_uuid'], run_scan=False) # Repeal to delete a grant and it does not effect authorization any more. 
 
 request = {
     "identities": {
@@ -710,12 +710,16 @@ def delete_resource_def(resource_type: str) -> None:
 ```python
 def enact(new_grant: NewGrant) -> Grant:
 ```
-- add a new grant
+- add a new grant. 
+
+> **NOTE** - For scalability, grants should only be created and destroyed.  Storage modules may do their best to check if a grant UUID exists, but may not always be correct.  Only ever put in new UUIDs, not ones known to exist.
 
 ```python
-def repeal(grant_uuid: UUID) -> None:
+def repeal(grant_uuid: UUID, run_scan: bool) -> None:
 ```
-- delete a grant.
+
+- delete a grant. 
+- `run_scan` will scan all grant partitions.  Slower but can be used to clean up corrupted grants.
 
 ```python
 def get_grant(grant_uuid: UUID) -> Grant:
@@ -2435,6 +2439,9 @@ JMESPath is also the preferred JSON query language for Authzee as it has a speci
 Because of this, Authzee SDKs should also offer a set of out of the box JMESPath functions the are helpful to Authzee grant queries.
 
 - [INNER JOIN](#inner-join) - Join 2 arrays in a fashion similar to an SQL INNER JOIN. 
+- [LEFT JOIN](#left-join) - Join 2 arrays in a fashion similar to an SQL LEFT JOIN.
+- [OUTER JOIN](#outer-join) - Join 2 arrays in a fashion similar to an SQL OUTER JOIN.
+- [Is Identity Present](#is-identity-present) - Check if the given identity type is in the request and at least one instance was given.
 - [regex Find](#regex-find) - Run a regex pattern on a string or array of strings to find the first match.
 - [regex Find All](#regex-find-all) - Run a regex pattern on a string or array of strings to find all matches.
 - [regex Groups](#regex-groups) - Run a regex pattern on a string or array of strings to find the first match, and extract the groups.
@@ -2473,6 +2480,10 @@ Examples:
         {
             "r_field": "hello",
             "r_other_field": "other other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
         }
     ]`,
     lhs.l_field == rhs.r_field
@@ -2488,6 +2499,16 @@ Examples:
         "rhs": {
             "r_field": "hello",
             "r_other_field": "other other thing"
+        }
+    },
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
         }
     }
 ]           </code></pre>
@@ -2529,7 +2550,7 @@ def inner_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]
     result = []
     for l in lhs:
         for r in rhs:
-            if jmespath.search( # Should use passed in jmespath search function.
+            if jmespath.search( # Should use jmespath search function set in Authzee.
                 expr,
                 {
                     "lhs": l,
@@ -2545,6 +2566,372 @@ def inner_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]
     
     return result
 
+```
+
+
+### LEFT JOIN
+
+`array[object] left_join(array[any] $lhs, array[any] $rhs, expression->boolean expr)`
+
+Modeled after SQL LEFT JOIN functionality.  Takes 2 arrays and an expression and returns all combinations of elements from the arrays where the expression evaluates to `true`. If an element from the left hand side does match any elements from the right hand side, then the left hand side element is returned with null for the right hand side. 
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        }
+    },
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
+        }
+    }
+]           </code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": null
+    }
+]           </code></pre>
+        </td>
+    </tr>
+</table>
+
+Simple python function example:
+
+```python
+from typing import Any, Dict, List
+
+import jmespath
+
+
+def left_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]]:
+    result = []
+    for l in lhs:
+        lhs_match = False
+        for r in rhs:
+            if jmespath.search( # Should use jmespath search function set in Authzee.
+                expr,
+                {
+                    "lhs": l,
+                    "rhs": r
+                }
+            ) is True:
+                lhs_match = True
+                result.append(
+                    {
+                        "lhs": l,
+                        "rhs": r
+                    }
+                )
+        
+        if lhs_match is False:
+            result.append(
+                {
+                    "lhs": l,
+                    "rhs": None
+                }
+            )
+    
+    return result
+```
+
+
+### OUTER JOIN
+
+`array[object] outer_join(array[any] $lhs, array[any] $rhs, expression->boolean expr)`
+
+Modeled after SQL FULL OUTER JOIN functionality.  Takes 2 arrays and an expression and returns all combinations of elements from the arrays where the expression evaluates to `true`. If an element from the left hand side does match any elements from the right hand side, then the left hand side element is returned with null for the right hand side. If an element from the right hand side does match any elements from the left hand side, then the right hand side element is returned with null for the left hand side. 
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        }
+    },
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
+        }
+    },
+    {
+        "lhs": null,
+        "rhs": {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    }
+]           </code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        {
+            "l_field": "goodbye",
+            "other_field": "another thing"
+        },
+        {
+            "l_field": "goodbye",
+            "other_field": "another another thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": null
+    },
+    {
+        "lhs": {
+            "l_field": "goodbye",
+            "other_field": "another thing"
+        },
+        "rhs": {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    },
+    {
+        "lhs": {
+            "l_field": "goodbye",
+            "other_field": "another another thing"
+        },
+        "rhs": {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    }
+]           </code></pre>
+        </td>
+    </tr>
+</table>
+
+Simple python function example:
+
+```python
+from typing import Any, Dict, List
+
+import jmespath
+
+
+def outer_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]]:
+    result = []
+    unmatched_rhs = set(rhs)
+    for l in lhs:
+        lhs_match = False
+        for r in rhs:
+            if jmespath.search( # Should use jmespath search function set in Authzee.
+                expr,
+                {
+                    "lhs": l,
+                    "rhs": r
+                }
+            ) is True:
+                unmatched_rhs.discard(r)
+                lhs_match = True
+                result.append(
+                    {
+                        "lhs": l,
+                        "rhs": r
+                    }
+                )
+        
+        if lhs_match is False:
+            result.append(
+                {
+                    "lhs": l,
+                    "rhs": None
+                }
+            )
+    
+    for r in unmatched_rhs:
+        result.append(
+            {
+                "lhs": None,
+                "rhs": r
+            }
+        )
+    
+    return result
+```
+
+### Is Identity Present
+
+`boolean is_identity_present(string $itype, object $request)`
+
+Return true if the given identity type exists in the request and it has one or more instances present, or else return false.
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+           <code>is_identity_present("ADGroup", `{"identities": {"ADUser": []}}`)</code>
+        </td>
+        <td>
+            <code>false</code>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <code>is_identity_present("ADGroup", `{"identities": {"ADGroup": []}}`)</code>
+        </td>
+        <td>
+            <code>false</code>
+        </td>
+    </tr>
+     <tr>
+        <td>
+           <code>is_identity_present("ADGroup", `{"identities": {"ADGroup": [{"name": "thing"}]}}`)</code>
+        </td>
+        <td>
+            <code>true</code>
+        </td>
+    </tr>
+</table>
+
+Simple Python Example:
+
+```python
+def is_identity_present(itype: str, request: dict) -> bool:
+    if itype in request['identities'] and len(request['identities'][itype]) > 0:
+        return True
+    
+    return False
 ```
 
 
