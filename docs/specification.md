@@ -716,7 +716,8 @@ Grants are the Authzee unit of authorization. They query the request and grant d
 
 Grant are valid if all of the following conditions are met:
 - The grant is valid against the grant schema
-- The resource actions listed in the grants are all valid against passed in/registered resource definitions.
+
+> **NOTE** - Grant actions are not validated so that grants can be created for future resource actions, and for performance purposes in the SDKs. 
 
 If an error occurs when validating a grant, a grant error should be returned/raised.
 

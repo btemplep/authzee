@@ -355,8 +355,6 @@ print(batch_audit_result)
 ```
 
 
-
-
 ### Table of Contents
 
 - [Available SDKs](#available-sdks)
@@ -385,9 +383,9 @@ SDKs are considered:
 - **SDK Standard** - Follows the Authzee SDK standard.  It's not a bad thing if the library does not follow the standard.  You can expect a different interface than the official SDKs. 
 - **Official** - Branded as the official Authzee SDK for a language. Again, not a bad thing if the library isn't official.
 
-| Language | Code Repo | Package - Repo | Authzee Compliant | Maintained | SDK Standard | Official | Notes |
+| Language | Code Repo | Package Repo | Authzee Compliant | Maintained | SDK Standard | Official | Notes |
 |---|---|---|:---:|:---:|:---:|:---:|:---:|
-| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ✅ | ✅ | ✅ | ✅ | In progress for updating to the new standard |
+| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ❌ | ✅ | ❌ | ✅ | In progress for updating to the new standard |
 
 <!-- 
 Green checks for all that are compliant
@@ -473,8 +471,7 @@ def validate_resource_defs(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
 
 ```python
 def validate_grants(
-    grants: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]]
+    grants: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
 
@@ -1139,6 +1136,10 @@ Authzee relies on pagination to make its operations scalable.
 ### Grant
 
 Grants should offer more flexibility over the reference implementation, and should be standard across the SDKs.
+
+In the SDK standard, grants are an immutable resource.  They can only be enacted(created) or repealed(destroyed).
+This is a purposeful limitation to enable better scaling of grants. 
+
 
 #### Grant Example
 

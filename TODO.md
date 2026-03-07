@@ -1,6 +1,13 @@
 # TODO
 
-- [ ] SDK - How to architect interactions?
+- [ ] SDK - Can we create a simple class that integrates with a storage back end, then you just scale the whole thing?
+    - What's the benefit of having dedicated compute module vs just scaling and having an integration with storage
+    - parallel multi-thread stuff for processing a single request
+    - If you just split by storage then they need to implement their own parallel execution and essentially is just doing the compute module
+    - **SOLUTION** - need to find the line of what compute module to create, vs what can just be scaled outside of the authzee class.
+
+
+- [x] SDK - How to architect interactions?
     - Should everything just go through the compute class including validation?
         - Validation deferred to compute 
             - can be a whole different step that authzee app runs on compute before orchestrating further 
@@ -12,6 +19,27 @@
                 - Largish batch requests could take a while to validate a batch request
     - a bigger question of how does this scale outside of the authzee app and what do I want that to look like. 
     - Like how much compute should be offloaded? 
+    - offload to compute
+        - compute
+            - validate request
+            - validate batch request
+        
+    - what is even the point of having 
+    - **SOLUTION** there will still be some reuse in the authzee classes or there will be more in the future.  Split it out and have the authzee class be the orchestrator. 
+S
+- [x] create and delete
+    - context 
+        - Only checked for requests - not linked to other resources
+    - identity
+        - only checked for requests - not linked to other resources
+    - resource def
+        - resource type - only checked for request not linked to other resources
+        - resource actions are linked to grants directly since we check them
+            - But we shouldn't check them 
+            - if we don't check them you can create grants for things that don't exist yet
+            - if the resource action doesn't exist anymore, the grant won't be effected 
+            - thus the only check for this is also on requests and it has to check the action against the type
+    - TODO - Update grant checks to not check the action
 
 - [x] easier way for grants to do identity checks? 
     - I think this just comes down to adding custom jmespath operations? 

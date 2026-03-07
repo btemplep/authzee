@@ -939,14 +939,8 @@ def validate_resource_defs(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
 
 
 def validate_grants(
-    grants: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]]
+    grants: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
-    actions = set()
-    for r_def in resource_defs:
-        for action in r_def['actions']:
-            actions.add(action)
-
     errors = []
     for g in grants:
         try:
@@ -959,17 +953,6 @@ def validate_grants(
                     "grant": g
                 }
             )
-            continue
-        
-        for action in g['actions']:
-            if action not in actions:
-                errors.append(
-                    {
-                        "is_critical": True,
-                        "message": f"The '{action}' action is not valid.",
-                        "grant": g
-                    }
-                )
     
     return {
         "is_valid": True if len(errors) == 0 else False,
