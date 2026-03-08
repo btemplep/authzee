@@ -1,11 +1,10 @@
 # TODO
 
-- [ ] SDK - Can we create a simple class that integrates with a storage back end, then you just scale the whole thing?
+- [x] SDK - Can we create a simple class that integrates with a storage back end, then you just scale the whole thing?
     - What's the benefit of having dedicated compute module vs just scaling and having an integration with storage
     - parallel multi-thread stuff for processing a single request
     - If you just split by storage then they need to implement their own parallel execution and essentially is just doing the compute module
     - **SOLUTION** - need to find the line of what compute module to create, vs what can just be scaled outside of the authzee class.
-
 
 - [x] SDK - How to architect interactions?
     - Should everything just go through the compute class including validation?
