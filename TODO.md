@@ -1,5 +1,20 @@
 # TODO
 
+
+- [x] update function and class docs to reflect all previous decisions.
+    - make sure to add self
+
+- [x] Add more standard types for "Result" types.
+
+- [x] Return values for SDK functions should include errors right? 
+    - I need to make return types for everything? or do they just return errors??
+    - since nothing changes after the initial add
+    - Generic result dataclass, and then the rest are unique where needed
+
+- [x] Should SDK be includes in the error normal result as well? 
+    - Yes, but should start with `sdk_`
+    - Errors should only be raised at the Authzee class level as much as possible
+
 - [x] SDK - Can we create a simple class that integrates with a storage back end, then you just scale the whole thing?
     - What's the benefit of having dedicated compute module vs just scaling and having an integration with storage
     - parallel multi-thread stuff for processing a single request
