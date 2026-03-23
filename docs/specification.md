@@ -45,6 +45,7 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
     - [Grant Example](#grant-example)
     - [Grant Schema](#grant-schema)
     - [Grant Validation](#grant-validation)
+    - [Grant Error Example](#grant-error-example)
     - [Grant Error Schema](#grant-error-schema)
 - [Requests](#requests)
     - [Request Example](#request-example)
@@ -58,7 +59,9 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
     - [Batch Request Error Schema](#batch-request-error-schema)
 - [Evaluations](#evaluations)
     - [Request Evaluation](#request-evaluation)
-    - [Batch Request Evaluation](#batch-request-evauluation)
+    - [Batch Request Evaluation](#batch-request-evaluation)
+    - [Evaluation Error Example](#evaluation-error-example)
+    - [Evaluation Error Schema](#evaluation-error-schema)
 - [Operations](#operations)
     - [Audit](#audit)
         - [Audit Result Example](#audit-result-example)
@@ -1297,6 +1300,43 @@ Formatting a batch request into individual request:
 - Each request starts with the fields from the batch item for the request.
 - Any request fields that are not present at this point will be taken from the root batch request. 
 
+
+### Evaluation Error Example
+
+Errors that happen during an evaluation or running a JSON query will result in an `evaluation` error.  
+
+```json
+{
+    "is_critical": true,
+    "message": "A JSON query error occurred "
+}
+```
+
+
+### Evaluation Error Schema
+
+```json
+{
+    "title": "Evaluation Error",
+    "description": "Error when an Authzee Evaluation fails.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "is_critical",
+        "message"
+    ],
+    "properties": {
+        "is_critical": {
+            "type": "boolean",
+            "description": "If this error is critical. Critical errors generally halt further operations."
+        },
+        "message": {
+            "type": "string",
+            "description": "Detailed message about what caused the error."
+        }
+    }
+}
+```
 
 ## Operations
 

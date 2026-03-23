@@ -430,7 +430,7 @@ def execute(expression: str, data: Any) -> Any:
         result['result'] = jmespath.search(expression, data)
     except Exception as exc:
         result['has_failed'] = True
-        result['error_message'] = f"A JSON Query error has occurred: {exc}"
+        result['error_message'] = f"A JMESPath Query error has occurred: {exc}"
     
     return result
 
@@ -452,7 +452,7 @@ def my_execute(expression: str, data: Any) -> Any:
         result['result'] = jmespath.search(expression, data, options)
     except Exception as exc:
         result['has_failed'] = True
-        result['error_message'] = f"A JSON Query error has occurred: {exc}"
+        result['error_message'] = f"A JMESPath Query error has occurred: {exc}"
     
     return result
 

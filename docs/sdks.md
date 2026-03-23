@@ -21,6 +21,7 @@ If this doesn't fit your use case you are free to create your own! Try to stay c
     - [Storage Modules](#storage-modules)
     - [Module Locality](#module-locality)
     - [Storage Latches](#storage-latches)
+    - [Handling Errors](#handling-errors)
     - [Standard Types](#standard-types)
 - [SDK Full Example](#sdk-full-example)
 - [Standard JMESPath Extensions](#standard-jmespath-extensions)
@@ -1182,22 +1183,27 @@ The compute locality compatibility matrix with storage localities:
 Authzee Localities are usually the same as the storage locality.
 
 
-## Storage Latches
+## Handling Errors
 
-Storage latches are flag like objects kept in the storage module. 
+The SDK should return normalized results for all operations that include any errors in the results. 
 
-```json
-{
-    "storage_latch_uuid": "7fa89195-d455-444c-ad53-9f1c66a0fc85",
-    "set": false,
-    "created_at": "2025-07-20T04:13:17.292144Z"
-}
-```
+If the Language supports exceptions, then the Authzee Class should support the ability to raise critical errors as exceptions. 
 
-Storage latches can only be created, set, or deleted. 
-They cannot be unset. 
+Exceptions should provide a general message and the result of the function with all errors. 
 
-Compute modules may call on the storage module to create latches to manage the state of operations.  When compute is shared over the network this becomes a necessary piece to communicate different operation statuses.
+
+### Exception Hierarchy
+
+If the language support exception hierarchies it should be as follows:
+
+- root exception for Authzee.  
+    - Authzee Specification Exception
+        - Definition Specification Error
+        - Grant Specification Error
+        - Request Specification Error
+        - Evaluation Specification Error
+    - Authzee SDK Exception
+        - SDKs are free to implement any other exceptions as needed.  Try to denote that they are SDK exceptions if it makes sense.
 
 
 ## Standard Types
@@ -1408,14 +1414,7 @@ This is a purposeful limitation to enable better scaling of grants.
     "equality": true,
     "data": {
         "allowed_groups": "MyGroup"
-    },
-    "context_schema": {
-        "type": "object",
-        "required": [
-            "some_context_field"
-        ]
-    },
-    "context_validation": "none"
+    }
 }
 ```
 
@@ -1512,6 +1511,58 @@ They should provide these additional fields over the [Grant Specification](./spe
 ```
 
 
+### Storage Latches
+
+Storage latches are flag like objects kept in the storage module. 
+Storage latches can only be created, set, or deleted. 
+They cannot be unset or otherwise mutated.
+
+Compute modules may call on the storage module to create latches to manage the state of operations.  When compute is shared over the network this becomes a necessary piece to communicate different operation statuses.
+
+
+#### Storage Latch Example
+
+```json
+{
+    "storage_latch_uuid": "7fa89195-d455-444c-ad53-9f1c66a0fc85",
+    "is_set": false,
+    "created_at": "2025-07-20T04:13:17.292144Z"
+}
+```
+
+
+#### Storage Latch Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "StorageLatch",
+    "description": "An object representing a latch held in the storage module.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "storage_latch_uuid",
+        "is_set",
+        "created_at"
+    ],
+    "properties": {
+        "storage_latch_uuid": {
+            "type": "string",
+            "format": "uuid"
+        },
+        "is_set": {
+            "type": "boolean",
+            "description": "Is the latch set or not"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    }
+}
+```
+
+
 ### AuthzeeRequest
 
 The standard "Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests).
@@ -1544,14 +1595,7 @@ A page of Audit operation results.  Conforms to the [Audit Operation Results](./
             "equality": true,
             "data": {
                 "allowed_groups": "MyGroup"
-            },
-            "context_schema": {
-                "type": "object",
-                "required": [
-                    "some_context_field"
-                ]
-            },
-            "context_validation": "none"
+            }
         }
     ],
     "results": [

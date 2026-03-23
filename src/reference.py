@@ -22,7 +22,7 @@ __all__ = [
     "grant_schema",
     "definition_error_schema",
     "grant_error_schema",
-    "query_error_schema",
+    "evaluation_error_schema",
     "request_error_schema",
     "validate_defs_result_schema",
     "validate_grants_result_schema",
@@ -218,7 +218,7 @@ definition_error_schema = {
     "title": "Definition Error",
     "description": "Error when an context, identity, or resource definition is not valid.",
     "type": "object",
-    "additionalProperties": True,
+    "additionalProperties": False,
     "required": [
         "is_critical",
         "message",
@@ -245,7 +245,7 @@ grant_error_schema = {
     "title": "Grant Error",
     "description": "Error when an grant is not valid.",
     "type": "object",
-    "additionalProperties": True,
+    "additionalProperties": False,
     "required": [
         "is_critical",
         "message",
@@ -259,11 +259,11 @@ grant_error_schema = {
         }
     }
 }
-query_error_schema = {
-    "title": "Query Error",
-    "description": "Error when a JSON query fails.",
+evaluation_error_schema = {
+    "title": "Evaluation Error",
+    "description": "Error when an Authzee Evaluation fails.",
     "type": "object",
-    "additionalProperties": True,
+    "additionalProperties": False,
     "required": [
         "is_critical",
         "message"
@@ -277,7 +277,7 @@ request_error_schema = {
     "title": "Authzee Operation Request Error",
     "description": "Error when a request is not valid.",
     "type": "object",
-    "additionalProperties": True,
+    "additionalProperties": False,
     "required": [
         "is_critical",
         "message"
@@ -432,9 +432,9 @@ _operation_errors_schema = {
     "additionalProperties": False,
     "required": [],
     "properties": {
-        "query": {
+        "evaluation": {
             "type": "array",
-            "items": query_error_schema
+            "items": evaluation_error_schema
         }
     }
 }
@@ -493,9 +493,9 @@ evaluate_one_result_schema = {
             "additionalProperties": False,
             "required": [],
             "properties": {
-                "query": {
+                "evaluation": {
                     "type": "array",
-                    "items": query_error_schema
+                    "items": evaluation_error_schema
                 }
             }
         }
@@ -1243,7 +1243,7 @@ def audit(
         if g_eval['has_failed'] is True:
             result['has_failed'] = True
             result['errors'] = {
-                "query": [
+                "evaluation": [
                     {
                         "is_critical": True,
                         "message": "A critical error occurred when processing the last returned result."
