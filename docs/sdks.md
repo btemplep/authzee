@@ -446,15 +446,12 @@ This is to give a core point of logic for the higher level APIs, and the ability
 
 It should include these variables to import:
 
-- `authzee_version` - The current version of the Authzee specification supported.
+- `authzee_version` - The latest version of the Authzee specification supported.
 - `context_definition_schema` - Context Definition Schema
 - `identity_definition_schema` - Identity Definition Schema
 - `resource_definition_schema` - Resource Definition Schema
 - `grant_schema` - Grant Schema
-- `definition_error_schema` - Definition Type Error Schema
-- `grant_error_schema` - Grant Type Error Schema
-- `query_error_schema` - Query Type Error Schema
-- `request_error_schema` - Request Type Error Schema
+- `generic_error_schema` - General Error Schema
 - `validate_defs_result_schema` - Return value schema for `validate_defs` function
 - `validate_grants_result_schema` - Return value schema for `validate_grants` function
 - `request_schema` - Authzee Request Schema
@@ -604,27 +601,16 @@ def batch_authorize_workflow(
 ## Authzee Class
 
 The `Authzee` class should take these arguments when created:
+- JSON query execute function
 - Compute Module type and arguments
     - keyword args where available, or else ordered arguments
 - Storage Module type and arguments
     - keyword args where available, or else ordered arguments
-- JSON query execute function
 - [Authzee Config](#authzee-config) object or null to take defaults.
 
 If the language supports async, there should also be an async version, `AuthzeeAsync`. 
 
 These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they should all be async.
-
-```python
-def start(self, config: AuthzeeConfig | None = None) -> GenericResult:
-```
-- Start up Authzee app.  
-- Initialize runtime resources
-- Needs to run before any methods or vars are accessed.
-- Run the same method for compute and storage modules.
-- After this method is complete these public instance vars or getters must be available:
-    - locality - Authzee [Module Locality](#module-locality) to tell the limit of where other Authzee instances can be created.
-    - parallel_paging_supported - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination. 
 
 ```python
 class Authzee:
@@ -635,226 +621,311 @@ class Authzee:
         compute_type: Type[ComputeModule],
         compute_kwargs: Dict[str, Any],
         storage_type: Type[StorageModule],
-        storage_kwargs: Dict[str, Any]
+        storage_kwargs: Dict[str, Any],
+        authzee_config: AuthzeeConfig
     ):
         pass
+
+
+    def start(self, authzee_config: AuthzeeConfig | None = None) -> GenericResult:
+        """Start up Authzee app.
+
+        - Initialize runtime resources
+        - Needs to run before any methods or vars are accessed.
+        - Run the same method for compute and storage modules.
+        - After this method is complete these public instance vars or getters must be available:
+            - locality - Authzee [Module Locality](#module-locality) to tell the limit of where other Authzee instances can be created.
+            - parallel_paging_supported - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination.
+        """
+        pass
+
+    
+    def shutdown(self, authzee_config: AuthzeeConfig | None = None) -> GenericResult:
+        """Shutdown the authzee app. Cleans up runtime resources.
+        """
+        pass
+
+
+    def construct(self, authzee_config: AuthzeeConfig | None = None) -> GenericResult:
+        """Construct backend resources for compute and storage
+   
+        One time setup.
+        """
+        pass
+
+
+    def destroy(self, authzee_config: AuthzeeConfig | None = None) -> GenericResult:
+        """Destroy down backend resources.
+        
+        destructive - may lose all storage and compute etc.
+        """
+        pass
+
+
+    def get_context_defs_page(self, authzee_config: AuthzeeConfig | None = None) -> ContextDefsPage:
+        """Get a page on context definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def get_context_def(
+        self, 
+        context_type: str, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> ContextDefResult:
+        """Get a context definition by type.
+        """
+        pass
+
+
+    def list_context_defs(
+        self, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> Iterable[ContextDef]:
+        """Auto-paginate context definitions - only included if the language supports it
+        """
+        pass
+
+
+    def put_context_def(
+        self, 
+        context_def: ContextDef, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Add a new Context Definition or update an existing one.
+        """
+
+
+    def delete_context_def(
+        self, 
+        context_type: str, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Delete a context definition by type.
+        """
+        pass
+
+
+    def get_identity_defs_page(
+        self, 
+        page_ref: str | None, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> IdentityDefsPage:
+        """Get a page on context definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def get_identity_def(
+        self, 
+        identity_type: str,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> IdentityDefResult:
+        """Get an identity definition by type.
+        """
+        pass
+
+
+    def list_identity_defs(self, authzee_config: AuthzeeConfig | None = None) -> Iterable[IdentityDef]:
+        """Auto-paginate identity definitions - only included if the language supports it.
+        """
+        pass
+
+
+    def put_identity_def(
+        self, 
+        identity_def: IdentityDef, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Add a new Identity Definition or update an existing one
+        """
+        pass
+
+
+    def delete_identity_def(
+        self, 
+        identity_type: str,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Delete an identity definition by type.
+        """
+        pass
+
+
+    def get_resource_defs_page(
+        self, 
+        page_ref: str | None, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> ResourceDefsPage:
+        """Get a page of resource definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def get_resource_def(
+        self, 
+        resource_type: str,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> ResourceDefResult:
+        """Get a resource definition by type.
+        """
+        pass
+
+
+    def list_resource_defs(self, authzee_config: AuthzeeConfig | None = None) -> Iterable[ResourceDef]:
+        """Auto-paginate resource definitions - only included if the language supports it.
+        """
+        pass
+
+
+    def put_resource_def(
+        self, 
+        resource_def: ResourceDef,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Add a new Resource Definition or update an existing one.
+        """
+        pass
+
+
+    def delete_resource_def(
+        self, 
+        resource_type: str,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Delete a resource definition by type.
+        """
+        pass
+
+
+    def enact(
+        self, 
+        grant: Grant,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Add a new grant. 
+
+        **NOTE** - For scalability, grants should only be created and destroyed.  Storage modules may do their best to check if a grant UUID exists, but may not always be correct.  Only ever put in new UUIDs, not ones known to exist.
+        """
+        pass
+
+
+    def repeal(
+        self, 
+        grant_uuid: UUID, 
+        purge: bool = False,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Delete a grant.
+        
+        `purge` will scan all grant partitions.  Slower but can be used to clean up corrupted grants.
+        """
+        pass
+
+
+    def get_grant(
+        self, 
+        grant_uuid: UUID,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GrantResult:
+        """Get a grant by UUID.
+        """
+        pass
+
+
+    def get_grants_page(
+        self,
+        effect: str | None, 
+        action: str | None, 
+        page_ref: str | None, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GrantsPage:
+        """Retrieve a page of grants
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def list_grants(
+        self,
+        effect: str | None, 
+        action: str | None, 
+        page_ref: str | None, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> Iterable[Grant]:
+        """Auto-paginate Grants - only included if the language supports it.
+        """
+        pass
+
+
+    def get_grant_refs_page(
+        self,
+        effect: str | None, 
+        action: str | None, 
+        page_ref: str | None, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> PageRefsPage:
+        """Retrieve a page of grant page references for parallel pagination.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+
+        For some storage modules this may not be possible, check the `parallel_paging` value.
+        """
+        pass
+
+
+    def audit_page(
+        self,
+        request: AuthzeeRequest, 
+        page_ref: str | None, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> AuditResultPage:
+        """Run the Audit Operation for a page of results.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def authorize(
+        self, 
+        request: AuthzeeRequest,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> AuthorizeResult:
+        """Run the Authorize Operation.
+        """
+        pass
+
+
+    def batch_audit_page(
+        self,
+        batch_request: AuthzeeBatchRequest, 
+        page_ref: str | None, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> BatchAuditResultPage:
+        """Run the Batch Audit Operation for a page of results.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def batch_authorize(
+        self, 
+        batch_request: AuthzeeBatchRequest,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> BatchAuthorizeResult:
+        """Run the Batch Authorize Operation.
+        """
+        pass
 ```
-
-```python
-def shutdown(self, config: AuthzeeConfig | None = None) -> GenericResult:
-```
-- shutdown authzee app
-- clean up runtime resources
-
-```python
-def construct(self, config: AuthzeeConfig | None = None) -> GenericResult:
-```
-- Construct backend resources for compute and storage
-- one time setup 
-
-```python
-def destroy(self, config: AuthzeeConfig | None = None) -> GenericResult:
-```
-- tear down backend resources 
-- destructive - may lose all storage and compute etc.
-
-
-```python
-def get_context_defs_page(self, config: AuthzeeConfig | None = None) -> ContextDefsPage:
-```
-
-```python
-def get_context_def(
-    self, 
-    context_type: str, 
-    config: AuthzeeConfig | None = None
-) -> ContextDefResult:
-```
-
-```python
-def list_context_defs(self, config: AuthzeeConfig | None = None) -> Iterable[ContextDef]:
-```
-- Auto-paginate context definitions - only included if the language supports it
-
-```python
-def put_context_def(
-    self, 
-    context_def: ContextDef, 
-    config: AuthzeeConfig | None = None
-) -> GenericResult:
-```
-- Add a new Context Definition or update an existing one
-
-```python
-def delete_context_def(
-    self, 
-    context_type: str, 
-    config: AuthzeeConfig | None = None
-) -> GenericResult:
-```
-
-```python
-def get_identity_defs_page(self, config: AuthzeeConfig | None = None) -> IdentityDefsPage:
-```
-
-```python
-def get_identity_def(
-    self, 
-    identity_type: str,
-    config: AuthzeeConfig | None = None
-) -> IdentityDefResult:
-```
-
-```python
-def list_identity_defs(self, config: AuthzeeConfig | None = None) -> Iterable[IdentityDef]:
-```
-- Auto-paginate identity definitions - only included if the language supports it
-
-```python
-def put_identity_def(
-    self, 
-    identity_def: IdentityDef, 
-    config: AuthzeeConfig | None = None
-) -> GenericResult:
-```
-- Add a new Identity Definition or update an existing one
-
-```python
-def delete_identity_def(
-    self, 
-    identity_type: str,
-    config: AuthzeeConfig | None = None
-) -> GenericResult:
-```
-
-```python
-def get_resource_defs_page(self, config: AuthzeeConfig | None = None) -> ResourceDefsPage:
-```
-
-```python
-def get_resource_def(
-    self, 
-    resource_type: str,
-    config: AuthzeeConfig | None = None
-) -> ResourceDefResult:
-```
-
-```python
-def list_resource_defs(self, config: AuthzeeConfig | None = None) -> Iterable[ResourceDef]:
-```
-- Auto-paginate resource definitions - only included if the language supports it
-
-```python
-def put_resource_def(
-    self, 
-    resource_def: ResourceDef,
-    config: AuthzeeConfig | None = None
-) -> GenericResult:
-```
-- Add a new Resource Definition or update an existing one
-
-```python
-def delete_resource_def(
-    self, 
-    resource_type: str,
-    config: AuthzeeConfig | None = None
-) -> GenericResult:
-```
-
-```python
-def enact(
-    self, 
-    grant: Grant,
-    config: AuthzeeConfig | None = None
-) -> GenericResult:
-```
-- add a new grant. 
-
-> **NOTE** - For scalability, grants should only be created and destroyed.  Storage modules may do their best to check if a grant UUID exists, but may not always be correct.  Only ever put in new UUIDs, not ones known to exist.
-
-```python
-def repeal(
-    self, 
-    grant_uuid: str, 
-    run_scan: bool,
-    config: AuthzeeConfig | None = None
-) -> GenericResult:
-```
-
-- delete a grant. 
-- `run_scan` will scan all grant partitions.  Slower but can be used to clean up corrupted grants.
-
-```python
-def get_grant(
-    self, 
-    grant_uuid: str,
-    config: AuthzeeConfig | None = None
-) -> GrantResult:
-```
-- Get a grant by UUID
-
-```python
-def get_grants_page(
-    self,
-    effect: str | None, 
-    action: str | None, 
-    page_ref: str | None, 
-    config: AuthzeeConfig | None = None
-) -> GrantsPage:
-```
-- Retrieve a page of grants
-
-```python
-def get_grant_refs_page(
-    self,
-    effect: str | None, 
-    action: str | None, 
-    page_ref: str | None, 
-    config: AuthzeeConfig | None = None
-) -> PageRefsPage:
-```
-- Retrieve a page of grant page references for parallel pagination
-- For some storage modules this may not be possible, check the `parallel_paging` value.
-
-```python
-def audit_page(
-    self,
-    request: AuthzeeRequest, 
-    page_ref: str | None, 
-    config: AuthzeeConfig | None = None
-) -> AuditPage:
-```
-- Run the Audit Operation for a page of results.
-
-```python
-def authorize(
-    self, 
-    request: AuthzeeRequest,
-    config: AuthzeeConfig | None = None
-) -> AuthorizeResult:
-```
-- Run the Authorize Operation.
-
-```python
-def batch_audit_page(
-    self,
-    batch_request: AuthzeeBatchRequest, 
-    page_ref: str | None, 
-    config: AuthzeeConfig | None = None
-) -> BatchAuditPage:
-```
-- Run the Batch Audit Operation for a page of results.
-- Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
-
-```python
-def batch_authorize(
-    self, 
-    batch_request: AuthzeeBatchRequest,
-    config: AuthzeeConfig | None = None
-) -> BatchAuthorizeResult:
-```
-- Run the Batch Authorize Operation.
-
 
 ## Compute Modules
 
@@ -869,115 +940,151 @@ Compute Modules should take any module specific arguments when created.
 Compute modules objects should implement these methods:
 
 ```python
-def start(
-    self,
-    execute: Callable[[str, Any], Any], 
-    storage_type: Type[StorageModule], 
-    storage_kwargs: Dict[str, Any]
-) -> GenericResult:
+class ComputeModule:
+
+    def __init__(self): # any other args specific to this compute module
+        pass
+
+
+    def start(
+        self,
+        execute: Callable[[str, Any], Any],
+        storage_type: Type[StorageModule],
+        storage_kwargs: Dict[str, Any]
+    ) -> GenericResult:
+        """Start up compute module.
+
+        - run before use
+        - After this method is complete these public instance vars or getters must be available and stable:
+            - locality - Compute [Module Locality](#module-locality)
+            - parallel_paging_supported - if the compute module supports processing grants with parallel paging
+        """
+        pass
+
+
+    def shutdown(self) -> GenericResult:
+        """Shutdown Compute module.
+
+        - clean up runtime resources
+        """
+        pass
+
+
+    def construct(self) -> GenericResult:
+        """Construct backend resources for compute.
+
+        - one time setup
+        """
+        pass
+
+
+    def destroy(self) -> GenericResult:
+        """Tear down backend resources.
+
+        - destructive - may lose all long lasting compute resources
+        """
+        pass
+
+
+    def validate_context_def(
+        self,
+        context_def: ContextDef,
+        page_size: int
+    ) -> GenericResult:
+        """Validate a context definition.
+        """
+        pass
+
+
+    def validate_identity_def(
+        self,
+        identity_def: IdentityDef,
+        page_size: int
+    ) -> GenericResult:
+        """Validate an identity definition.
+        """
+        pass
+
+
+    def validate_resource_def(
+        self,
+        resource_def: ResourceDef,
+        page_size: int
+    ) -> GenericResult:
+        """Validate a resource definition.
+        """
+        pass
+
+
+    def validate_request(
+        self,
+        request: AuthzeeRequest,
+        page_size: int
+    ) -> GenericResult:
+        """Validate a request.
+        """
+        pass
+
+
+    def validate_batch_request(
+        self,
+        batch_request: AuthzeeBatchRequest,
+        page_size: int
+    ) -> GenericResult:
+        """Validate a batch request.
+        """
+        pass
+
+
+    def audit_page(
+        self,
+        request: AuthzeeRequest,
+        page_ref: str | None,
+        page_size: int
+    ) -> AuditPage:
+        """Run the Audit Operation for a page of results.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def authorize(
+        self,
+        request: AuthzeeRequest,
+        page_size: int,
+        parallel_pagination: bool,
+        refs_page_size: int
+    ) -> AuthorizeResult:
+        """Run the Authorize Operation.
+        """
+        pass
+
+
+    def batch_audit_page(
+        self,
+        batch_request: AuthzeeBatchRequest,
+        page_ref: str | None,
+        page_size: int
+    ) -> BatchAuditPage:
+        """Run the Batch Audit Operation for a page of results.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def batch_authorize(
+        self,
+        batch_request: AuthzeeBatchRequest,
+        page_size: int,
+        parallel_pagination: bool,
+        refs_page_size: int
+    ) -> BatchAuthorizeResult:
+        """Run the Batch Authorize Operation.
+        """
+        pass
 ```
-- start up compute module
-- run before use
-- After this method is complete these public instance vars or getters must be available and stable:
-    - locality - Compute [Module Locality](#module-locality) 
-    - parallel_paging_supported - if the compute module supports processing grants with parallel paging
-
-```python
-def shutdown(self) -> GenericResult:
-```
-- shutdown compute module
-- clean up runtime resources
-
-```python
-def construct(self) -> GenericResult:
-```
-- Construct backend resources for compute 
-- one time setup 
-
-```python
-def destroy(self) -> GenericResult:
-```
-- tear down backend resources 
-- destructive - may lose all long lasting compute resources
-
-
-```python
-def validate_context_def(
-    self,
-    context_def: ContextDef,
-    page_size: int
-) -> GenericResult:
-```
-
-```python
-def validate_identity_def(
-    self,
-    identity_def: IdentityDef,
-    page_size: int) -> GenericResult:
-```
-
-```python
-def validate_resource_def(
-    self,
-    resource_def: ResourceDef,
-    page_size: int
-) -> GenericResult:
-```
-
-```python
-def validate_request(
-    self,
-    request: AuthzeeRequest,
-    page_size: int
-) -> GenericResult:
-```
-
-```python
-def validate_batch_request(
-    self,
-    batch_request: AuthzeeBatchRequest,
-    page_size: int
-) -> GenericResult
-```
-
-```python
-def audit_page(
-    self,
-    request: AuthzeeRequest, 
-    page_ref: str | None, 
-    page_size: int
-) -> AuditPage:
-```
-
-```python
-def authorize(
-    self,
-    request: AuthzeeRequest, 
-    page_size: int, 
-    parallel_pagination: bool,
-    refs_page_size: int
-) -> AuthorizeResult:
-```
-
-```python
-def batch_audit_page(
-    self,
-    batch_request: AuthzeeBatchRequest, 
-    page_ref: str | None, 
-    page_size: int
-) -> BatchAuditPage:
-```
-
-```python
-def batch_authorize(
-    self,
-    batch_request: AuthzeeBatchRequest,
-    page_size: int, 
-    parallel_pagination: bool,
-    refs_page_size: int
-) -> BatchAuthorizeResult:
-```
-
 
 ## Storage Modules
 
@@ -990,166 +1097,224 @@ Storage Modules should take any module specific arguments when created.
 Storage modules should implement these methods:
 
 ```python
-def start(self) -> GenericResult:
+class StorageModule:
+
+    def __init__(self): # any other args specific to this storage module
+        pass
+
+
+    def start(self) -> GenericResult:
+        """Start up storage module.
+
+        - run before use
+        - After this method is complete these public instance vars or getters must be available:
+            - locality - Storage [Module Locality](#module-locality)
+            - parallel_paging_supported - if the storage module supports parallel paging (returning a page of grant page references).
+        """
+        pass
+
+
+    def shutdown(self) -> GenericResult:
+        """Shutdown storage module.
+
+        - clean up runtime resources
+        """
+        pass
+
+
+    def construct(self) -> GenericResult:
+        """Construct backend resources for storage.
+
+        - one time setup
+        """
+        pass
+
+
+    def destroy(self) -> GenericResult:
+        """Tear down backend resources.
+
+        - destructive - may lose all long lasting storage resources
+        """
+        pass
+
+
+    def get_context_defs_page(
+        self,
+        page_ref: str | None,
+        page_size: int
+    ) -> ContextDefsPage:
+        """Get a page of context definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def get_context_def(self, context_type: str) -> ContextDefResult:
+        """Get a context definition by type.
+        """
+        pass
+
+
+    def put_context_def(self, context_def: ContextDef) -> GenericResult:
+        """Add a new Context Definition or update an existing one.
+        """
+        pass
+
+
+    def delete_context_def(self, context_type: str) -> GenericResult:
+        """Delete a context definition by type.
+        """
+        pass
+
+
+    def get_identity_defs_page(
+        self,
+        page_ref: str | None,
+        page_size: int
+    ) -> IdentityDefsPage:
+        """Get a page of identity definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def get_identity_def(self, identity_type: str) -> IdentityDefResult:
+        """Get an identity definition by type.
+        """
+        pass
+
+
+    def put_identity_def(self, identity_def: IdentityDef) -> GenericResult:
+        """Add a new Identity Definition or update an existing one.
+        """
+        pass
+
+
+    def delete_identity_def(self, identity_type: str) -> GenericResult:
+        """Delete an identity definition by type.
+        """
+        pass
+
+
+    def get_resource_defs_page(
+        self,
+        page_ref: str | None,
+        page_size: int
+    ) -> ResourceDefsPage:
+        """Get a page of resource definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def get_resource_def(self, resource_type: str) -> ResourceDef:
+        """Get a resource definition by type.
+        """
+        pass
+
+
+    def list_resource_defs(self, page_size: int) -> Iterable[ResourceDef]:
+        """Auto-paginate resource definitions - only included if the language supports it.
+        """
+        pass
+
+
+    def put_resource_def(self, resource_def: ResourceDef) -> ResourceDef:
+        """Add a new Resource Definition or update an existing one.
+        """
+        pass
+
+
+    def delete_resource_def(self, resource_type: str) -> None:
+        """Delete a resource definition by type.
+        """
+        pass
+
+
+    def enact(self, grant: Grant) -> GenericResult:
+        """Add a new grant.
+        """
+        pass
+
+
+    def repeal(self, grant_uuid: UUID, purge: bool) -> GenericResult:
+        """Delete a grant.
+        """
+        pass
+
+
+    def get_grant(self, grant_uuid: UUID) -> GrantResult:
+        """Get a grant by UUID.
+        """
+        pass
+
+
+    def get_grants_page(
+        self,
+        effect: str | None,
+        action: str | None,
+        page_ref: str | None,
+        grants_page_size: int
+    ) -> GrantsPage:
+        """Retrieve a page of grants.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def get_grant_refs_page(
+        self,
+        effect: str | None,
+        action: str | None,
+        page_ref: str | None,
+        grants_page_size: int,
+        refs_page_size: int
+    ) -> PageRefsPage:
+        """Retrieve a page of grant page references for parallel pagination.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+
+        For some storage modules this may not be possible.
+        Check the `parallel_paging` attribute on the storage module after `start()` is complete.
+        """
+        pass
+
+
+    def create_latch(self) -> StorageLatchResult:
+        """Create a new [storage latch](#storage-latches).
+        """
+        pass
+
+
+    def get_latch(self, storage_latch_uuid: UUID) -> StorageLatchResult:
+        """Get a [storage latch](#storage-latches) by UUID.
+        """
+        pass
+
+
+    def set_latch(self, storage_latch_uuid: UUID) -> StorageLatchResult:
+        """Set a [storage latch](#storage-latches) by UUID.
+        """
+        pass
+
+
+    def delete_latch(self, storage_latch_uuid: UUID) -> GenericResult:
+        """Delete a [storage latch](#storage-latches) by UUID.
+        """
+        pass
+
+
+    def cleanup_latches(self, before: Datetime) -> GenericResult:
+        """Delete all latches before the specified datetime.
+
+        - operations should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
+        """
+        pass
 ```
-- start up storage module
-- run before use
-- After this method is complete these public instance vars or getters must be available:
-    - locality - Storage [Module Locality](#module-locality) 
-    - parallel_paging_supported - if the storage modules supports parallel paging (returning a page of grant page references). 
-
-```python
-def shutdown(self) -> GenericResult:
-```
-- shutdown storage module
-- clean up runtime resources
-
-```python
-def construct(self) -> GenericResult:
-```
-- Construct backend resources for storage 
-- one time setup 
-
-```python
-def destroy(self) -> GenericResult:
-```
-- tear down backend resources 
-- destructive - may lose all long lasting compute resources
-
-
-```python
-def get_context_defs_page(
-    self,
-    page_ref: str | None, 
-    page_size: int
-) -> ContextDefsPage:
-```
-
-```python
-def get_context_def(self, context_type: str) -> ContextDefResult:
-```
-
-```python
-def put_context_def(self, context_def: ContextDef) -> GenericResult:
-```
-- Add a new Context Definition or update an existing one
-
-```python
-def delete_context_def(self, context_type: str) -> GenericResult:
-```
-
-```python
-def get_identity_defs_page(
-    self,
-    page_ref: str | None, 
-    page_size: int
-) -> IdentityDefsPage:
-```
-
-```python
-def get_identity_def(self, identity_type: str) -> IdentityDefResult:
-```
-
-```python
-def put_identity_def(self, identity_def: IdentityDef) -> GenericResult:
-```
-- Add a new Identity Definition or update an existing one
-
-```python
-def delete_identity_def(self, identity_type: str) -> GenericResult:
-```
-
-```python
-def get_resource_defs_page(
-    self,
-    page_ref: str | None, 
-    page_size: int
-) -> ResourceDefsPage:
-```
-
-```python
-def get_resource_def(self, resource_type: str) -> ResourceDef:
-```
-
-```python
-def list_resource_defs(self, page_size: int) -> Iterable[ResourceDef]:
-```
-- Auto-paginate resource definitions - only included if the language supports it
-
-```python
-def put_resource_def(self, resource_def: ResourceDef) -> ResourceDef:
-```
-- Add a new Resource Definition or update an existing one
-
-```python
-def delete_resource_def(self, resource_type: str) -> None:
-```
-
-```python
-def enact(self, grant: Grant) -> GenericResult:
-```
-- add a new grant.
-
-
-```python
-def repeal(self, grant_uuid: str) -> GenericResult:
-```
-- delete a grant.
-
-```python
-def get_grant(self, grant_uuid: str) -> GrantResult:
-```
-- Get a grant by UUID
-
-```python
-def get_grants_page(
-    self,
-    effect: str | None, 
-    action: str | None, 
-    page_ref: str | None, 
-    grants_page_size: int
-) -> GrantsPage:
-```
-- Retrieve a page of grants
-
-```python
-def get_grant_refs_page(
-    self,
-    effect: str | None, 
-    action: str | None, 
-    page_ref: str | None, 
-    grants_page_size: int,
-    refs_page_size: int
-) -> PageRefsPage:
-```
-- Retrieve a page of grant page references for parallel pagination
-- For some storage modules this may not be possible, check the `parallel_paging` value.
-
-```python
-def create_latch(self) -> StorageLatchResult:
-```
-- Create a new [storage latch](#storage-latches) by UUID
-
-```python
-def get_latch(self, storage_latch_uuid: str) -> StorageLatchResult:
-```
-- Get a [storage latch](#storage-latches) by UUID
-
-```python
-def set_latch(self, storage_latch_uuid: str) -> StorageLatchResult:
-```
-- Set a [storage latch](#storage-latches) by UUID
-
-```python
-def delete_latch(self, storage_latch_uuid: str) -> GenericResult:
-```
-- Delete a [storage latch](#storage-latches) by UUID
-
-```python
-def cleanup_latches(self, before: Datetime) -> GenericResult:
-```
-- Delete all latches before the specified datetime.
-- operations should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
 
 > **NOTE** - When listing grants there are 2 filters: `effect` and `action`.  Storage modules should partition grants on these 2 fields if they can.
 
@@ -1189,7 +1354,7 @@ The SDK should return normalized results for all operations that include any err
 
 If the Language supports exceptions, then the Authzee Class should support the ability to raise critical errors as exceptions. 
 
-Exceptions should provide a general message and the result of the function with all errors. 
+Exceptions should provide a message and the full result of the function with all errors. 
 
 
 ### Exception Hierarchy
@@ -1203,7 +1368,7 @@ If the language support exception hierarchies it should be as follows:
         - Request Specification Error
         - Evaluation Specification Error
     - Authzee SDK Exception
-        - SDKs are free to implement any other exceptions as needed.  Try to denote that they are SDK exceptions if it makes sense.
+        - SDKs are free to implement any other exceptions as needed.  Try to denote that they are SDK exceptions where possible.
 
 
 ## Standard Types
@@ -1219,7 +1384,7 @@ Standard Types:
 - [Page Results](#page-results)
 - [Grant](#grant)
 - [AuthzeeRequest](#authzeerequest)
-- [AuditPage](#auditpage)
+- [AuditResultPage](#auditresultpage)
 - [AuthorizeResult](#authorizeresult)
 - [AuthzeeBatchRequest](#authzeebatchrequest)
 - [BatchAuditPage](#batchauditpage)
@@ -1568,12 +1733,12 @@ Compute modules may call on the storage module to create latches to manage the s
 The standard "Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests).
 
 
-### AuditPage
+### AuditResultPage
 
 A page of Audit operation results.  Conforms to the [Audit Operation Results](./specification.md#audit). It will also have a `next_page_ref` field for pagination, and updated fields for grants. 
 
 
-#### AuditPage Example
+#### AuditResultPage Example
 
 ```json
 {
@@ -1611,7 +1776,7 @@ A page of Audit operation results.  Conforms to the [Audit Operation Results](./
 }
 ```
 
-#### AuditPage Schema
+#### AuditResultPage Schema
 
 ```json
 {

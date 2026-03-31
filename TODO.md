@@ -1,5 +1,90 @@
 # TODO
 
+- [ ] condense errors down in specification into just the generic error
+
+
+- [x] Rename more
+    - change query error to evaluation error
+        - Some error when evaluating, usually from executing a query
+    - Change execute function to evaluate
+        - No because evaluate is different from just executing a query.  Evaluate checks the errors and returns the response and everything 
+        - keep is the same
+    - Evaluation errors need to include the GRANT or else they don't make sense. 
+        - Bad thing is, that worst case it will include all grants for the for audit if they all fail? 
+        - Authorize is fine since it is the just criticals and it would be the only one
+        - Is it worth it to save the space if it makes it harder to figure out on the client side? 
+            - Authorize would have no knowledge besides what is in the message - must have a way to programatically retrieve the grant or else just print the grant.  But despite the operation, the it should include the necessary data. 
+
+        - Which errors need the context
+            - Request shouldn't since you push in one request?
+                - What about batch requests?
+                    - Shouldn't be needed since it will be at the item level
+                    - programmatically - I send a request and yeahhh
+            - Grant errors shouldn't since you push in one grant at a time?
+                - Could change in future with batch grant push
+                - Again it could just say, your grant at index x is bad
+                    - Def can just do this
+            - Def errors shouldn't since you push in one def at a time? 
+                - Could change in future with batch def future
+                - Again it could just say, your def at index x is bad
+                    - just do this
+            - Evaluation errors should have the request and the grant then????
+                - Request may not be needed because even in batch request it should be at the item level
+                - But how are they to tell what Grant was being processes in the evaluate???
+                - this is needed though, it needs to have grants or else it doesn't make any sense unless the error gives it
+                    - NEED TO INCLUDE GRANT HERE as you must specify multiple 
+            - We don't need to regurgitate inputs, just be specific which one failed if you need to be
+            - Do need to include context of things pulled behind the scenes though
+                - Assuming this is process how I imagine it from now on. 
+                - is it possible it could be different? 
+                - then the will just need to be different errors
+                - if a request requires a request, you don't need to return that back
+                - if it changes in the future but that would change the whole idea of the SDKs. 
+            - What's the downside of including the extra context? 
+                - Request errors are always critical so no biggie there
+                - Grant errors are always critical so no biggie there
+                - def errors are also always critical so no biggie there
+                - Eval errors are not always critical
+                    - Returning the request every time is overkill
+                    - Returning the grant is needed to identity the grant that was responsible for the error
+                    - if I return the grant with the operation though
+                        - authorize, you don't need it
+                        - Audit, you can also pull the grant for the result and grant 
+                    - We run into an issue if we just include everything for eval, that you are including the request and grant for all
+                    - Is there a place where we need more info that than whole response for an eval error?
+    - **SOLUTION** replace all with no extra context, just message and is_critical.
+        - Exceptions in SDK should include the result
+
+- [x] change validation to only do one at a time for defs and grants. 
+    - Probably better to do this then just add in the workflow to go through loop through them all
+    - **Solution** no this doesn't work because there is no storage backend and you need all at once to validate
+
+- [x] SDK error hierarchy
+    - how to handle specification vs SDK errors and differentiate
+    - AuthzeeError
+        - AuthzeeSpecError
+            - DefinitionSpecError
+            - GrantSpecError
+            - RequestSpecError
+            - EvaluationSpecError
+        - AuthzeeSDKError
+            - This can technically be anything maybe SomethingSDKError
+
+- [x] how to return errors in the SDK??
+    - Is it okay to just have an error type map to an exception?
+    - Should we just return the full response?  Maybe with the response class type?
+    - yes and yes
+    - Have types for each 
+    - Spec errors should return the specific response for that error
+        - Can technically have multiple crits and types per error type. 
+            - Leave it up to the client to sort through and find the crits? 
+        - Just return the result in a result piece
+        - A generic-ish message that a critical "something" type error occurred?
+    - **solution** - return full response and use message from critical or just a general message. 
+
+- [x] change query error to evaluation error?
+    - How to return these in the SDKs ?
+    - At least need to finish SDK docs for evaluation errors
 
 - [x] update function and class docs to reflect all previous decisions.
     - make sure to add self

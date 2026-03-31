@@ -20,10 +20,7 @@ __all__ = [
     "identity_definition_schema",
     "resource_definition_schema",
     "grant_schema",
-    "definition_error_schema",
-    "grant_error_schema",
-    "evaluation_error_schema",
-    "request_error_schema",
+    "generic_error_schema",
     "validate_defs_result_schema",
     "validate_grants_result_schema",
     "request_schema",
@@ -206,85 +203,24 @@ grant_schema = {
         }
     }
 }
-_is_critical_schema = {
-    "type": "boolean",
-    "description": "If this error is critical. Critical errors generally halt further operations."
-}
-_error_message_schema = {
-    "type": "string",
-    "description": "Detailed message about what caused the error."
-}
-definition_error_schema = {
-    "title": "Definition Error",
-    "description": "Error when an context, identity, or resource definition is not valid.",
+generic_error_schema = {
+    "title": "Authzee Error",
+    "description": "Object representing an instance of an error.",
     "type": "object",
     "additionalProperties": False,
     "required": [
         "is_critical",
-        "message",
-        "definition_type",
-        "definition"
+        "message"
     ],
     "properties": {
-        "is_critical": _is_critical_schema,
-        "message": _error_message_schema,
-        "definition_type": {
-            "type": "string",
-            "enum": [
-                "context",
-                "identity",
-                "resource"
-            ]
+        "is_critical": {
+            "type": "boolean",
+            "description": "If this error is critical. Critical errors generally halt further operations."
         },
-        "definition": {
-            "description": "The value that was given as a definition."
+        "message": {
+            "type": "string",
+            "description": "Detailed message about what caused the error."
         }
-    }
-}
-grant_error_schema = {
-    "title": "Grant Error",
-    "description": "Error when an grant is not valid.",
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "is_critical",
-        "message",
-        "grant"
-    ],
-    "properties": {
-        "is_critical": _is_critical_schema,
-        "message": _error_message_schema,
-        "grant": {
-            "description": "The value that was given as a grant."
-        }
-    }
-}
-evaluation_error_schema = {
-    "title": "Evaluation Error",
-    "description": "Error when an Authzee Evaluation fails.",
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "is_critical",
-        "message"
-    ],
-    "properties": {
-        "is_critical": _is_critical_schema,
-        "message": _error_message_schema
-    }
-}
-request_error_schema = {
-    "title": "Authzee Operation Request Error",
-    "description": "Error when a request is not valid.",
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "is_critical",
-        "message"
-    ],
-    "properties": {
-        "is_critical": _is_critical_schema,
-        "message": _error_message_schema
     }
 }
 _is_valid_schema = {
@@ -310,7 +246,7 @@ validate_defs_result_schema = {
             "properties": {
                 "definition": {
                     "type": "array",
-                    "items": definition_error_schema
+                    "items": generic_error_schema
                 }
             }
         }
@@ -335,7 +271,7 @@ validate_grants_result_schema = {
             "properties": {
                 "grant": {
                     "type": "array",
-                    "items": grant_error_schema
+                    "items": generic_error_schema
                 }
             }
         }
@@ -418,7 +354,7 @@ validate_request_result_schema = {
             "properties": {
                 "request": {
                     "type": "array",
-                    "items": request_error_schema
+                    "items": generic_error_schema
                 }
             }
         }
@@ -434,7 +370,7 @@ _operation_errors_schema = {
     "properties": {
         "evaluation": {
             "type": "array",
-            "items": evaluation_error_schema
+            "items": generic_error_schema
         }
     }
 }
@@ -495,7 +431,7 @@ evaluate_one_result_schema = {
             "properties": {
                 "evaluation": {
                     "type": "array",
-                    "items": evaluation_error_schema
+                    "items": generic_error_schema
                 }
             }
         }
@@ -692,7 +628,7 @@ validate_batch_request_result_schema = {
             "properties": {
                 "request": {
                     "type": "array",
-                    "items": request_error_schema
+                    "items": generic_error_schema
                 }
             }
         },
@@ -706,7 +642,7 @@ validate_batch_request_result_schema = {
                 "properties": {
                     "request": {
                         "type": "array",
-                        "items": request_error_schema
+                        "items": generic_error_schema
                     }
                 }
             }
@@ -813,9 +749,7 @@ def validate_context_defs(context_defs: List[Dict[str, AnyJSON]]) -> Dict[str, A
             errors.append(
                 {
                     "is_critical": True,
-                    "message": f"Context def is not valid. Schema Error: {exc}'",
-                    "definition_type": "context",
-                    "definition": c_def
+                    "message": f"Context def is not valid. Schema Error: {exc}'"
                 }
             )
             continue
@@ -826,9 +760,7 @@ def validate_context_defs(context_defs: List[Dict[str, AnyJSON]]) -> Dict[str, A
             errors.append(
                 {
                     "is_critical": True,
-                    "message": f"Context types must be unique. '{c_def['context_type']}' is present more than once.",
-                    "definition_type": "context",
-                    "definition": c_def
+                    "message": f"Context types must be unique. '{c_def['context_type']}' is present more than once."
                 }
             )
         
@@ -836,9 +768,7 @@ def validate_context_defs(context_defs: List[Dict[str, AnyJSON]]) -> Dict[str, A
             errors.append(
                 {
                     "is_critical": True,
-                    "message": "Context schemas must declare the the root type to be an object.",
-                    "definition_type": "context",
-                    "definition": c_def
+                    "message": "Context schemas must declare the the root type to be an object."
                 } 
             )
 
@@ -858,9 +788,7 @@ def validate_identity_defs(identity_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
             errors.append(
                 {
                     "is_critical": True,
-                    "message": f"Identity definition is not valid. Schema Error: {exc}'",
-                    "definition_type": "identity",
-                    "definition": id_def
+                    "message": f"Identity definition is not valid. Schema Error: {exc}'"
                 }
             )
             continue
@@ -871,9 +799,7 @@ def validate_identity_defs(identity_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
             errors.append(
                 {
                     "is_critical": True,
-                    "message": f"Identity types must be unique. '{id_def['identity_type']}' is present more than once.",
-                    "definition_type": "identity",
-                    "definition": id_def
+                    "message": f"Identity types must be unique. '{id_def['identity_type']}' is present more than once."
                 }
             )
         
@@ -881,9 +807,7 @@ def validate_identity_defs(identity_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
             errors.append(
                 {
                     "is_critical": True,
-                    "message": "Identity schemas must declare the the root type to be an object.",
-                    "definition_type": "identity",
-                    "definition": id_def
+                    "message": "Identity schemas must declare the the root type to be an object."
                 } 
             )
 
@@ -903,9 +827,7 @@ def validate_resource_defs(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
             errors.append(
                 {
                     "is_critical": True,
-                    "message": f"Resource definition is not valid. Schema Error: {exc}",
-                    "definition_type": "resource",
-                    "definition": r_def
+                    "message": f"Resource definition is not valid. Schema Error: {exc}"
                 }
             )
             continue
@@ -916,9 +838,7 @@ def validate_resource_defs(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
             errors.append(
                 {
                     "is_critical": True,
-                    "message": f"Resource types must be unique. '{r_def['resource_type']}' is present more than once.",
-                    "definition_type": "resource",
-                    "definition": r_def
+                    "message": f"Resource types must be unique. '{r_def['resource_type']}' is present more than once."
                 }
             )
         
@@ -926,9 +846,7 @@ def validate_resource_defs(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
             errors.append(
                 {
                     "is_critical": True,
-                    "message": "Resource schemas must declare the the root type to be an object.",
-                    "definition_type": "resource",
-                    "definition": r_def
+                    "message": "Resource schemas must declare the the root type to be an object."
                 } 
             )
     
@@ -949,8 +867,7 @@ def validate_grants(
             errors.append(
                 {
                     "is_critical": True,
-                    "message": f"The grant is not valid. Schema Error: {exc}" ,
-                    "grant": g
+                    "message": f"The grant is not valid. Schema Error: {exc}" 
                 }
             )
     
@@ -1338,7 +1255,7 @@ def _validate(
     if r_val['is_valid'] is False:
         return r_val
 
-    g_val = validate_grants(grants, resource_defs)
+    g_val = validate_grants(grants)
     if g_val['is_valid'] is False:
         return g_val
     
