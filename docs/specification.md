@@ -40,28 +40,21 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
     - [Resource Definition Example](#resource-definition-example)
     - [Resource Definition Schema](#resource-definition-schema)
     - [Resource Definition Validation](#resource-definition-validation)
-- [Definition Errors](#definition-errors)
 - [Grants](#grants)
     - [Grant Example](#grant-example)
     - [Grant Schema](#grant-schema)
     - [Grant Validation](#grant-validation)
-    - [Grant Error Example](#grant-error-example)
-    - [Grant Error Schema](#grant-error-schema)
 - [Requests](#requests)
     - [Request Example](#request-example)
     - [Request Schema](#request-schema)
     - [Request Validation](#request-validation)
-    - [Request Error Schema](#request-error-schema)
 - [Batch Requests](#batch-requests)
     - [Batch Request Example](#batch-request-example)
     - [Batch Request Schema](#batch-request-schema)
     - [Batch Request Validation](#batch-request-validation)
-    - [Batch Request Error Schema](#batch-request-error-schema)
 - [Evaluations](#evaluations)
     - [Request Evaluation](#request-evaluation)
     - [Batch Request Evaluation](#batch-request-evaluation)
-    - [Evaluation Error Example](#evaluation-error-example)
-    - [Evaluation Error Schema](#evaluation-error-schema)
 - [Operations](#operations)
     - [Audit](#audit)
         - [Audit Result Example](#audit-result-example)
@@ -75,6 +68,11 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
     - [Batch Authorize](#batch-authorize)
         - [Batch Authorize Result Example](#batch-authorize-result-example)
         - [Batch Authorize Result Schema](#batch-authorize-result-schema) 
+- [Errors](#errors)
+    - [Error Types](#error-types)
+    - [Error Example](#error-example)
+    - [Error Schema](#error-schema)
+
 
 
 ## Definition of Terms
@@ -227,7 +225,7 @@ Context definitions are valid if all of the following conditions are met:
 - The definition's `context_type` is unique among context definitions
 - The definition schema's base type is "object"
 
-If an error occurs when validating an context definition, a [Definition Error](#definition-error) with the `definition_type` set to `"context"` should be returned/raised.
+If an error occurs when validating an context definition, a critical, `definition` type [Error](#errors) should be returned/raised.
 
 
 ## Identity Definitions
@@ -396,7 +394,7 @@ Identity definitions are valid if all of the following conditions are met:
 - The definition's `identity_type` is unique among identity definitions
 - The definition schema's base type is "object"
 
-If an error occurs when validating an identity definition, a [Definition Error](#definition-error) with the `definition_type` set to `"identity"` should be returned/raised.
+If an error occurs when validating an identity definition, a critical, `definition` type [Error](#errors) should be returned/raised.
 
 
 ## Resource Definitions 
@@ -564,64 +562,7 @@ Resource definitions are valid if all of the following conditions are met:
 - The definition's `resource_type` is unique among resource definitions
 - The definition schema's base type is "object"
 
-If an error occurs when validating an resource definition, a [Definition Error](#definition-error) with the `definition_type` set to `"resource"` should be returned/raised.
-
-
-## Definition Errors
-
-The following are errors that are expected when context, identity, or resource definitions fail validation. 
-
-### Definition Error Example
-
-```json
-{
-    "is_critical": false,
-    "message": "The definition was bad because of the thing",
-    "definition_type": "context",
-    "definition": {
-        "bad": "definition",
-        "thisCouldBe": "AnyType"
-    }
-}
-```
-
-### Definition Error Schema
-
-```json
-{
-    "title": "Definition Error",
-    "description": "Error when an context, identity, or resource definition is not valid.",
-    "type": "object",
-    "additionalProperties": true,
-    "required": [
-        "is_critical",
-        "message",
-        "definition_type",
-        "definition"
-    ],
-    "properties": {
-        "is_critical": {
-            "type": "boolean",
-            "description": "If this error is critical. Critical errors generally halt further operations."
-        },
-        "message": {
-            "type": "string",
-            "description": "Detailed message about what caused the error."
-        },
-        "definition_type": {
-            "type": "string",
-            "enum": [
-                "context",
-                "identity",
-                "resource"
-            ]
-        },
-        "definition": {
-            "description": "The value that was given as a definition."
-        }
-    }
-}
-```
+If an error occurs when validating an resource definition, a critical, `definition` type [Error](#errors) should be returned/raised.
 
 
 ## Grants
@@ -722,47 +663,7 @@ Grant are valid if all of the following conditions are met:
 
 > **NOTE** - Grant actions are not validated so that grants can be created for future resource actions, and for performance purposes in the SDKs. 
 
-If an error occurs when validating a grant, a grant error should be returned/raised.
-
-### Grant Error Example
-
-```json
-{
-    "is_critical": false,
-    "message": "This is a bad grant!",
-    "grant": "anything can be here"
-}
-```
-
-
-### Grant Error Schema
-
-```json
-{
-    "title": "Grant Error",
-    "description": "Error when an grant is not valid.",
-    "type": "object",
-    "additionalProperties": true,
-    "required": [
-        "is_critical",
-        "message",
-        "grant"
-    ],
-    "properties": {
-        "is_critical": {
-            "type": "boolean",
-            "description": "If this error is critical. Critical errors generally halt further operations."
-        },
-        "message": {
-            "type": "string",
-            "description": "Detailed message about what caused the error."
-        },
-        "grant": {
-            "description": "The value that was given as a grant."
-        }
-    }
-}
-```
+If an error occurs when validating a grant, a critical, `grant` type [Error](#errors) should be returned/raised.
 
 
 ## Requests
@@ -917,42 +818,8 @@ Requests are valid if all of the following conditions are met:
 - The context type is equal to one of the passed in/registered context definition's context type.
 - The context instance is valid against the schema of the matching context definition.
 
-If an error occurs when validating a request, a request error should be returned/raised.
+If an error occurs when validating a request, a critical, `request` type [Error](#errors) should be returned/raised.
 
-## Request Error Example
-
-```json
-{
-    "is_critical": true,
-    "message": "The given request was bad!"
-}
-```
-
-
-### Request Error Schema
-
-```json
-{
-    "title": "Authzee Operation Request Error",
-    "description": "Error when a request is not valid.",
-    "type": "object",
-    "additionalProperties": true,
-    "required": [
-        "is_critical",
-        "message"
-    ],
-    "properties": {
-        "is_critical": {
-            "type": "boolean",
-            "description": "If this error is critical. Critical errors generally halt further operations."
-        },
-        "message": {
-            "type": "string",
-            "description": "Detailed message about what caused the error."
-        }
-    }
-}
-```
 
 ## Batch Requests
 
@@ -1225,10 +1092,7 @@ Batch Requests are valid if all of the following conditions are met:
 - All root fields are valid as outlined in [Request Validation](#request-validation).
 - Each item in the batch is formatted into a standard request as outlined in [Batch Request Evaluation](#batch-request-evaluation), and then each request is valid as outlined in [Request Validation](#request-validation)
 
-
-### Batch Request Error Schema
-
-Currently there are no Batch Request specific errors.
+If an error occurs when validating a batch request at the top level, a critical, `request` type [Error](#errors) should be returned/raised. Besides that, the individual requests within a batch request are returned within the result items.
 
 
 ## Evaluations
@@ -1289,6 +1153,13 @@ A grant is applicable to a request if all of the following are true:
 - The JSON execute function is called with the grant's query as the `expression` parameter, along with the request and grant nested under an object as the `data` parameter like so: `execute(grant.query, {"request": <request body>, "grant": <grant_body>})` 
 - The JSON query execute function call produces no errors
 - The result of the JSON execute function is equal to the grant's equality property value
+
+If an error occurs during an evaluation (generally from the JSON query), an `evaluation` type [Error](#errors) should be returned/raised.
+This error is determined to be critical depending on the grant and request `evaluation_handler` setting. 
+
+The error will be critical if any of the following are true or else it is not critical:
+    - The request `evaluation_handler` is set to `grant` AND the grant `evaluation_handler` is set to `critical`
+    - The request `evaluation_handler` is set to `critical`
 
 
 ### Batch Request Evaluation
@@ -2192,6 +2063,61 @@ The Batch Authorize operation is used to run the Authorize operation for a batch
             "additionalProperties": true,
             "required": [],
             "properties": {}
+        }
+    }
+}
+```
+
+
+## Errors
+
+Errors are included for all validations, evaluation, and operation calls. 
+
+In general errors take the same basic shape, although this can be built upon to include extra context if needed.  
+
+For validation calls, there is generally only one type of error returned for that specific validation.  
+
+Operation calls will return an object under `errors` where the fields are the error type, and the value is an array of errors for that type. 
+
+
+### Error Types
+
+- `definition` - An error occurred when validation a context, identity, or resource definition
+- `grant` - An error occurred when validating a grant.
+- `request` - An error occurred when validating a request or batch request.
+- `evaluation` - An error occurred during an evaluation. Usually triggered from a JSON query error.
+
+
+### Error Example
+
+```json
+{
+    "is_critical": false,
+    "message": "Some error has occurred"
+}
+```
+
+
+### Error Schema
+
+```json
+{
+    "title": "Error Item",
+    "description": "Error details.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "is_critical",
+        "message"
+    ],
+    "properties": {
+        "is_critical": {
+            "type": "boolean",
+            "description": "If this error is critical. Critical errors generally halt further steps and cause the validation or operation to exit early."
+        },
+        "message": {
+            "type": "string",
+            "description": "Detailed message about what caused the error."
         }
     }
 }

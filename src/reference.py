@@ -768,7 +768,7 @@ def validate_context_defs(context_defs: List[Dict[str, AnyJSON]]) -> Dict[str, A
             errors.append(
                 {
                     "is_critical": True,
-                    "message": "Context schemas must declare the the root type to be an object."
+                    "message": "Context schemas must declare the root type to be an object."
                 } 
             )
 
@@ -807,7 +807,7 @@ def validate_identity_defs(identity_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
             errors.append(
                 {
                     "is_critical": True,
-                    "message": "Identity schemas must declare the the root type to be an object."
+                    "message": "Identity schemas must declare the root type to be an object."
                 } 
             )
 
@@ -846,7 +846,7 @@ def validate_resource_defs(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str,
             errors.append(
                 {
                     "is_critical": True,
-                    "message": "Resource schemas must declare the the root type to be an object."
+                    "message": "Resource schemas must declare the root type to be an object."
                 } 
             )
     
@@ -955,7 +955,7 @@ def _validate_request_context(
             errors.append(
                 {
                     "is_critical": True,
-                    "message": f"The request context is not valid for the the '{context_type}' context type. Schema Error: {exc}"
+                    "message": f"The request context is not valid for the '{context_type}' context type. Schema Error: {exc}"
                 }
             )
     

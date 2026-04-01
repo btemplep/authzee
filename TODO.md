@@ -1,7 +1,6 @@
 # TODO
 
-- [ ] condense errors down in specification into just the generic error
-
+- [x] condense errors down in specification into just the generic error
 
 - [x] Rename more
     - change query error to evaluation error
