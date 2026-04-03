@@ -810,13 +810,14 @@ Requests represent a calling entity's request for perform an operation on identi
 
 Requests are valid if all of the following conditions are met:
 - The request is valid against the request schema
+- The context type is equal to one of the passed in/registered context definition's context type.
+- The context instance is valid against the schema of the matching context definition.
 - All identity types are valid against passed in/registered identity definitions.
 - All identity instances are valid against the schemas given in their respective passed in/registered identity definitions.
 - The resource type is equal to one of the passed in/registered resource definition's resource type.
 - The resource instance is valid against the schema of the matching resource definition.
 - The resource action is equal to one of the actions in the matching resource definition.
-- The context type is equal to one of the passed in/registered context definition's context type.
-- The context instance is valid against the schema of the matching context definition.
+
 
 If an error occurs when validating a request, a critical, `request` type [Error](#errors) should be returned/raised.
 

@@ -1125,7 +1125,7 @@ def evaluate_one(
             )
             or is_q_val_crit is True
         ):
-            result['errors']['query'] = [
+            result['errors']['evaluation'] = [
                 {
                     "is_critical": is_q_val_crit,
                     "message": f"A JSON Query error has occurred: {query_result['error_message']}."

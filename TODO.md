@@ -1,5 +1,13 @@
 # TODO
 
+- [ ] update SDK main example
+
+- [x] update sdk authzee class to have verify for request and batch request
+
+- [x] update all query errors to evaluation errors
+    - def missed some in reference
+
+
 - [x] condense errors down in specification into just the generic error
 
 - [x] Rename more

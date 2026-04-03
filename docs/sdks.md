@@ -635,7 +635,7 @@ class Authzee:
         - Run the same method for compute and storage modules.
         - After this method is complete these public instance vars or getters must be available:
             - locality - Authzee [Module Locality](#module-locality) to tell the limit of where other Authzee instances can be created.
-            - parallel_paging_supported - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination.
+            - has_parallel_paging - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination.
         """
         pass
 
@@ -666,6 +666,16 @@ class Authzee:
         """Get a page on context definitions.
 
         Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def validate_context_def(
+        self,
+        context_def: ContextDef,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Validate a context definition.
         """
         pass
 
@@ -704,6 +714,16 @@ class Authzee:
         authzee_config: AuthzeeConfig | None = None
     ) -> GenericResult:
         """Delete a context definition by type.
+        """
+        pass
+
+
+    def validate_identity_def(
+        self,
+        identity_def: IdentityDef,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Validate an identity definition.
         """
         pass
 
@@ -752,6 +772,16 @@ class Authzee:
         authzee_config: AuthzeeConfig | None = None
     ) -> GenericResult:
         """Delete an identity definition by type.
+        """
+        pass
+
+
+    def validate_resource_def(
+        self,
+        resource_def: ResourceDef,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Validate a resource definition.
         """
         pass
 
@@ -880,6 +910,28 @@ class Authzee:
         """
         pass
 
+    
+    def cleanup_latches(
+        self, 
+        before: Datetime, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Delete all latches before the specified datetime.
+
+        - operations should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
+        """
+        pass
+
+
+    def validate_request(
+        self,
+        request: AuthzeeRequest, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Validate a request.
+        """
+        pass
+
 
     def audit_page(
         self,
@@ -900,6 +952,16 @@ class Authzee:
         authzee_config: AuthzeeConfig | None = None
     ) -> AuthorizeResult:
         """Run the Authorize Operation.
+        """
+        pass
+
+
+    def validate_batch_request(
+        self,
+        batch_request: AuthzeeBatchRequest, 
+        authzee_config: AuthzeeConfig | None = None
+    ) -> GenericResult:
+        """Validate a batch request.
         """
         pass
 
@@ -957,7 +1019,7 @@ class ComputeModule:
         - run before use
         - After this method is complete these public instance vars or getters must be available and stable:
             - locality - Compute [Module Locality](#module-locality)
-            - parallel_paging_supported - if the compute module supports processing grants with parallel paging
+            - has_parallel_paging - if the compute module supports processing grants with parallel paging
         """
         pass
 
@@ -986,36 +1048,6 @@ class ComputeModule:
         pass
 
 
-    def validate_context_def(
-        self,
-        context_def: ContextDef,
-        page_size: int
-    ) -> GenericResult:
-        """Validate a context definition.
-        """
-        pass
-
-
-    def validate_identity_def(
-        self,
-        identity_def: IdentityDef,
-        page_size: int
-    ) -> GenericResult:
-        """Validate an identity definition.
-        """
-        pass
-
-
-    def validate_resource_def(
-        self,
-        resource_def: ResourceDef,
-        page_size: int
-    ) -> GenericResult:
-        """Validate a resource definition.
-        """
-        pass
-
-
     def validate_request(
         self,
         request: AuthzeeRequest,
@@ -1040,8 +1072,8 @@ class ComputeModule:
         self,
         request: AuthzeeRequest,
         page_ref: str | None,
-        page_size: int
-    ) -> AuditPage:
+        grants_page_size: int
+    ) -> AuditResultPage:
         """Run the Audit Operation for a page of results.
 
         Pass the returned page reference to get the next page until a null page reference is returned.
@@ -1052,7 +1084,7 @@ class ComputeModule:
     def authorize(
         self,
         request: AuthzeeRequest,
-        page_size: int,
+        grants_page_size: int,
         parallel_pagination: bool,
         refs_page_size: int
     ) -> AuthorizeResult:
@@ -1065,8 +1097,8 @@ class ComputeModule:
         self,
         batch_request: AuthzeeBatchRequest,
         page_ref: str | None,
-        page_size: int
-    ) -> BatchAuditPage:
+        grants_page_size: int
+    ) -> BatchAuditResultPage:
         """Run the Batch Audit Operation for a page of results.
 
         Pass the returned page reference to get the next page until a null page reference is returned.
@@ -1077,7 +1109,7 @@ class ComputeModule:
     def batch_authorize(
         self,
         batch_request: AuthzeeBatchRequest,
-        page_size: int,
+        grants_page_size: int,
         parallel_pagination: bool,
         refs_page_size: int
     ) -> BatchAuthorizeResult:
@@ -1109,7 +1141,7 @@ class StorageModule:
         - run before use
         - After this method is complete these public instance vars or getters must be available:
             - locality - Storage [Module Locality](#module-locality)
-            - parallel_paging_supported - if the storage module supports parallel paging (returning a page of grant page references).
+            - has_parallel_paging - if the storage module supports parallel paging (returning a page of grant page references).
         """
         pass
 
@@ -1210,7 +1242,7 @@ class StorageModule:
         pass
 
 
-    def get_resource_def(self, resource_type: str) -> ResourceDef:
+    def get_resource_def(self, resource_type: str) -> ResourceDefResult:
         """Get a resource definition by type.
         """
         pass
@@ -1257,7 +1289,7 @@ class StorageModule:
         effect: str | None,
         action: str | None,
         page_ref: str | None,
-        grants_page_size: int
+        page_size: int
     ) -> GrantsPage:
         """Retrieve a page of grants.
 
@@ -1271,8 +1303,8 @@ class StorageModule:
         effect: str | None,
         action: str | None,
         page_ref: str | None,
-        grants_page_size: int,
-        refs_page_size: int
+        refs_page_size: int,
+        grants_page_size: int
     ) -> PageRefsPage:
         """Retrieve a page of grant page references for parallel pagination.
 
@@ -1387,7 +1419,7 @@ Standard Types:
 - [AuditResultPage](#auditresultpage)
 - [AuthorizeResult](#authorizeresult)
 - [AuthzeeBatchRequest](#authzeebatchrequest)
-- [BatchAuditPage](#batchauditpage)
+- [BatchAuditResultPage](#batchauditresultpage)
 - [BatchAuthorizeResult](#batchauthorizeresult)
 
 
@@ -2183,11 +2215,11 @@ The standard [Authorize operation Results](./specification.md#authorize) are ret
 The standard "Batch Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests).
 
 
-### BatchAuditPage
+### BatchAuditResultPage
 
 A page of Audit operation results.  Conforms to the [Audit operation Results](./specification.md#audit-operation-result), where some fields are updated depending on the identity and resource defs. It will also have a `next_page_ref` field for pagination. 
 
-#### BatchAuditPage Example
+#### BatchAuditResultPage Example
 
 
 ```json
@@ -2229,13 +2261,13 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
 }
 ```
 
-#### BatchAuditPage Schema
+#### BatchAuditResultPage Schema
 
 ```json
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Batch Audit Result",
-    "description": "Result for the Batch Audit Operation.",
+    "title": "Batch Audit Result Page",
+    "description": "Page of results for the Batch Audit Operation.",
     "type": "object",
     "additionalProperties": true,
     "required": [
