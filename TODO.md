@@ -2,6 +2,10 @@
 
 - [ ] update SDK main example
 
+- [ ] update SDK to authzee_config for all
+
+- [ ] Authzee Config break out page size of each type of def into it's own size
+
 - [x] update sdk authzee class to have verify for request and batch request
 
 - [x] update all query errors to evaluation errors

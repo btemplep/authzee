@@ -1012,7 +1012,8 @@ class ComputeModule:
         self,
         execute: Callable[[str, Any], Any],
         storage_type: Type[StorageModule],
-        storage_kwargs: Dict[str, Any]
+        storage_kwargs: Dict[str, Any],
+        authzee_config: AuthzeeConfig
     ) -> GenericResult:
         """Start up compute module.
 
@@ -1024,7 +1025,7 @@ class ComputeModule:
         pass
 
 
-    def shutdown(self) -> GenericResult:
+    def shutdown(self, authzee_config: AuthzeeConfig) -> GenericResult:
         """Shutdown Compute module.
 
         - clean up runtime resources
@@ -1032,7 +1033,7 @@ class ComputeModule:
         pass
 
 
-    def construct(self) -> GenericResult:
+    def construct(self, authzee_config: AuthzeeConfig) -> GenericResult:
         """Construct backend resources for compute.
 
         - one time setup
@@ -1040,7 +1041,7 @@ class ComputeModule:
         pass
 
 
-    def destroy(self) -> GenericResult:
+    def destroy(self, authzee_config: AuthzeeConfig) -> GenericResult:
         """Tear down backend resources.
 
         - destructive - may lose all long lasting compute resources
@@ -1051,7 +1052,7 @@ class ComputeModule:
     def validate_request(
         self,
         request: AuthzeeRequest,
-        page_size: int
+        authzee_config: AuthzeeConfig
     ) -> GenericResult:
         """Validate a request.
         """
@@ -1061,7 +1062,7 @@ class ComputeModule:
     def validate_batch_request(
         self,
         batch_request: AuthzeeBatchRequest,
-        page_size: int
+        authzee_config: AuthzeeConfig
     ) -> GenericResult:
         """Validate a batch request.
         """
@@ -1072,7 +1073,7 @@ class ComputeModule:
         self,
         request: AuthzeeRequest,
         page_ref: str | None,
-        grants_page_size: int
+        authzee_config: AuthzeeConfig
     ) -> AuditResultPage:
         """Run the Audit Operation for a page of results.
 
@@ -1084,9 +1085,7 @@ class ComputeModule:
     def authorize(
         self,
         request: AuthzeeRequest,
-        grants_page_size: int,
-        parallel_pagination: bool,
-        refs_page_size: int
+        authzee_config: AuthzeeConfig
     ) -> AuthorizeResult:
         """Run the Authorize Operation.
         """
@@ -1097,7 +1096,7 @@ class ComputeModule:
         self,
         batch_request: AuthzeeBatchRequest,
         page_ref: str | None,
-        grants_page_size: int
+        authzee_config: AuthzeeConfig
     ) -> BatchAuditResultPage:
         """Run the Batch Audit Operation for a page of results.
 
@@ -1109,9 +1108,7 @@ class ComputeModule:
     def batch_authorize(
         self,
         batch_request: AuthzeeBatchRequest,
-        grants_page_size: int,
-        parallel_pagination: bool,
-        refs_page_size: int
+        authzee_config: AuthzeeConfig
     ) -> BatchAuthorizeResult:
         """Run the Batch Authorize Operation.
         """
@@ -1135,7 +1132,7 @@ class StorageModule:
         pass
 
 
-    def start(self) -> GenericResult:
+    def start(self, authzee_config: AuthzeeConfig) -> GenericResult:
         """Start up storage module.
 
         - run before use
@@ -1146,7 +1143,7 @@ class StorageModule:
         pass
 
 
-    def shutdown(self) -> GenericResult:
+    def shutdown(self, authzee_config: AuthzeeConfig) -> GenericResult:
         """Shutdown storage module.
 
         - clean up runtime resources
@@ -1154,7 +1151,7 @@ class StorageModule:
         pass
 
 
-    def construct(self) -> GenericResult:
+    def construct(self, authzee_config: AuthzeeConfig) -> GenericResult:
         """Construct backend resources for storage.
 
         - one time setup
@@ -1162,7 +1159,7 @@ class StorageModule:
         pass
 
 
-    def destroy(self) -> GenericResult:
+    def destroy(self, authzee_config: AuthzeeConfig) -> GenericResult:
         """Tear down backend resources.
 
         - destructive - may lose all long lasting storage resources
@@ -1173,7 +1170,7 @@ class StorageModule:
     def get_context_defs_page(
         self,
         page_ref: str | None,
-        page_size: int
+        authzee_config: AuthzeeConfig
     ) -> ContextDefsPage:
         """Get a page of context definitions.
 
@@ -1182,19 +1179,31 @@ class StorageModule:
         pass
 
 
-    def get_context_def(self, context_type: str) -> ContextDefResult:
+    def get_context_def(
+        self, 
+        context_type: str,
+        authzee_config: AuthzeeConfig
+    ) -> ContextDefResult:
         """Get a context definition by type.
         """
         pass
 
 
-    def put_context_def(self, context_def: ContextDef) -> GenericResult:
+    def put_context_def(
+        self, 
+        context_def: ContextDef,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Add a new Context Definition or update an existing one.
         """
         pass
 
 
-    def delete_context_def(self, context_type: str) -> GenericResult:
+    def delete_context_def(
+        self, 
+        context_type: str,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Delete a context definition by type.
         """
         pass
@@ -1203,7 +1212,7 @@ class StorageModule:
     def get_identity_defs_page(
         self,
         page_ref: str | None,
-        page_size: int
+        authzee_config: AuthzeeConfig
     ) -> IdentityDefsPage:
         """Get a page of identity definitions.
 
@@ -1212,19 +1221,31 @@ class StorageModule:
         pass
 
 
-    def get_identity_def(self, identity_type: str) -> IdentityDefResult:
+    def get_identity_def(
+        self, 
+        identity_type: str,
+        authzee_config: AuthzeeConfig
+    ) -> IdentityDefResult:
         """Get an identity definition by type.
         """
         pass
 
 
-    def put_identity_def(self, identity_def: IdentityDef) -> GenericResult:
+    def put_identity_def(
+        self, 
+        identity_def: IdentityDef,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Add a new Identity Definition or update an existing one.
         """
         pass
 
 
-    def delete_identity_def(self, identity_type: str) -> GenericResult:
+    def delete_identity_def(
+        self, 
+        identity_type: str,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Delete an identity definition by type.
         """
         pass
@@ -1233,7 +1254,7 @@ class StorageModule:
     def get_resource_defs_page(
         self,
         page_ref: str | None,
-        page_size: int
+        authzee_config: AuthzeeConfig
     ) -> ResourceDefsPage:
         """Get a page of resource definitions.
 
@@ -1242,43 +1263,62 @@ class StorageModule:
         pass
 
 
-    def get_resource_def(self, resource_type: str) -> ResourceDefResult:
+    def get_resource_def(
+        self, 
+        resource_type: str,
+        authzee_config: AuthzeeConfig
+    ) -> ResourceDefResult:
         """Get a resource definition by type.
         """
         pass
 
 
-    def list_resource_defs(self, page_size: int) -> Iterable[ResourceDef]:
-        """Auto-paginate resource definitions - only included if the language supports it.
-        """
-        pass
-
-
-    def put_resource_def(self, resource_def: ResourceDef) -> ResourceDef:
+    def put_resource_def(
+        self, 
+        resource_def: ResourceDef,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Add a new Resource Definition or update an existing one.
         """
         pass
 
 
-    def delete_resource_def(self, resource_type: str) -> None:
+    def delete_resource_def(
+        self, 
+        resource_type: str,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Delete a resource definition by type.
         """
         pass
 
 
-    def enact(self, grant: Grant) -> GenericResult:
+    def enact(
+        self, 
+        grant: Grant,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Add a new grant.
         """
         pass
 
 
-    def repeal(self, grant_uuid: UUID, purge: bool) -> GenericResult:
+    def repeal(
+        self, 
+        grant_uuid: UUID, 
+        purge: bool,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Delete a grant.
         """
         pass
 
 
-    def get_grant(self, grant_uuid: UUID) -> GrantResult:
+    def get_grant(
+        self, 
+        grant_uuid: UUID,
+        authzee_config: AuthzeeConfig
+    ) -> GrantResult:
         """Get a grant by UUID.
         """
         pass
@@ -1289,7 +1329,7 @@ class StorageModule:
         effect: str | None,
         action: str | None,
         page_ref: str | None,
-        page_size: int
+        authzee_config: AuthzeeConfig
     ) -> GrantsPage:
         """Retrieve a page of grants.
 
@@ -1303,8 +1343,7 @@ class StorageModule:
         effect: str | None,
         action: str | None,
         page_ref: str | None,
-        refs_page_size: int,
-        grants_page_size: int
+        authzee_config: AuthzeeConfig
     ) -> PageRefsPage:
         """Retrieve a page of grant page references for parallel pagination.
 
@@ -1316,31 +1355,47 @@ class StorageModule:
         pass
 
 
-    def create_latch(self) -> StorageLatchResult:
+    def create_latch(self, authzee_config: AuthzeeConfig) -> StorageLatchResult:
         """Create a new [storage latch](#storage-latches).
         """
         pass
 
 
-    def get_latch(self, storage_latch_uuid: UUID) -> StorageLatchResult:
+    def get_latch(
+        self, 
+        storage_latch_uuid: UUID,
+        authzee_config: AuthzeeConfig
+    ) -> StorageLatchResult:
         """Get a [storage latch](#storage-latches) by UUID.
         """
         pass
 
 
-    def set_latch(self, storage_latch_uuid: UUID) -> StorageLatchResult:
+    def set_latch(
+        self, 
+        storage_latch_uuid: UUID,
+        authzee_config: AuthzeeConfig
+    ) -> StorageLatchResult:
         """Set a [storage latch](#storage-latches) by UUID.
         """
         pass
 
 
-    def delete_latch(self, storage_latch_uuid: UUID) -> GenericResult:
+    def delete_latch(
+        self, 
+        storage_latch_uuid: UUID,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Delete a [storage latch](#storage-latches) by UUID.
         """
         pass
 
 
-    def cleanup_latches(self, before: Datetime) -> GenericResult:
+    def cleanup_latches(
+        self, 
+        before: Datetime,
+        authzee_config: AuthzeeConfig
+    ) -> GenericResult:
         """Delete all latches before the specified datetime.
 
         - operations should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
