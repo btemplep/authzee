@@ -1,10 +1,11 @@
-# Authzee
+# Authzee 
 
 <!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
-Authzee is a highly expressive grant-based authorization engine. 
+<img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/authzee_balloon.svg" alt="Authzee Balloon" width="100"> 
 
-<img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/logo.svg" alt="Authzee Logo" width="100">
+Authzee is a highly expressive grant-based authorization engine. It focuses on creating authorization around patterns within an organization or application. 
 
+Less authorization rules, granular control, and support for all forms of authorization and identity.
 
 - **Scalable** - Handle complex authorization scenarios across large systems.
 - **Separation** - Keep authorization rules separate from business code.

@@ -89,10 +89,9 @@ Definitions specific to Authzee and used throughout the specification:
 - **Calling Entity (Entity)** - Who or what is represented by a request.  A calling entity can have many identities of the same and different types. 
 
 
-
 ## Context Definitions
 
-Context is included in requests as extra structured data.  The definition included a unique context type name, and the schema for the request context.
+Context is included in requests as extra structured data.  The definition includes a unique context type name, and the schema for the request context.
 
 ### Context Definition Example
 
