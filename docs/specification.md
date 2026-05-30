@@ -2084,9 +2084,9 @@ Operation calls will return an object under `errors` where the fields are the er
 ### Error Types
 
 - `definition` - An error occurred when validation a context, identity, or resource definition
+- `evaluation` - An error occurred during an evaluation. Usually triggered from a JSON query error.
 - `grant` - An error occurred when validating a grant.
 - `request` - An error occurred when validating a request or batch request.
-- `evaluation` - An error occurred during an evaluation. Usually triggered from a JSON query error.
 
 
 ### Error Example

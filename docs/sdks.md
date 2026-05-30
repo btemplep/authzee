@@ -172,7 +172,7 @@ grant = authz.enact( # Create or update a grant and it will now be used when mak
 get_grants_page() # get a page of grants
 get_grant_refs_page() # get a page of references to grant pages.  Used for parallel pagination.  Only supported as available for storage backends
 list_grants() # Auto paginate grants - if the language allows
-# authz.repeal(grant['grant_uuid'], run_scan=False) # Repeal to delete a grant and it does not effect authorization any more. 
+# authz.repeal(grant['grant_uuid'], purge=False) # Repeal to delete a grant and it does not effect authorization any more. 
 
 request = {
     "identities": {
@@ -662,7 +662,11 @@ class Authzee:
         pass
 
 
-    def get_context_defs_page(self, authzee_config: AuthzeeConfig | None = None) -> ContextDefsPage:
+    def get_context_defs_page(
+        self, 
+        page_ref: str | None,
+        authzee_config: AuthzeeConfig | None = None
+    ) -> ContextDefsPage:
         """Get a page on context definitions.
 
         Pass the returned page reference to get the next page until a null page reference is returned.
@@ -2795,6 +2799,8 @@ Because of this, Authzee SDKs should also offer a set of out of the box JMESPath
 - [regex Find All](#regex-find-all) - Run a regex pattern on a string or array of strings to find all matches.
 - [regex Groups](#regex-groups) - Run a regex pattern on a string or array of strings to find the first match, and extract the groups.
 - [regex Groups All](#regex-groups-all) - Run a regex pattern on a string or array of strings to find all matches, and extract the groups.
+- [String Lower](#string-lower) - Convert string to lower case.
+- [String Upper](#string-upper) - Convert string to upper case.
 
 
 The sections are given in the same format as the [JMESPath Built-in Function Specification](https://jmespath.org/specification.html#built-in-functions)
@@ -2882,7 +2888,7 @@ Examples:
 ) </code></pre>
         </td>
         <td>
-            <code>[]</code>
+            <pre><code>[]</code></pre>
         </td>
     </tr>
 </table>
@@ -3249,26 +3255,26 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>is_identity_present("ADGroup", `{"identities": {"ADUser": []}}`)</code>
+           <pre><code>is_identity_present("ADGroup", `{"identities": {"ADUser": []}}`)</code></pre>
         </td>
         <td>
-            <code>false</code>
+           <pre><code>false</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>is_identity_present("ADGroup", `{"identities": {"ADGroup": []}}`)</code>
+           <pre><code>is_identity_present("ADGroup", `{"identities": {"ADGroup": []}}`)</code></pre>
         </td>
         <td>
-            <code>false</code>
+            <pre><code>false</code></pre>
         </td>
     </tr>
      <tr>
         <td>
-           <code>is_identity_present("ADGroup", `{"identities": {"ADGroup": [{"name": "thing"}]}}`)</code>
+           <pre><code>is_identity_present("ADGroup", `{"identities": {"ADGroup": [{"name": "thing"}]}}`)</code></pre>
         </td>
         <td>
-            <code>true</code>
+            <pre><code>true</code></pre>
         </td>
     </tr>
 </table>
@@ -3303,34 +3309,34 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find('pattern.*', 'some string here')</code>
+           <pre><code>regex_find('pattern.*', 'some string here')</code></pre>
         </td>
         <td>
-            <code>null</code>
-        </td>
-    </tr>
-    <tr>
-        <td>
-           <code>regex_find('string.+', 'some string here')</code>
-        </td>
-        <td>
-            <code>"string here"</code>
+            <pre><code>null</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_find('string.+', `["something", "here"]`)</code>
+           <pre><code>regex_find('string.+', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[null, null]</code>
+            <pre><code>"string here"</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_find('string.+', `["something", "a string now", "here"]`)</code>
+           <pre><code>regex_find('string.+', `["something", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[null, "string now", null]</code>
+            <pre><code>[null, null]</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>regex_find('string.+', `["something", "a string now", "here"]`)</code></pre>
+        </td>
+        <td>
+            <pre><code>[null, "string now", null]</code></pre>
         </td>
     </tr>
 </table>
@@ -3381,26 +3387,26 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find_all('pattern', 'some string here')</code>
+           <pre><code>regex_find_all('pattern', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[]</code>
-        </td>
-    </tr>
-    <tr>
-        <td>
-           <code>regex_find_all('string[0-9]', 'some string3 here string4')</code>
-        </td>
-        <td>
-            <code>["string3", "string4"]</code>
+            <pre><code>[]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_find_all('string.+', `["something", "here"]`)</code>
+           <pre><code>regex_find_all('string[0-9]', 'some string3 here string4')</code></pre>
         </td>
         <td>
-            <code>[[], []]</code>
+            <pre><code>["string3", "string4"]</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>regex_find_all('string.+', `["something", "here"]`)</code></pre>
+        </td>
+        <td>
+            <pre><code>[[], []]</code></pre>
         </td>
     </tr>
     <tr>
@@ -3470,18 +3476,18 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_groups('pattern.*', 'some string here')</code>
+           <pre><code>regex_groups('pattern.*', 'some string here')</code></pre>
         </td>
         <td>
-            <code>null</code>
+            <pre><code>null</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups('string.+', 'some string here')</code>
+           <pre><code>regex_groups('string.+', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[]</code>
+           <pre><code>[]</code></pre>
         </td>
     </tr>
     <tr>
@@ -3492,23 +3498,23 @@ Examples:
 )</code></pre>
         </td>
         <td>
-            <code>[null, "my_group9"]</code>
+            <pre><code>[null, "my_group9"]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups('string.+', `["something", "here"]`)</code>
+           <pre><code>regex_groups('string.+', `["something", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[null, null]</code>
+            <pre><code>[null, null]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups('string.+', `["something", "a string now", "here"]`)</code>
+           <pre><code>regex_groups('string.+', `["something", "a string now", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[null, [], null]</code>
+            <pre><code>[null, [], null]</code></pre>
         </td>
     </tr>
     <tr>
@@ -3523,7 +3529,7 @@ Examples:
 )</code></pre>
         </td>
         <td>
-            <code>[null, [null, "my_group9"], null]</code>
+            <pre><code>[null, [null, "my_group9"], null]</code></pre>
         </td>
     </tr>
 </table>
@@ -3591,18 +3597,18 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_groups_all('pattern.*', 'some string here')</code>
+           <pre><code>regex_groups_all('pattern.*', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[]</code>
+            <pre><code>[]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups_all('string.+', 'some string here')</code>
+           <pre><code>regex_groups_all('string.+', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[[]]</code>
+            <pre><code>[[]]</code></pre>
         </td>
     </tr>
     <tr>
@@ -3610,7 +3616,7 @@ Examples:
            <pre><code>regex_groups_all(
     'string (my_group[0-4])|string (my_other_group[5-9])', 
     'a string my_other_group9 another string my_group2'
-)</pre></code>
+)</code></pre>
         </td>
         <td>
             <pre><code>[
@@ -3627,18 +3633,18 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_groups_all('string.+', `["something", "here"]`)</code>
+           <pre><code>regex_groups_all('string.+', `["something", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[[], []]</code>
+           <pre> <code>[[], []]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups_all('string.+', `["something", "a string now", "here"]`)</code>
+           <pre><code>regex_groups_all('string.+', `["something", "a string now", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[[], [[]], []]</code>
+            <pre><code>[[], [[]], []]</code></pre>
         </td>
     </tr>
     <tr>
@@ -3692,4 +3698,81 @@ def regex_groups_all(pattern: str, subject: Union[str, List[str]]) -> Union[List
             )
     
     return result
+```
+
+### String Lower
+
+`string lower(string $subject)`
+
+Convert the subject string to lowercase.
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>lower('BALLOON')</code></pre>
+        </td>
+        <td>
+            <pre><code>"balloon"</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>lower('balloon')</code></pre>
+        </td>
+        <td>
+            <pre><code>"balloon"</code></pre>
+        </td>
+    </tr>
+</table>
+
+Simple python function example:
+
+```python
+def lower(subject: str) -> str:
+    return string.lower()
+```
+
+
+### String Upper
+
+`string upper(string $subject)`
+
+Convert the subject string to lowercase.
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>upper('balloon')</code></pre>
+        </td>
+        <td>
+            <pre><code>"BALLOON"</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>upper('BALLOON')</code></pre>
+        </td>
+        <td>
+            <pre><code>"BALLOON"</code></pre>
+        </td>
+    </tr>
+</table>
+
+Simple python function example:
+
+```python
+def upper(subject: str) -> str:
+    return string.upper()
 ```

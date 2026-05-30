@@ -1,4 +1,4 @@
-"""A reference implementation for the core functionality of Authzee. 
+"""A reference implementation for the Authzee specification.
 
 Core workflow:
 

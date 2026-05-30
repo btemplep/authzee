@@ -1,10 +1,16 @@
 # TODO
 
+
 - [ ] update SDK main example
 
-- [ ] update SDK to authzee_config for all
-
-- [ ] Authzee Config break out page size of each type of def into it's own size
+- [ ] updates from SDK testing
+    - authzee_config for all methods on authzee, compute, storage
+    - Authzee Config break out page size of each type of def into it's own size
+    - has_failed to authorize result
+    - remove list_* operations for SDK
+    - compute should validate all things/add new methods for validate context, identity, resource, grant, requests etc
+    - effect and action filters to the grant page, grant refs page, audit, and batch audit pages
+    - get_somethings_page to list_somethings
 
 - [x] update sdk authzee class to have verify for request and batch request
 
