@@ -35,8 +35,7 @@ If this doesn't fit your use case you are free to create your own! Try to stay c
 
 
 ```python
-
-from authzee import Authzee, InProcessCompute, InProcessStorage, jmespath_execute
+from authzee import Authzee, InProcessCompute, InProcessStorage, jmespath_execute, paginator
 
 storage = {}
 authz = Authzee(
@@ -45,17 +44,19 @@ authz = Authzee(
     compute_kwargs={},
     storage_type=InProcessStorage,
     storage_kwargs={
-        storage_ptr=storage
+        "storage_ptr": storage
     },
-    grants_page_size=100,
-    grant_refs_page_size=10,
-    parallel_paging=True, # default true
-    raise_crits=True # Default true
+    config={
+        "authzee": {
+            "raise_crits": True
+        }
+    }
 )
-authz.construct() # one time creation and setup of resources
-# authz.destroy() # tear down all resources including runtime and non-volatile resources.  Destroys all grants and definitions.
-authz.start() # initialization and creation of runtime resources.  Run for each Authzee instance
-# authz.shutdown() # shutdown runtime resources for this Authzee instance
+authz.construct()
+# authz.destroy()
+authz.start()
+# authz.shutdown()
+
 context_def = {
     "context_type": "Team",
     "schema": {
@@ -71,10 +72,8 @@ context_def = {
         }
     }
 }
-authz.put_context_def(identity_def) # register a new context definition or update an existing by context_type
-get_context_defs_page() # manually paginate registered context definitions
-list_context_defs() # Auto paginate context definitions - if the language allows
-# authz.delete_context_def(context_def['context_type']) # delete a context def by type
+authz.put_context_def(context_def)
+# authz.delete_context_def(context_def["context_type"])
 
 identity_def = {
     "identity_type": "User",
@@ -88,21 +87,21 @@ identity_def = {
         ],
         "properties": {
             "username": {
-                "type": "string
+                "type": "string"
             },
             "email": {
-                "type": "string",
-                "department": "Balloon Sales"
+                "type": "string"
+            },
+            "department": {
+                "type": "string"
             }
         }
     }
 }
-authz.put_identity_def(identity_def) # register a new identity definition or update an existing by identity_type
-get_identity_defs_page() # manually paginate registered identity definitions
-list_identity_defs() # Auto paginate identity definitions - if the language allows
-# authz.delete_identity_def(identity_def['identity_type']) # delete a identity def by type
+authz.put_identity_def(identity_def)
+# authz.delete_identity_def(identity_def["identity_type"])
 
-authz.put_resource_def( # register a new resource definition or update an existing by resource_type
+authz.put_resource_def(
     {
         "resource_type": "Balloon",
         "actions": [
@@ -143,23 +142,33 @@ authz.put_resource_def( # register a new resource definition or update an existi
         }
     }
 )
-get_resource_defs_page() # manually paginate registered resource definitions
-list_resource_defs() # Auto paginate resource definitions - if the language allows
-# authz.delete_resource_def(resource['resource_type']) # delete a resource definition by resource type
+# authz.delete_resource_def("Balloon")
 
-grant = authz.enact( # Create or update a grant and it will now be used when making authorization decisions. 
+for page in paginator(authz.list_context_defs):
+    for context_def in page.context_defs:
+        print(context_def)
+
+for page in paginator(authz.list_identity_defs):
+    for identity_def in page.identity_defs:
+        print(identity_def)
+
+for page in paginator(authz.list_resource_defs):
+    for resource_def in page.resource_defs:
+        print(resource_def)
+
+grant = authz.enact(
     {
         "name": "Balloon Sales and maintenance Inflate",
         "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
         "tags": {
             "SomeKey": "SomeVal"
-        }
+        },
         "effect": "allow",
         "actions": [
             "Balloon:Inflate"
         ],
         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-        "evaluation_handler": "evaluate", 
+        "evaluation_handler": "evaluate",
         "equality": True,
         "data": {
             "allowed_departments": [
@@ -169,10 +178,15 @@ grant = authz.enact( # Create or update a grant and it will now be used when mak
         }
     }
 )
-get_grants_page() # get a page of grants
-get_grant_refs_page() # get a page of references to grant pages.  Used for parallel pagination.  Only supported as available for storage backends
-list_grants() # Auto paginate grants - if the language allows
-# authz.repeal(grant['grant_uuid'], purge=False) # Repeal to delete a grant and it does not effect authorization any more. 
+# authz.repeal(grant["grant_uuid"], purge=False)
+
+for page in paginator(authz.list_grants, effect="allow"):
+    for g in page.grants:
+        print(g)
+
+for page in paginator(authz.list_grant_refs):
+    for ref in page.grant_refs:
+        print(ref)
 
 request = {
     "identities": {
@@ -203,7 +217,7 @@ print(authorize_result)
 # {
 #     "is_authorized": True,
 #     "grant": {
-#         "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927"
+#         "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
 #         "name": "Balloon Sales and maintenance Inflate",
 #         "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
 #         "effect": "allow",
@@ -211,7 +225,7 @@ print(authorize_result)
 #             "Balloon:Inflate"
 #         ],
 #         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#         "evaluation_handler": "evaluate", 
+#         "evaluation_handler": "evaluate",
 #         "equality": True,
 #         "data": {
 #             "allowed_departments": [
@@ -225,15 +239,20 @@ print(authorize_result)
 #     "critical_errors": {}
 # }
 
-audit_page_result = authz.audit_page(request)
-print(audit_page_result)
+audit_result = authz.audit(
+    request,
+    effect="allow",
+    action="Balloon:Inflate",
+    page_ref=None
+)
+print(audit_result)
 # {
 #     "results": [
 #         {
 #             "is_applicable": True,
 #             "query_result": True,
 #             "grant": {
-#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927"
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
 #                 "name": "Balloon Sales and maintenance Inflate",
 #                 "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
 #                 "effect": "allow",
@@ -241,7 +260,7 @@ print(audit_page_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#                 "evaluation_handler": "evaluate", 
+#                 "evaluation_handler": "evaluate",
 #                 "equality": True,
 #                 "data": {
 #                     "allowed_departments": [
@@ -280,11 +299,11 @@ batch_request = {
     "context": {
         "Team": "My Team"
     },
-    "evaluation_handler": "grant"
+    "evaluation_handler": "grant",
     "batch": [
-        {}, # run the request with all the defaults from the root request
+        {},
         {
-            "identities": { # A batch item can override any field besides the action
+            "identities": {
                 "User": [
                     {
                         "username": "tester2",
@@ -297,13 +316,13 @@ batch_request = {
     ]
 }
 batch_authorize_result = authz.batch_authorize(batch_request)
-print(patch_authorize_result)
+print(batch_authorize_result)
 # {
 #     "batch_results": [
 #         {
 #             "is_authorized": True,
 #             "grant": {
-#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927"
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
 #                 "name": "Balloon Sales and maintenance Inflate",
 #                 "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
 #                 "effect": "allow",
@@ -311,7 +330,7 @@ print(patch_authorize_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#                 "evaluation_handler": "evaluate", 
+#                 "evaluation_handler": "evaluate",
 #                 "equality": True,
 #                 "data": {
 #                     "allowed_departments": [
@@ -329,20 +348,25 @@ print(patch_authorize_result)
 #             "grant": None,
 #             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
 #             "has_failed": False,
-#             "critical_errors": {}s
+#             "critical_errors": {}
 #         }
 #     ],
 #     "has_failed": False,
 #     "errors": {}
 # }
 
-batch_audit_result = authz.batch_audit_page(batch_request)
+batch_audit_result = authz.batch_audit(
+    batch_request,
+    effect="allow",
+    action="Balloon:Inflate",
+    page_ref=None
+)
 print(batch_audit_result)
 # {
 #     "results": [
 #         {
 #             "grant": {
-#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927"
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
 #                 "name": "Balloon Sales and maintenance Inflate",
 #                 "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
 #                 "effect": "allow",
@@ -350,7 +374,7 @@ print(batch_audit_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#                 "evaluation_handler": "evaluate", 
+#                 "evaluation_handler": "evaluate",
 #                 "equality": True,
 #                 "data": {
 #                     "allowed_departments": [
@@ -390,7 +414,7 @@ SDKs are considered:
 
 | Language | Code Repo | Package Repo | Authzee Compliant | Maintained | SDK Standard | Official | Notes |
 |---|---|---|:---:|:---:|:---:|:---:|:---:|
-| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ❌ | ✅ | ❌ | ✅ | In progress for updating to the new standard |
+| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ✅ | ✅ | ✅ | ✅ | None |
 
 <!-- 
 Green checks for all that are compliant
@@ -446,7 +470,7 @@ This is to give a core point of logic for the higher level APIs, and the ability
 
 It should include these variables to import:
 
-- `authzee_version` - The latest version of the Authzee specification supported.
+- `authzee_specification_version` - The latest version of the Authzee specification supported.
 - `context_definition_schema` - Context Definition Schema
 - `identity_definition_schema` - Identity Definition Schema
 - `resource_definition_schema` - Resource Definition Schema
@@ -600,17 +624,334 @@ def batch_authorize_workflow(
 
 ## Authzee Class
 
+The `Authzee` class is the primary public API for the SDK. It wraps compute and storage modules and provides all authorization operations.
+
 The `Authzee` class should take these arguments when created:
 - JSON query execute function
 - Compute Module type and arguments
     - keyword args where available, or else ordered arguments
 - Storage Module type and arguments
     - keyword args where available, or else ordered arguments
-- [Authzee Config](#authzee-config) object or null to take defaults.
+- Compute storage kwargs (optional) - override storage kwargs that the compute module will use. Only include kwargs you want to override.
+- [Authzee Config](#authzee-config) override or null to take defaults.
 
-If the language supports async, there should also be an async version, `AuthzeeAsync`. 
+If the language supports async, there should also be an `AuthzeeAsync` variant. `AuthzeeAsync` has the same constructor signature and methods as `Authzee`, but all methods are async.
 
-These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they should all be async.
+
+### Authzee Config
+
+Config is organized per-method — each root key corresponds to a method name and holds that method's specific setting.  The `authzee` root key is for general Authzee instance settings. 
+
+Authzee instances have a default set of configs. 
+
+The configs can be changes by passing them when creating an instance.
+
+Every method on the `Authzee` class (and `AuthzeeAsync`) accepts a config parameter. This allows overriding configuration at the call-level without changing the instance-level configuration. 
+
+
+#### Config Precedence
+
+Configuration is resolved through 3 levels (least to most precedence):
+
+1. **Default config values** — The built-in defaults shown below.+
+2. **Instance-level config** — Passed via the `config` parameter at `Authzee` construction. Only provided keys override the defaults.
+3. **Method-call config override** — Passed via the `config` parameter on any method call. Only provided keys override the resolved instance config.
+
+Only the keys you provide at a higher-precedence level override the values from the lower level. Everything else keeps its resolved value.
+
+#### AuthzeeConfig Full Example (all defaults)
+
+```python
+{
+    "authzee": {
+        "raise_crits": True
+    },
+    "start": {
+        "compute_start": {
+            "storage": {}
+        },
+        "storage_start": {}
+    },
+    "shutdown": {
+        "compute_shutdown": {
+            "storage": {}
+        },
+        "storage_shutdown": {}
+    },
+    "construct": {
+        "compute_construct": {},
+        "storage_construct": {}
+    },
+    "destroy": {
+        "compute_destroy": {},
+        "storage_destroy": {}
+    },
+    "validate_context_def": {},
+    "list_context_defs": {
+        "page_size": 100,
+        "use_cache": False
+    },
+    "get_context_def": {
+        "use_cache": False
+    },
+    "put_context_def": {},
+    "delete_context_def": {},
+    "validate_identity_def": {},
+    "list_identity_defs": {
+        "page_size": 100,
+        "use_cache": False
+    },
+    "get_identity_def": {
+        "use_cache": False
+    },
+    "put_identity_def": {},
+    "delete_identity_def": {},
+    "validate_resource_def": {},
+    "list_resource_defs": {
+        "page_size": 100,
+        "use_cache": False
+    },
+    "get_resource_def": {
+        "use_cache": False
+    },
+    "put_resource_def": {},
+    "delete_resource_def": {},
+    "validate_grant": {},
+    "list_grants": {
+        "page_size": 100,
+        "use_cache": False
+    },
+    "get_grant": {
+        "use_cache": False
+    },
+    "enact": {},
+    "repeal": {},
+    "list_grant_refs": {
+        "page_size": 10,
+        "use_cache": False
+    },
+    "cleanup_latches": {},
+    "validate_request": {
+        "get_context_def": {
+            "use_cache": True
+        },
+        "use_list_context_defs": True,
+        "list_context_defs": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "get_identity_def": {
+            "use_cache": True
+        },
+        "use_list_identity_defs": True,
+        "list_identity_defs": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "get_resource_def": {
+            "use_cache": True
+        },
+        "use_list_resource_defs": True,
+        "list_resource_defs": {
+            "page_size": 100,
+            "use_cache": True
+        }
+    },
+    "validate_batch_request": {
+        "get_context_def": {
+            "use_cache": True
+        },
+        "use_list_context_defs": True,
+        "list_context_defs": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "get_identity_def": {
+            "use_cache": True
+        },
+        "use_list_identity_defs": True,
+        "list_identity_defs": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "get_resource_def": {
+            "use_cache": True
+        },
+        "use_list_resource_defs": True,
+        "list_resource_defs": {
+            "page_size": 100,
+            "use_cache": True
+        }
+    },
+    "audit": {
+        "validate_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "list_grants": {
+            "page_size": 100,
+            "use_cache": True
+        }
+    },
+    "batch_audit": {
+        "validate_batch_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "list_grants": {
+            "page_size": 100,
+            "use_cache": True
+        }
+    },
+    "authorize": {
+        "validate_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "list_grants": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "parallel_paging": True,
+        "list_grant_refs": {
+            "page_size": 10,
+            "use_cache": True
+        }
+    },
+    "batch_authorize": {
+        "validate_batch_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "validate_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "list_grants": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "parallel_paging": True,
+        "list_grant_refs": {
+            "page_size": 10,
+            "use_cache": True
+        }
+    }
+}
+```
+
+
+These are the methods for the Authzee class. For the `AuthzeeAsync` class, they should all be async.
 
 ```python
 class Authzee:
@@ -622,12 +963,13 @@ class Authzee:
         compute_kwargs: Dict[str, Any],
         storage_type: Type[StorageModule],
         storage_kwargs: Dict[str, Any],
-        authzee_config: AuthzeeConfig
+        compute_storage_kwargs: Dict[str, Any] | None = None,
+        config: AuthzeeConfigOverride | None = None
     ):
         pass
 
 
-    def start(self, authzee_config: AuthzeeConfig | None = None) -> GenericResult:
+    def start(self, config: AuthzeeConfigOverride | None = None) -> GenericResult:
         """Start up Authzee app.
 
         - Initialize runtime resources
@@ -640,13 +982,13 @@ class Authzee:
         pass
 
     
-    def shutdown(self, authzee_config: AuthzeeConfig | None = None) -> GenericResult:
+    def shutdown(self, config: AuthzeeConfigOverride | None = None) -> GenericResult:
         """Shutdown the authzee app. Cleans up runtime resources.
         """
         pass
 
 
-    def construct(self, authzee_config: AuthzeeConfig | None = None) -> GenericResult:
+    def construct(self, config: AuthzeeConfigOverride | None = None) -> GenericResult:
         """Construct backend resources for compute and storage
    
         One time setup.
@@ -654,7 +996,7 @@ class Authzee:
         pass
 
 
-    def destroy(self, authzee_config: AuthzeeConfig | None = None) -> GenericResult:
+    def destroy(self, config: AuthzeeConfigOverride | None = None) -> GenericResult:
         """Destroy down backend resources.
         
         destructive - may lose all storage and compute etc.
@@ -662,12 +1004,12 @@ class Authzee:
         pass
 
 
-    def get_context_defs_page(
+    def list_context_defs(
         self, 
         page_ref: str | None,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> ContextDefsPage:
-        """Get a page on context definitions.
+        """Get a page of context definitions.
 
         Pass the returned page reference to get the next page until a null page reference is returned.
         """
@@ -677,7 +1019,7 @@ class Authzee:
     def validate_context_def(
         self,
         context_def: ContextDef,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Validate a context definition.
         """
@@ -687,18 +1029,11 @@ class Authzee:
     def get_context_def(
         self, 
         context_type: str, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> ContextDefResult:
         """Get a context definition by type.
-        """
-        pass
 
-
-    def list_context_defs(
-        self, 
-        authzee_config: AuthzeeConfig | None = None
-    ) -> Iterable[ContextDef]:
-        """Auto-paginate context definitions - only included if the language supports it
+        If the context_type does not match a stored context definition, the result will have `context_def` set to null and `has_failed` set to true.
         """
         pass
 
@@ -706,7 +1041,7 @@ class Authzee:
     def put_context_def(
         self, 
         context_def: ContextDef, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Add a new Context Definition or update an existing one.
         """
@@ -715,7 +1050,7 @@ class Authzee:
     def delete_context_def(
         self, 
         context_type: str, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Delete a context definition by type.
         """
@@ -725,19 +1060,19 @@ class Authzee:
     def validate_identity_def(
         self,
         identity_def: IdentityDef,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Validate an identity definition.
         """
         pass
 
 
-    def get_identity_defs_page(
+    def list_identity_defs(
         self, 
         page_ref: str | None, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> IdentityDefsPage:
-        """Get a page on context definitions.
+        """Get a page of identity definitions.
 
         Pass the returned page reference to get the next page until a null page reference is returned.
         """
@@ -747,15 +1082,11 @@ class Authzee:
     def get_identity_def(
         self, 
         identity_type: str,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> IdentityDefResult:
         """Get an identity definition by type.
-        """
-        pass
 
-
-    def list_identity_defs(self, authzee_config: AuthzeeConfig | None = None) -> Iterable[IdentityDef]:
-        """Auto-paginate identity definitions - only included if the language supports it.
+        If the identity_type does not match a stored identity definition, the result will have `identity_def` set to null and `has_failed` set to true.
         """
         pass
 
@@ -763,7 +1094,7 @@ class Authzee:
     def put_identity_def(
         self, 
         identity_def: IdentityDef, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Add a new Identity Definition or update an existing one
         """
@@ -773,7 +1104,7 @@ class Authzee:
     def delete_identity_def(
         self, 
         identity_type: str,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Delete an identity definition by type.
         """
@@ -783,17 +1114,17 @@ class Authzee:
     def validate_resource_def(
         self,
         resource_def: ResourceDef,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Validate a resource definition.
         """
         pass
 
 
-    def get_resource_defs_page(
+    def list_resource_defs(
         self, 
         page_ref: str | None, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> ResourceDefsPage:
         """Get a page of resource definitions.
 
@@ -805,15 +1136,11 @@ class Authzee:
     def get_resource_def(
         self, 
         resource_type: str,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> ResourceDefResult:
         """Get a resource definition by type.
-        """
-        pass
 
-
-    def list_resource_defs(self, authzee_config: AuthzeeConfig | None = None) -> Iterable[ResourceDef]:
-        """Auto-paginate resource definitions - only included if the language supports it.
+        If the resource_type does not match a stored resource definition, the result will have `resource_def` set to null and `has_failed` set to true.
         """
         pass
 
@@ -821,7 +1148,7 @@ class Authzee:
     def put_resource_def(
         self, 
         resource_def: ResourceDef,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Add a new Resource Definition or update an existing one.
         """
@@ -831,9 +1158,19 @@ class Authzee:
     def delete_resource_def(
         self, 
         resource_type: str,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Delete a resource definition by type.
+        """
+        pass
+
+
+    def validate_grant(
+        self,
+        grant: Grant,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Validate a grant.
         """
         pass
 
@@ -841,7 +1178,7 @@ class Authzee:
     def enact(
         self, 
         grant: Grant,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Add a new grant. 
 
@@ -854,7 +1191,7 @@ class Authzee:
         self, 
         grant_uuid: UUID, 
         purge: bool = False,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Delete a grant.
         
@@ -866,23 +1203,11 @@ class Authzee:
     def get_grant(
         self, 
         grant_uuid: UUID,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GrantResult:
         """Get a grant by UUID.
-        """
-        pass
 
-
-    def get_grants_page(
-        self,
-        effect: str | None, 
-        action: str | None, 
-        page_ref: str | None, 
-        authzee_config: AuthzeeConfig | None = None
-    ) -> GrantsPage:
-        """Retrieve a page of grants
-
-        Pass the returned page reference to get the next page until a null page reference is returned.
+        If the grant_uuid does not match a stored grant, the result will have `grant` set to null and `has_failed` set to true.
         """
         pass
 
@@ -892,25 +1217,41 @@ class Authzee:
         effect: str | None, 
         action: str | None, 
         page_ref: str | None, 
-        authzee_config: AuthzeeConfig | None = None
-    ) -> Iterable[Grant]:
-        """Auto-paginate Grants - only included if the language supports it.
+        config: AuthzeeConfigOverride | None = None
+    ) -> GrantsPage:
+        """Retrieve a page of grants.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+
+        effect - Filter by grant effect. Accepts "allow", "deny", or null.
+            Null means no filtering by effect. When non-null, only grants whose
+            effect field matches the filter value are included.
+        action - Filter by resource action. Accepts a resource action string or null.
+            Null means no filtering by action. When non-null, only grants whose
+            actions field contains the filter value are included.
         """
         pass
 
 
-    def get_grant_refs_page(
+    def list_grant_refs(
         self,
         effect: str | None, 
         action: str | None, 
         page_ref: str | None, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> PageRefsPage:
         """Retrieve a page of grant page references for parallel pagination.
 
         Pass the returned page reference to get the next page until a null page reference is returned.
 
         For some storage modules this may not be possible, check the `parallel_paging` value.
+
+        effect - Filter by grant effect. Accepts "allow", "deny", or null.
+            Null means no filtering by effect. When non-null, only grants whose
+            effect field matches the filter value are included.
+        action - Filter by resource action. Accepts a resource action string or null.
+            Null means no filtering by action. When non-null, only grants whose
+            actions field contains the filter value are included.
         """
         pass
 
@@ -918,7 +1259,7 @@ class Authzee:
     def cleanup_latches(
         self, 
         before: Datetime, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Delete all latches before the specified datetime.
 
@@ -930,22 +1271,31 @@ class Authzee:
     def validate_request(
         self,
         request: AuthzeeRequest, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Validate a request.
         """
         pass
 
 
-    def audit_page(
+    def audit(
         self,
         request: AuthzeeRequest, 
+        effect: str | None,
+        action: str | None,
         page_ref: str | None, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> AuditResultPage:
         """Run the Audit Operation for a page of results.
 
         Pass the returned page reference to get the next page until a null page reference is returned.
+
+        effect - Filter by grant effect. Accepts "allow", "deny", or null.
+            Null means no filtering by effect. When non-null, only grants whose
+            effect field matches the filter value are included in the audit.
+        action - Filter by resource action. Accepts a resource action string or null.
+            Null means no filtering by action. When non-null, only grants whose
+            actions field contains the filter value are included in the audit.
         """
         pass
 
@@ -953,7 +1303,7 @@ class Authzee:
     def authorize(
         self, 
         request: AuthzeeRequest,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> AuthorizeResult:
         """Run the Authorize Operation.
         """
@@ -963,22 +1313,31 @@ class Authzee:
     def validate_batch_request(
         self,
         batch_request: AuthzeeBatchRequest, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Validate a batch request.
         """
         pass
 
 
-    def batch_audit_page(
+    def batch_audit(
         self,
         batch_request: AuthzeeBatchRequest, 
+        effect: str | None,
+        action: str | None,
         page_ref: str | None, 
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> BatchAuditResultPage:
         """Run the Batch Audit Operation for a page of results.
 
         Pass the returned page reference to get the next page until a null page reference is returned.
+
+        effect - Filter by grant effect. Accepts "allow", "deny", or null.
+            Null means no filtering by effect. When non-null, only grants whose
+            effect field matches the filter value are included in the audit.
+        action - Filter by resource action. Accepts a resource action string or null.
+            Null means no filtering by action. When non-null, only grants whose
+            actions field contains the filter value are included in the audit.
         """
         pass
 
@@ -986,12 +1345,59 @@ class Authzee:
     def batch_authorize(
         self, 
         batch_request: AuthzeeBatchRequest,
-        authzee_config: AuthzeeConfig | None = None
+        config: AuthzeeConfigOverride | None = None
     ) -> BatchAuthorizeResult:
         """Run the Batch Authorize Operation.
         """
         pass
 ```
+
+
+### Paginator
+
+The `paginator()` utility function provides automatic pagination through all pages from any page-returning method. It replaces the old auto-paginating `list_*` iterator methods.
+
+```python
+def paginator(page_method, **kwargs):
+    """Iterate through all pages from a page-returning method.
+
+    Yields each page result.
+    Terminates when next_page_ref is None or has_failed is True.
+    """
+    ...
+```
+
+For `AuthzeeAsync`, use `paginator_async()`:
+
+```python
+async def paginator_async(page_method, **kwargs):
+    """Async version of paginator for use with AuthzeeAsync.
+
+    Yields each page result via an async generator.
+    Terminates when next_page_ref is None or has_failed is True.
+    """
+    ...
+```
+
+#### Usage Examples
+
+```python
+# Paginate through all context definitions
+for page in paginator(authz.list_context_defs):
+    for context_def in page.context_defs:
+        print(context_def)
+
+# Paginate through grants filtered by effect
+for page in paginator(authz.list_grants, effect="allow", action=None):
+    for grant in page.grants:
+        print(grant)
+
+# Paginate through grant refs
+for page in paginator(authz.list_grant_refs, effect=None, action="Balloon:Inflate"):
+    for ref in page.page_refs:
+        print(ref)
+```
+
 
 ## Compute Modules
 
@@ -1003,21 +1409,18 @@ They may also use the storage module to create and retrieve latches that help wi
 
 Compute Modules should take any module specific arguments when created.
 
-Compute modules objects should implement these methods:
+Compute modules objects should implement these methods. Every method accepts its dedicated config class as a required parameter. The config class name follows the pattern `Compute{MethodName}Config` for lifecycle methods (e.g., `ComputeStartConfig` for `start`) and `{MethodName}Config` for operation methods (e.g., `AuditConfig` for `audit`). The Authzee class is responsible for resolving the full config and passing the appropriate method-specific config object to the compute module.
 
 ```python
 class ComputeModule:
 
-    def __init__(self): # any other args specific to this compute module
-        pass
 
-
-    def start(
+    async def start(
         self,
         execute: Callable[[str, Any], Any],
         storage_type: Type[StorageModule],
         storage_kwargs: Dict[str, Any],
-        authzee_config: AuthzeeConfig
+        config: ComputeStartConfig
     ) -> GenericResult:
         """Start up compute module.
 
@@ -1029,7 +1432,7 @@ class ComputeModule:
         pass
 
 
-    def shutdown(self, authzee_config: AuthzeeConfig) -> GenericResult:
+    async def shutdown(self, config: ComputeShutdownConfig) -> GenericResult:
         """Shutdown Compute module.
 
         - clean up runtime resources
@@ -1037,7 +1440,7 @@ class ComputeModule:
         pass
 
 
-    def construct(self, authzee_config: AuthzeeConfig) -> GenericResult:
+    async def construct(self, config: ComputeConstructConfig) -> GenericResult:
         """Construct backend resources for compute.
 
         - one time setup
@@ -1045,7 +1448,7 @@ class ComputeModule:
         pass
 
 
-    def destroy(self, authzee_config: AuthzeeConfig) -> GenericResult:
+    async def destroy(self, config: ComputeDestroyConfig) -> GenericResult:
         """Tear down backend resources.
 
         - destructive - may lose all long lasting compute resources
@@ -1053,31 +1456,63 @@ class ComputeModule:
         pass
 
 
-    def validate_request(
+    async def validate_context_def(
+        self,
+        context_def: ContextDef,
+        config: ValidateContextDefConfig
+    ) -> GenericResult:
+        pass
+
+
+    async def validate_identity_def(
+        self,
+        identity_def: IdentityDef,
+        config: ValidateIdentityDefConfig
+    ) -> GenericResult:
+        pass
+
+
+    async def validate_resource_def(
+        self,
+        resource_def: ResourceDef,
+        config: ValidateResourceDefConfig
+    ) -> GenericResult:
+        pass
+
+
+    async def validate_grant(
+        self,
+        grant: Grant,
+        config: ValidateGrantConfig
+    ) -> GenericResult:
+        pass
+
+
+    async def validate_request(
         self,
         request: AuthzeeRequest,
-        authzee_config: AuthzeeConfig
+        config: ValidateRequestConfig
     ) -> GenericResult:
         """Validate a request.
         """
         pass
 
 
-    def validate_batch_request(
+    async def validate_batch_request(
         self,
         batch_request: AuthzeeBatchRequest,
-        authzee_config: AuthzeeConfig
+        config: ValidateBatchRequestConfig
     ) -> GenericResult:
         """Validate a batch request.
         """
         pass
 
 
-    def audit_page(
+    async def audit(
         self,
         request: AuthzeeRequest,
         page_ref: str | None,
-        authzee_config: AuthzeeConfig
+        config: AuditConfig
     ) -> AuditResultPage:
         """Run the Audit Operation for a page of results.
 
@@ -1086,21 +1521,21 @@ class ComputeModule:
         pass
 
 
-    def authorize(
+    async def authorize(
         self,
         request: AuthzeeRequest,
-        authzee_config: AuthzeeConfig
+        config: AuthorizeConfig
     ) -> AuthorizeResult:
         """Run the Authorize Operation.
         """
         pass
 
 
-    def batch_audit_page(
+    async def batch_audit(
         self,
         batch_request: AuthzeeBatchRequest,
         page_ref: str | None,
-        authzee_config: AuthzeeConfig
+        config: BatchAuditConfig
     ) -> BatchAuditResultPage:
         """Run the Batch Audit Operation for a page of results.
 
@@ -1109,10 +1544,10 @@ class ComputeModule:
         pass
 
 
-    def batch_authorize(
+    async def batch_authorize(
         self,
         batch_request: AuthzeeBatchRequest,
-        authzee_config: AuthzeeConfig
+        config: BatchAuthorizeConfig
     ) -> BatchAuthorizeResult:
         """Run the Batch Authorize Operation.
         """
@@ -1127,16 +1562,16 @@ Storage modules provide a standard API for storing and retrieving grants and [St
 
 Storage Modules should take any module specific arguments when created.
 
-Storage modules should implement these methods:
+Storage modules should implement these methods. Every method accepts its dedicated config class as a required parameter. The config class name follows the pattern `Storage{MethodName}Config` for lifecycle methods (e.g., `StorageStartConfig` for `start`) and `{MethodName}Config` for operation methods (e.g., `ListGrantsConfig` for `list_grants`). The Authzee class is responsible for resolving the full config and passing the appropriate method-specific config object to the storage module.
 
 ```python
 class StorageModule:
 
-    def __init__(self): # any other args specific to this storage module
+    def __init__(self): 
         pass
 
 
-    def start(self, authzee_config: AuthzeeConfig) -> GenericResult:
+    async def start(self, config: StorageStartConfig) -> GenericResult:
         """Start up storage module.
 
         - run before use
@@ -1147,7 +1582,7 @@ class StorageModule:
         pass
 
 
-    def shutdown(self, authzee_config: AuthzeeConfig) -> GenericResult:
+    async def shutdown(self, config: StorageShutdownConfig) -> GenericResult:
         """Shutdown storage module.
 
         - clean up runtime resources
@@ -1155,7 +1590,7 @@ class StorageModule:
         pass
 
 
-    def construct(self, authzee_config: AuthzeeConfig) -> GenericResult:
+    async def construct(self, config: StorageConstructConfig) -> GenericResult:
         """Construct backend resources for storage.
 
         - one time setup
@@ -1163,7 +1598,7 @@ class StorageModule:
         pass
 
 
-    def destroy(self, authzee_config: AuthzeeConfig) -> GenericResult:
+    async def destroy(self, config: StorageDestroyConfig) -> GenericResult:
         """Tear down backend resources.
 
         - destructive - may lose all long lasting storage resources
@@ -1171,10 +1606,10 @@ class StorageModule:
         pass
 
 
-    def get_context_defs_page(
+    async def list_context_defs(
         self,
         page_ref: str | None,
-        authzee_config: AuthzeeConfig
+        config: ListContextDefsConfig
     ) -> ContextDefsPage:
         """Get a page of context definitions.
 
@@ -1183,40 +1618,40 @@ class StorageModule:
         pass
 
 
-    def get_context_def(
-        self, 
+    async def get_context_def(
+        self,
         context_type: str,
-        authzee_config: AuthzeeConfig
+        config: GetContextDefConfig
     ) -> ContextDefResult:
         """Get a context definition by type.
         """
         pass
 
 
-    def put_context_def(
-        self, 
+    async def put_context_def(
+        self,
         context_def: ContextDef,
-        authzee_config: AuthzeeConfig
+        config: PutContextDefConfig
     ) -> GenericResult:
         """Add a new Context Definition or update an existing one.
         """
         pass
 
 
-    def delete_context_def(
-        self, 
+    async def delete_context_def(
+        self,
         context_type: str,
-        authzee_config: AuthzeeConfig
+        config: DeleteContextDefConfig
     ) -> GenericResult:
         """Delete a context definition by type.
         """
         pass
 
 
-    def get_identity_defs_page(
+    async def list_identity_defs(
         self,
         page_ref: str | None,
-        authzee_config: AuthzeeConfig
+        config: ListIdentityDefsConfig
     ) -> IdentityDefsPage:
         """Get a page of identity definitions.
 
@@ -1225,40 +1660,40 @@ class StorageModule:
         pass
 
 
-    def get_identity_def(
-        self, 
+    async def get_identity_def(
+        self,
         identity_type: str,
-        authzee_config: AuthzeeConfig
+        config: GetIdentityDefConfig
     ) -> IdentityDefResult:
         """Get an identity definition by type.
         """
         pass
 
 
-    def put_identity_def(
-        self, 
+    async def put_identity_def(
+        self,
         identity_def: IdentityDef,
-        authzee_config: AuthzeeConfig
+        config: PutIdentityDefConfig
     ) -> GenericResult:
         """Add a new Identity Definition or update an existing one.
         """
         pass
 
 
-    def delete_identity_def(
-        self, 
+    async def delete_identity_def(
+        self,
         identity_type: str,
-        authzee_config: AuthzeeConfig
+        config: DeleteIdentityDefConfig
     ) -> GenericResult:
         """Delete an identity definition by type.
         """
         pass
 
 
-    def get_resource_defs_page(
+    async def list_resource_defs(
         self,
         page_ref: str | None,
-        authzee_config: AuthzeeConfig
+        config: ListResourceDefsConfig
     ) -> ResourceDefsPage:
         """Get a page of resource definitions.
 
@@ -1267,73 +1702,73 @@ class StorageModule:
         pass
 
 
-    def get_resource_def(
-        self, 
+    async def get_resource_def(
+        self,
         resource_type: str,
-        authzee_config: AuthzeeConfig
+        config: GetResourceDefConfig
     ) -> ResourceDefResult:
         """Get a resource definition by type.
         """
         pass
 
 
-    def put_resource_def(
-        self, 
+    async def put_resource_def(
+        self,
         resource_def: ResourceDef,
-        authzee_config: AuthzeeConfig
+        config: PutResourceDefConfig
     ) -> GenericResult:
         """Add a new Resource Definition or update an existing one.
         """
         pass
 
 
-    def delete_resource_def(
-        self, 
+    async def delete_resource_def(
+        self,
         resource_type: str,
-        authzee_config: AuthzeeConfig
+        config: DeleteResourceDefConfig
     ) -> GenericResult:
         """Delete a resource definition by type.
         """
         pass
 
 
-    def enact(
-        self, 
+    async def enact(
+        self,
         grant: Grant,
-        authzee_config: AuthzeeConfig
+        config: EnactConfig
     ) -> GenericResult:
         """Add a new grant.
         """
         pass
 
 
-    def repeal(
-        self, 
-        grant_uuid: UUID, 
+    async def repeal(
+        self,
+        grant_uuid: str,
         purge: bool,
-        authzee_config: AuthzeeConfig
+        config: RepealConfig
     ) -> GenericResult:
         """Delete a grant.
         """
         pass
 
 
-    def get_grant(
-        self, 
-        grant_uuid: UUID,
-        authzee_config: AuthzeeConfig
+    async def get_grant(
+        self,
+        grant_uuid: str,
+        config: GetGrantConfig
     ) -> GrantResult:
         """Get a grant by UUID.
         """
         pass
 
 
-    def get_grants_page(
+    async def list_grants(
         self,
         effect: str | None,
         action: str | None,
         page_ref: str | None,
-        authzee_config: AuthzeeConfig
+        config: ListGrantsConfig
     ) -> GrantsPage:
         """Retrieve a page of grants.
 
@@ -1342,12 +1777,12 @@ class StorageModule:
         pass
 
 
-    def get_grant_refs_page(
+    async def list_grant_refs(
         self,
         effect: str | None,
         action: str | None,
         page_ref: str | None,
-        authzee_config: AuthzeeConfig
+        config: ListGrantRefsConfig
     ) -> PageRefsPage:
         """Retrieve a page of grant page references for parallel pagination.
 
@@ -1359,46 +1794,46 @@ class StorageModule:
         pass
 
 
-    def create_latch(self, authzee_config: AuthzeeConfig) -> StorageLatchResult:
+    async def create_latch(self, config: CreateLatchConfig) -> StorageLatchResult:
         """Create a new [storage latch](#storage-latches).
         """
         pass
 
 
-    def get_latch(
-        self, 
-        storage_latch_uuid: UUID,
-        authzee_config: AuthzeeConfig
+    async def get_latch(
+        self,
+        storage_latch_uuid: str,
+        config: GetLatchConfig
     ) -> StorageLatchResult:
         """Get a [storage latch](#storage-latches) by UUID.
         """
         pass
 
 
-    def set_latch(
-        self, 
-        storage_latch_uuid: UUID,
-        authzee_config: AuthzeeConfig
+    async def set_latch(
+        self,
+        storage_latch_uuid: str,
+        config: SetLatchConfig
     ) -> StorageLatchResult:
         """Set a [storage latch](#storage-latches) by UUID.
         """
         pass
 
 
-    def delete_latch(
-        self, 
-        storage_latch_uuid: UUID,
-        authzee_config: AuthzeeConfig
+    async def delete_latch(
+        self,
+        storage_latch_uuid: str,
+        config: DeleteLatchConfig
     ) -> GenericResult:
         """Delete a [storage latch](#storage-latches) by UUID.
         """
         pass
 
 
-    def cleanup_latches(
-        self, 
-        before: Datetime,
-        authzee_config: AuthzeeConfig
+    async def cleanup_latches(
+        self,
+        before: datetime.datetime,
+        config: CleanupLatchesConfig
     ) -> GenericResult:
         """Delete all latches before the specified datetime.
 
@@ -1484,75 +1919,13 @@ Standard Types:
 
 ### AuthzeeConfig
 
-The authzee config object is used to configure default settings at the class instantiation level and to override settings at the function level. 
+See [Authzee Config](#authzee-config) in the Authzee Class section for the full per-method config structure, `AuthzeeConfigOverride`, and the 3-level precedence model.
 
-These settings should be universal for all compute and storage and should not contain specific settings for the compute and storage.  
-
-
-#### AuthzeeConfig Example
-
-```json
-{
-    "definitions_page_size": 100,
-    "grants_page_size": 100,
-    "grant_refs_page_size": 10,
-    "authorize_parallel_paging": true,
-    "batch_authorize_parallel_paging": true,
-    "raise_crits": true
-}
-```
-
-
-#### AuthzeeConfig Schema
-
-```json
-{
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "AuthzeeConfig",
-    "description": "An object representing the default configs for an Authzee instance, or override parameters for Authzee functions.",
-    "type": "object",
-    "additionalProperties": true,
-    "required": [
-        "definitions_page_size",
-        "grants_page_size",
-        "grant_refs_page_size",
-        "authorize_parallel_paging",
-        "batch_authorize_parallel_paging",
-        "raise_crits"
-    ],
-    "properties": {
-        "definitions_page_size": {
-            "type": "integer",
-            "description": "Max number of definitions to return when retrieving a page of context, identity, or resource definitions."
-        },
-        "grants_page_size": {
-            "type": "integer",
-            "description": "Max number of grants to return when retrieving a page of grants"
-        },
-        "grant_refs_page_size": {
-            "type": "integer",
-            "description": "Max number of references to grant pages to return when retrieving a page of grant references."
-        },
-        "authorize_parallel_paging": {
-            "type": "boolean",
-            "description": "Use parallel pagination if it is available for the authorize operation."
-        },
-        "batch_authorize_parallel_paging": {
-            "type": "boolean",
-            "description": "Use parallel pagination if it is available for the batch authorize operation."
-        },
-        "raise_crits": {
-            "type": "boolean",
-            "description": "Raise critical errors as an exception if available in the language."
-        }
-    }
-}
-```
 
 ### page_ref
 
 Authzee relies on pagination to make its operations scalable. 
-`page_ref` represents a string token to a specific page of resources. This string should be Base 64 encoded and ideally opaque to the backend resources.  To get the first page of a resource the `page_ref` should have a `null` value.  `next_page_ref` is present in results to be passed in the following function call to retrieve the next page.  When `next_page_ref` is a `null` value, the current page is considered the last and should not be passed back to the function.
+`page_ref` represents a string token to a specific page of resources.  To get the first page of a resource the `page_ref` should have a `null` value.  `next_page_ref` is present in results to be passed in the following function call to retrieve the next page.  When `next_page_ref` is a `null` value, the current page is considered the last and should not be passed back to the function.
 
 
 ### GenericResult and *Results
@@ -2075,8 +2448,10 @@ A page of Audit operation results.  Conforms to the [Audit Operation Results](./
 
 The standard [Authorize operation Results](./specification.md#authorize) are returned with updated fields for grants.
 
+The `has_failed` field is a required boolean on every AuthorizeResult. When `has_failed` is `true`, `is_authorized` is always `false` and `message` indicates a critical error has occurred. This can happen when a grant's `evaluation_handler` is set to `"critical"` and the query fails, or when an internal SDK error prevents the operation from completing.
 
-#### AuthorizeResult Example
+
+#### AuthorizeResult Example (Successful Authorization)
 
 ```json
 {
@@ -2101,6 +2476,27 @@ The standard [Authorize operation Results](./specification.md#authorize) are ret
     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
     "has_failed": false,
     "critical_errors": {}
+}
+```
+
+#### AuthorizeResult Example (Critical Error)
+
+When a critical error occurs during authorization, `has_failed` is `true` and `is_authorized` is always `false`.
+
+```json
+{
+    "is_authorized": false,
+    "grant": null,
+    "message": "A critical error has occurred. Therefore, the request is not authorized.",
+    "has_failed": true,
+    "critical_errors": {
+        "query": [
+            {
+                "is_critical": true,
+                "message": "Query evaluation failed: invalid JMESPath expression in grant 6ce44005-8735-45ac-ae76-38e22e66f615"
+            }
+        ]
+    }
 }
 ```
 
@@ -2554,7 +2950,12 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
 
 The [Authorize operation Results](./specification.md#authorize-operation-result), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource defs.
 
-#### BatchAuthorizeResult Example
+The `has_failed` field appears at two levels in a BatchAuthorizeResult:
+
+- **Top-level `has_failed`**: Indicates the batch request itself failed validation (e.g., the batch request object was invalid). When `true`, the `batch_results` array may be empty or incomplete.
+- **Per-item `has_failed`**: Each AuthorizeResult within `batch_results` has its own `has_failed` field. When `true` on a per-item result, that individual authorization encountered a critical error, `is_authorized` is `false`, and `message` indicates the error.
+
+#### BatchAuthorizeResult Example (Successful Batch)
 
 
 ```json
@@ -2589,11 +2990,79 @@ The [Authorize operation Results](./specification.md#authorize-operation-result)
             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
             "has_failed": false,
             "critical_errors": {}
-        },
-
+        }
     ],
     "has_failed": false,
     "errors": {}
+}
+```
+
+#### BatchAuthorizeResult Example (Per-Item Critical Error)
+
+In this example, the batch itself succeeded but one item in the batch encountered a critical error.
+
+```json
+{
+    "batch_results": [
+        {
+            "is_authorized": true,
+            "grant": {
+                "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
+                "name": "My grant name",
+                "description": "Longer description here to explain what the grant is for.",
+                "tags": {
+                    "some_key": "some_val"
+                },
+                "effect": "allow",
+                "actions": [
+                    "Balloon:Read",
+                    "pop"
+                ],
+                "query": "contains(request.identities.User[0].role, 'admin')",
+                "evaluation_handler": "evaluate",
+                "equality": true,
+                "data": {}
+            },
+            "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+            "has_failed": false,
+            "critical_errors": {}
+        },
+        {
+            "is_authorized": false,
+            "grant": null,
+            "message": "A critical error has occurred. Therefore, the request is not authorized.",
+            "has_failed": true,
+            "critical_errors": {
+                "query": [
+                    {
+                        "is_critical": true,
+                        "message": "Query evaluation failed: invalid JMESPath expression in grant a1b2c3d4-5678-9012-abcd-ef0123456789"
+                    }
+                ]
+            }
+        }
+    ],
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+#### BatchAuthorizeResult Example (Batch Validation Failure)
+
+When the batch request itself fails validation, the top-level `has_failed` is `true`.
+
+```json
+{
+    "batch_results": [],
+    "has_failed": true,
+    "errors": {
+        "request": [
+            {
+                "is_critical": true,
+                "message": "Batch request validation failed: identity type 'InvalidUser' does not match any registered identity definition."
+            }
+        ]
+    }
 }
 ```
 
@@ -2783,6 +3252,426 @@ The [Authorize operation Results](./specification.md#authorize-operation-result)
         }
     }
 }
+```
+
+
+## SDK Full Example
+
+This comprehensive example demonstrates the full lifecycle of using the Authzee SDK with the new API.
+
+```python
+
+from authzee import Authzee, InProcessCompute, InProcessStorage, jmespath_execute, paginator
+
+# Create an Authzee instance with the config param
+storage = {}
+authz = Authzee(
+    execute=jmespath_execute,
+    compute_type=InProcessCompute,
+    compute_kwargs={},
+    storage_type=InProcessStorage,
+    storage_kwargs={
+        "storage_ptr": storage
+    },
+    config={
+        "authzee": {
+            "raise_crits": True
+        },
+        "list_grants": {
+            "page_size": 50
+        }
+    }
+)
+
+# One time creation and setup of resources
+authz.construct()
+
+# Initialization and creation of runtime resources
+authz.start()
+
+# --- Define context, identity, and resource ---
+
+context_def = {
+    "context_type": "Team",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "Team"
+        ],
+        "properties": {
+            "Team": {
+                "type": "string"
+            }
+        }
+    }
+}
+authz.put_context_def(context_def)
+
+identity_def = {
+    "identity_type": "User",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "username",
+            "email",
+            "department"
+        ],
+        "properties": {
+            "username": {
+                "type": "string"
+            },
+            "email": {
+                "type": "string"
+            },
+            "department": {
+                "type": "string"
+            }
+        }
+    }
+}
+authz.put_identity_def(identity_def)
+
+resource_def = {
+    "resource_type": "Balloon",
+    "actions": [
+        "Balloon:Inflate",
+        "Balloon:Deflate",
+        "Balloon:ListBalloons"
+    ],
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "color",
+            "size",
+            "psi",
+            "is_inflated"
+        ],
+        "properties": {
+            "color": {
+                "type": "string",
+                "enum": [
+                    "green",
+                    "purple"
+                ]
+            },
+            "size": {
+                "type": "number",
+                "minimum": 0
+            },
+            "psi": {
+                "type": "number",
+                "minimum": 0
+            },
+            "is_inflated": {
+                "type": "boolean"
+            }
+        }
+    }
+}
+authz.put_resource_def(resource_def)
+
+# --- Validate definitions ---
+
+context_val_result = authz.validate_context_def(context_def)
+print(context_val_result)
+# {"has_failed": False, "errors": {}}
+
+identity_val_result = authz.validate_identity_def(identity_def)
+print(identity_val_result)
+# {"has_failed": False, "errors": {}}
+
+resource_val_result = authz.validate_resource_def(resource_def)
+print(resource_val_result)
+# {"has_failed": False, "errors": {}}
+
+# --- Enact a grant ---
+
+grant = authz.enact(
+    {
+        "name": "Balloon Sales Inflate",
+        "description": "Allow people in the Balloon Sales department to inflate balloons.",
+        "tags": {
+            "department": "sales"
+        },
+        "effect": "allow",
+        "actions": [
+            "Balloon:Inflate"
+        ],
+        "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+        "evaluation_handler": "evaluate",
+        "equality": True,
+        "data": {
+            "allowed_departments": [
+                "Maintenance",
+                "Balloon Sales"
+            ]
+        }
+    }
+)
+
+# --- Validate a grant ---
+
+grant_val_result = authz.validate_grant(grant)
+print(grant_val_result)
+# {"has_failed": False, "errors": {}}
+
+# --- List definitions using paginator ---
+
+for page in paginator(authz.list_context_defs):
+    print(page)
+    # {
+    #     "context_defs": [...],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+for page in paginator(authz.list_identity_defs):
+    print(page)
+    # {
+    #     "identity_defs": [...],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+for page in paginator(authz.list_resource_defs):
+    print(page)
+    # {
+    #     "resource_defs": [...],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+# --- List grants with effect/action filters using paginator ---
+
+for page in paginator(
+    authz.list_grants,
+    effect="allow",
+    action="Balloon:Inflate"
+):
+    print(page)
+    # {
+    #     "grants": [...],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+# --- Get a specific definition by type ---
+
+context_def_result = authz.get_context_def("Team")
+print(context_def_result)
+# {
+#     "context_def": {
+#         "context_type": "Team",
+#         "schema": {...}
+#     },
+#     "has_failed": False,
+#     "errors": {}
+# }
+
+# --- Validate and authorize a request ---
+
+request = {
+    "identities": {
+        "User": [
+            {
+                "username": "tester",
+                "email": "tester@example.com",
+                "department": "Balloon Sales"
+            }
+        ]
+    },
+    "action": "Balloon:Inflate",
+    "resource_type": "Balloon",
+    "resource": {
+        "color": "green",
+        "size": 2.7,
+        "psi": 7.2,
+        "is_inflated": True
+    },
+    "context_type": "Team",
+    "context": {
+        "Team": "My Team"
+    },
+    "evaluation_handler": "grant"
+}
+
+validate_result = authz.validate_request(request)
+print(validate_result)
+# {"has_failed": False, "errors": {}}
+
+authorize_result = authz.authorize(request)
+print(authorize_result)
+# {
+#     "is_authorized": True,
+#     "grant": {
+#         "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
+#         "name": "Balloon Sales Inflate",
+#         "description": "Allow people in the Balloon Sales department to inflate balloons.",
+#         "effect": "allow",
+#         "actions": [
+#             "Balloon:Inflate"
+#         ],
+#         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#         "evaluation_handler": "evaluate",
+#         "equality": True,
+#         "data": {
+#             "allowed_departments": [
+#                 "Maintenance",
+#                 "Balloon Sales"
+#             ]
+#         }
+#     },
+#     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#     "has_failed": False,
+#     "critical_errors": {}
+# }
+
+# --- Audit with effect/action filters ---
+
+for page in paginator(
+    authz.audit,
+    request=request,
+    effect="allow",
+    action="Balloon:Inflate"
+):
+    print(page)
+    # {
+    #     "results": [
+    #         {
+    #             "is_applicable": True,
+    #             "query_result": True,
+    #             "grant": {...},
+    #             "errors": {}
+    #         }
+    #     ],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+# --- Batch authorize ---
+
+batch_request = {
+    "identities": {
+        "User": [
+            {
+                "username": "tester",
+                "email": "tester@example.com",
+                "department": "Balloon Sales"
+            }
+        ]
+    },
+    "action": "Balloon:Inflate",
+    "resource_type": "Balloon",
+    "resource": {
+        "color": "green",
+        "size": 2.7,
+        "psi": 7.2,
+        "is_inflated": True
+    },
+    "context_type": "Team",
+    "context": {
+        "Team": "My Team"
+    },
+    "evaluation_handler": "grant",
+    "batch": [
+        {},
+        {
+            "identities": {
+                "User": [
+                    {
+                        "username": "tester2",
+                        "email": "tester2@example.com",
+                        "department": "Balloon Popper"
+                    }
+                ]
+            }
+        }
+    ]
+}
+
+batch_authorize_result = authz.batch_authorize(batch_request)
+print(batch_authorize_result)
+# {
+#     "batch_results": [
+#         {
+#             "is_authorized": True,
+#             "grant": {
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
+#                 "name": "Balloon Sales Inflate",
+#                 "description": "Allow people in the Balloon Sales department to inflate balloons.",
+#                 "effect": "allow",
+#                 "actions": [
+#                     "Balloon:Inflate"
+#                 ],
+#                 "query": "...",
+#                 "evaluation_handler": "evaluate",
+#                 "equality": True,
+#                 "data": {
+#                     "allowed_departments": [
+#                         "Maintenance",
+#                         "Balloon Sales"
+#                     ]
+#                 }
+#             },
+#             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#             "has_failed": False,
+#             "critical_errors": {}
+#         },
+#         {
+#             "is_authorized": False,
+#             "grant": None,
+#             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
+#             "has_failed": False,
+#             "critical_errors": {}
+#         }
+#     ],
+#     "has_failed": False,
+#     "errors": {}
+# }
+
+# --- Batch audit with effect/action filters ---
+
+for page in paginator(
+    authz.batch_audit,
+    batch_request=batch_request,
+    effect="allow",
+    action="Balloon:Inflate"
+):
+    print(page)
+    # {
+    #     "results": [
+    #         {
+    #             "grant": {...},
+    #             "batch_results": [
+    #                 {
+    #                     "is_applicable": True,
+    #                     "query_result": True,
+    #                     "errors": {}
+    #                 },
+    #                 {
+    #                     "is_applicable": False,
+    #                     "query_result": False,
+    #                     "errors": {}
+    #                 }
+    #             ]
+    #         }
+    #     ],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+# --- Shutdown ---
+
+authz.shutdown()
 ```
 
 

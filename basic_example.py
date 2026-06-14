@@ -5,7 +5,7 @@ import jmespath
 
 from src.reference import authorize_workflow
 
-# 1. Define the identities the calling entity has
+# 1. Define the identities - Describe who needs to be authorized
 identity_defs = [
     {
         "identity_type": "User", # unique identity type
@@ -36,7 +36,7 @@ identity_defs = [
     }
 ]
 
-# 2. Define resources that can be accessed
+# 2. Define resources 
 resource_defs = [
     {
         "resource_type": "Balloon", # Resource types must be unique
@@ -74,7 +74,7 @@ resource_defs = [
     }
 ]
 
-# 3. Define Contexts - Context is extra data that is passed to the request
+# 3. Define Contexts - Context is extra structured data that is passed to the request
 context_defs = [
     { # no context
         "context_type": "NULL",
@@ -125,7 +125,7 @@ grants = [
 # 5. Create an authorization request
 request = {
     "identities": { # create zero or more instances of any identity
-        "User": [
+        "User": [ # Identity type, with list of instances
             {
                 "id": "balloon_luvr",
                 "role": "admin",
@@ -142,7 +142,7 @@ request = {
         "size": "medium"
     },
     "evaluation_handler": "grant", # optionally override grant level evaluation
-    "context_type": "MySpecialContext",
+    "context_type": "MySpecialContext", # include a specific context type and data
     "context": {
         "Team": "ABC"
     }

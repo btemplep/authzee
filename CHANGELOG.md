@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - YYYY-MM-DD
 
-Release 0.3.0 includes many key changes to increase flexibility and scalability, while also balancing usability and maintenance.
+Release 0.3.0 includes many key changes to increase flexibility and scalability, while also balancing usability and maintenance.  It is a large rework to make Authzee language agnostic.
 
 ### Added
 

@@ -97,11 +97,18 @@ Context is included in requests as extra structured data.  The definition includ
 
 ```json
 {
-    "context_type": "MyExampleContext",
+    "context_type": "event",
     "schema": {
         "type": "object",
         "properties": {
-            "myProperty": {
+            "request_source": {
+                "type": "string"
+            },
+            "timestamp": {
+                "type": "string",
+                "format": "date-time"
+            },
+            "event_type": {
                 "type": "string"
             }
         }
@@ -236,9 +243,8 @@ Identity definitions describe the types of identities that a calling entity poss
 - **Groups**: Collections of users with shared characteristics (teams, departments, projects)
 - **Roles**: Permission sets that define what actions can be performed
 - **Applications**: Systems or services that act on behalf of users
-- **API Keys**: Programmatic access tokens with associated permissions
 
-This can also be extended to Identity Provider specific identities like **EntraGroup**, **OktaRole**, **ADUser**
+This can also be extended to Identity Provider specific identities or anything else you could use to help identify a calling entity.
 
 Identity definitions enable flexible representation of complex organizational structures and permission models.
 
@@ -251,28 +257,26 @@ Identity definitions enable flexible representation of complex organizational st
         "type": "object",
         "additionalProperties": true,
         "required": [
-            "name",
-            "email",
-            "role",
-            "age"
+            "id",
+            "department"
+            "email"
         ],
         "properties": {
-            "name": {
+            "id": {
                 "type": "string"
             },
-            "email": {
-                "type": "string"
-            },
-            "role": {
+            "department": {
                 "type": "string",
                 "enum": [
-                    "reader",
-                    "contributor",
-                    "admin"
+                    "balloon",
+                    "string",
+                    "disposal",
+                    "party_planning"
                 ]
             },
-            "age": {
-                "type": "integer"
+            "email": {
+                "type": "string",
+                "format": "email"
             }
         }
     }
@@ -400,6 +404,39 @@ If an error occurs when validating an identity definition, a critical, `definiti
 
 Resource definitions describe the types of resources that can be accessed and what actions can be performed on them. These represent "what" is being accessed. 
 
+### Resource Definition Example
+
+```json
+{
+    "resource_type": "Balloon",
+    "actions": [
+        "Balloon:ListBalloons",
+        "Balloon:Inflate",
+        "Balloon:Pop"
+    ],
+    "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+            "color",
+            "max_diameter",
+            "psi"
+        ],
+        "properties": {
+            "color": {
+                "type": "string"
+            },
+            "max_diameter": {
+                "type": "number"
+            },
+            "psi": {
+                "type": "integer"
+            }
+        }
+    }
+}
+```
+
 
 ### Resource Definition Schema
 
@@ -520,39 +557,6 @@ Resource definitions describe the types of resources that can be accessed and wh
 }
 ```
 
-### Resource Definition Example
-
-```json
-{
-    "resource_type": "Balloon",
-    "actions": [
-        "Balloon:ListBalloons",
-        "Balloon:Inflate",
-        "Balloon:Pop"
-    ],
-    "schema": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-            "color",
-            "max_diameter",
-            "psi"
-        ],
-        "properties": {
-            "color": {
-                "type": "string"
-            },
-            "max_diameter": {
-                "type": "number"
-            },
-            "psi": {
-                "type": "integer"
-            }
-        }
-    }
-}
-```
-
 
 ### Resource Definition Validation
 
@@ -566,7 +570,7 @@ If an error occurs when validating an resource definition, a critical, `definiti
 
 ## Grants
 
-Grants are the Authzee unit of authorization. They query the request and grant data using the specified JSON query language. 
+Grants are the Authzee authorization rules. They query the request and grant data using the specified JSON query language. 
 
 
 ### Grant Example
@@ -582,8 +586,8 @@ Grants are the Authzee unit of authorization. They query the request and grant d
     "equality": true,
     "data": {
         "allowed_departments": [
-            "Maintenance",
-            "Balloon Sales"
+            "balloon",
+            "string"
         ]
     }
 }
@@ -706,15 +710,12 @@ Requests represent a calling entity's request for perform an operation on identi
             }
         ]
     },
-    "action": "inflate",
+    "action": "Balloon:Inflate",
     "resource_type": "Balloon",
     "resource": {
-        "id": "balloon456",
-        "color": "red",
-        "size": "large",
-        "material": "latex",
-        "owner_department": "party_planning",
-        "inflated": false
+        "color": "green",
+        "max_diameter": 12.03,
+        "psi": 27
     },
     "evaluation_handler": "error",
     "context_type": "event",
@@ -869,40 +870,35 @@ Grants are naturally partitioned on actions. Batch requests try to take advantag
             }
         ]
     },
-    "action": "inflate",
+    "action": "Balloon:Inflate",
     "resource_type": "Balloon",
-    "resource": { 
-        "id": "balloon123",
+    "resource": {
         "color": "green",
-        "size": "medium",
-        "material": "latex",
-        "owner_department": "party_planning",
-        "inflated": false
+        "max_diameter": 12.03,
+        "psi": 27
     },
-    "context_type": "MySpecialContext",
+    "context_type": "event",
     "context": {
-        "Team": "ABC"
+        "request_source": "web_ui",
+        "timestamp": "2023-12-07T10:30:00Z",
+        "event_type": "birthday_party"
     },
     "evaluation_handler": "grant",
     "batch": [
         {
-            "resource": { 
-                "id": "balloon456",
-                "color": "red",
-                "size": "medium",
-                "material": "latex",
-                "owner_department": "party_planning",
-                "inflated": false
+            "resource": {
+                "color": "purple",
+                "max_diameter": 12.05,
+                "psi": 29
             }
         },
         { 
             "identities": {
                 "User": [
                     {
-                        "id": "Store123",
-                        "department": "Store 123",
-                        "owner_department": "IDK",
-                        "location": "Somewhere"
+                        "id": "user345",
+                        "department": "party_planning",
+                        "email": "john.doe@company.com"
                     }
                 ],
                 "Group": [
@@ -913,15 +909,18 @@ Grants are naturally partitioned on actions. Batch requests try to take advantag
                     }
                 ]
             },
-            "resource_type": "BalloonStore",
+            "resource_type": "Balloon",
             "resource": {
-                "id": "1234",
-                "name": "Special store",
-                "owner_department": "special_dept",
-                "location": "Somewhere"
+                "color": "purple",
+                "max_diameter": 12.03,
+                "psi": 27
             },
-            "context_type": "NULL", 
-            "context":  {},
+            "context_type": "event", 
+            "context":  {
+                "request_source": "web_ui",
+                "timestamp": "2023-12-07T10:30:00Z",
+                "event_type": "birthday_party"
+            },
             "evaluation_handler": "error"
         },
         {} 
@@ -1364,11 +1363,11 @@ Audit Steps for each grant:
                         "additionalProperties": false,
                         "required": [],
                         "properties": {
-                            "query": {
+                            "evaluate": {
                                 "type": "array",
                                 "items": {
-                                    "title": "Query Error",
-                                    "description": "Error when a JSON query fails.",
+                                    "title": "Evaluate Error",
+                                    "description": "Error when an evaluation fails.",
                                     "type": "object",
                                     "additionalProperties": true,
                                     "required": [
@@ -1404,11 +1403,11 @@ Audit Steps for each grant:
             "additionalProperties": false,
             "required": [],
             "properties": {
-                "query": {
+                "evaluate": {
                     "type": "array",
                     "items": {
-                        "title": "Query Error",
-                        "description": "Error when a JSON query fails.",
+                        "title": "Evaluate Error",
+                        "description": "Error when an evaluation fails.",
                         "type": "object",
                         "additionalProperties": true,
                         "required": [
@@ -1583,11 +1582,11 @@ A request is not authorized if **any** of the following are true:
             "additionalProperties": false,
             "required": [],
             "properties": {
-                "query": {
+                "evaluate": {
                     "type": "array",
                     "items": {
-                        "title": "Query Error",
-                        "description": "Error when a JSON query fails.",
+                        "title": "Evaluate Error",
+                        "description": "Error when an evaluation fails.",
                         "type": "object",
                         "additionalProperties": true,
                         "required": [
@@ -1771,29 +1770,29 @@ The Batch Audit operation is used to run the Audit operation over a batch reques
                                     "additionalProperties": false,
                                     "required": [],
                                     "properties": {
-                                        "query": {
-                                            "type": "array",
-                                            "items": {
-                                                "title": "Query Error",
-                                                "description": "Error when a JSON query fails.",
-                                                "type": "object",
-                                                "additionalProperties": true,
-                                                "required": [
-                                                    "is_critical",
-                                                    "message"
-                                                ],
-                                                "properties": {
-                                                    "is_critical": {
-                                                        "type": "boolean",
-                                                        "description": "If this error is critical. Critical errors generally halt further operations."
-                                                    },
-                                                    "message": {
-                                                        "type": "string",
-                                                        "description": "Detailed message about what caused the error."
-                                                    }
+                                        "evaluate": {
+                                        "type": "array",
+                                        "items": {
+                                            "title": "Evaluate Error",
+                                            "description": "Error when an evaluation fails.",
+                                            "type": "object",
+                                            "additionalProperties": true,
+                                            "required": [
+                                                "is_critical",
+                                                "message"
+                                            ],
+                                            "properties": {
+                                                "is_critical": {
+                                                    "type": "boolean",
+                                                    "description": "If this error is critical. Critical errors generally halt further operations."
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "description": "Detailed message about what caused the error."
                                                 }
                                             }
                                         }
+                                    }
                                     }
                                 }
                             }
@@ -1811,11 +1810,11 @@ The Batch Audit operation is used to run the Audit operation over a batch reques
                         "additionalProperties": false,
                         "required": [],
                         "properties": {
-                            "query": {
+                            "evaluate": {
                                 "type": "array",
                                 "items": {
-                                    "title": "Query Error",
-                                    "description": "Error when a JSON query fails.",
+                                    "title": "Evaluate Error",
+                                    "description": "Error when an evaluation fails.",
                                     "type": "object",
                                     "additionalProperties": true,
                                     "required": [
@@ -2023,11 +2022,11 @@ The Batch Authorize operation is used to run the Authorize operation for a batch
                         "additionalProperties": false,
                         "required": [],
                         "properties": {
-                            "query": {
+                            "evaluate": {
                                 "type": "array",
                                 "items": {
-                                    "title": "Query Error",
-                                    "description": "Error when a JSON query fails.",
+                                    "title": "Evaluate Error",
+                                    "description": "Error when an evaluation fails.",
                                     "type": "object",
                                     "additionalProperties": true,
                                     "required": [
@@ -2077,7 +2076,7 @@ In general errors take the same basic shape, although this can be built upon to 
 
 For validation calls, there is generally only one type of error returned for that specific validation.  
 
-Operation calls will return an object under `errors` where the fields are the error type, and the value is an array of errors for that type. 
+Operation calls will return an object under `errors` or `critical_errors` where the fields are the error type, and the value is an array of errors for that type. 
 
 
 ### Error Types
@@ -2086,6 +2085,8 @@ Operation calls will return an object under `errors` where the fields are the er
 - `evaluation` - An error occurred during an evaluation. Usually triggered from a JSON query error.
 - `grant` - An error occurred when validating a grant.
 - `request` - An error occurred when validating a request or batch request.
+
+SDKs may add more errors as needed. 
 
 
 ### Error Example
