@@ -25,11 +25,16 @@ If this doesn't fit your use case you are free to create your own! Try to stay c
     - [Standard Types](#standard-types)
 - [SDK Full Example](#sdk-full-example)
 - [Standard JMESPath Extensions](#standard-jmespath-extensions)
-    - [INNER JOIN](#inner-join) TODO - Add other joins: left and outer
-    - [regex Find](#regex-find)
-    - [regex Find All](#regex-find-all)
-    - [regex Groups](#regex-groups)
-    - [regex Groups All](#regex-groups-all)
+    - [INNER JOIN](#inner-join) - Join 2 arrays in a fashion similar to an SQL INNER JOIN. 
+    - [LEFT JOIN](#left-join) - Join 2 arrays in a fashion similar to an SQL LEFT JOIN.
+    - [OUTER JOIN](#outer-join) - Join 2 arrays in a fashion similar to an SQL OUTER JOIN.
+    - [Is Identity Present](#is-identity-present) - Check if the given identity type is in the request and at least one instance was given.
+    - [regex Find](#regex-find) - Run a regex pattern on a string or array of strings to find the first match.
+    - [regex Find All](#regex-find-all) - Run a regex pattern on a string or array of strings to find all matches.
+    - [regex Groups](#regex-groups) - Run a regex pattern on a string or array of strings to find the first match, and extract the groups.
+    - [regex Groups All](#regex-groups-all) - Run a regex pattern on a string or array of strings to find all matches, and extract the groups.
+    - [String Lower](#string-lower) - Convert string to lower case.
+    - [String Upper](#string-upper) - Convert string to upper case.
 
 ## Example
 
@@ -443,8 +448,9 @@ The Authzee object is created with a compute module and a storage module. The co
 - [Compute Modules](#compute-modules)
 - [Storage Modules](#storage-modules)
 - [Module Locality](#module-locality)
-- [Standard Types](#standard-types)
 - [Storage Latches](#storage-latches)
+- [Handling Errors](#handling-errors)
+- [Standard Types](#standard-types)
 
 ### Language Translations
 
@@ -3828,7 +3834,7 @@ Examples:
     </tr>
     <tr>
         <td>
-            <pre><code>inner_join(
+            <pre><code>left_join(
     `[
         {
             "l_field": "hello",
@@ -3879,7 +3885,7 @@ Examples:
     </tr>
     <tr>
         <td>
-            <pre><code>inner_join(
+            <pre><code>left_join(
     `[
         {
             "l_field": "hello",
@@ -3964,7 +3970,7 @@ Examples:
     </tr>
     <tr>
         <td>
-            <pre><code>inner_join(
+            <pre><code>outer_join(
     `[
         {
             "l_field": "hello",
@@ -4022,7 +4028,7 @@ Examples:
     </tr>
     <tr>
         <td>
-            <pre><code>inner_join(
+            <pre><code>outer_join(
     `[
         {
             "l_field": "hello",
@@ -4624,7 +4630,7 @@ Simple python function example:
 
 ```python
 def lower(subject: str) -> str:
-    return string.lower()
+    return subject.lower()
 ```
 
 
@@ -4632,7 +4638,7 @@ def lower(subject: str) -> str:
 
 `string upper(string $subject)`
 
-Convert the subject string to lowercase.
+Convert the subject string to uppercase.
 
 Examples:
 
@@ -4663,5 +4669,5 @@ Simple python function example:
 
 ```python
 def upper(subject: str) -> str:
-    return string.upper()
+    return subject.upper()
 ```

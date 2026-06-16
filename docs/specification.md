@@ -55,6 +55,8 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
 - [Evaluations](#evaluations)
     - [Request Evaluation](#request-evaluation)
     - [Batch Request Evaluation](#batch-request-evaluation)
+    - [Evaluation Error Example](#evaluation-error-example)
+    - [Evaluation Error Schema](#evaluation-error-schema)
 - [Operations](#operations)
     - [Audit](#audit)
         - [Audit Result Example](#audit-result-example)
@@ -258,7 +260,7 @@ Identity definitions enable flexible representation of complex organizational st
         "additionalProperties": true,
         "required": [
             "id",
-            "department"
+            "department",
             "email"
         ],
         "properties": {
@@ -1887,8 +1889,7 @@ The Batch Authorize operation is used to run the Authorize operation for a batch
             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
             "has_failed": false,
             "critical_errors": {}
-        },
-
+        }
     ],
     "has_failed": false,
     "errors": {}
