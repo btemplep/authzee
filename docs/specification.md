@@ -3,9 +3,9 @@
 
 This document describes the specification for **Authzee**.
 
-For a quick introduction to the core Authzee engine see the [README](../README). 
+For a quick introduction to the core Authzee engine see the [README](../README.md). 
 
-For language specific use and guidance see the [SDKs](./sdks)
+For language specific use and guidance see the [SDKs](./sdks.md)
 
 Authzee is a highly expressive grant-based authorization engine.  It uses JSON Schemas (Draft 2020-12) to define and validate all inputs and outputs. Grants are evaluated against the request data and grant data using a JSON query language of your choice to make access control decisions. JMESpath is preferred because it has a specification and is extensible.
 

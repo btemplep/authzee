@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -->
 
 
-## [0.3.0] - YYYY-MM-DD
+## [0.3.0] - 2026-06-15
 
 - This version of the SDK Standard supports up to at least the following version of the Authzee Specification: 
     - **0.3.0**
