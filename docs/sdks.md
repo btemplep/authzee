@@ -8,23 +8,400 @@ If this doesn't fit your use case you are free to create your own! Try to stay c
 
 > **NOTE** - This document is not a specification but a list of recommendations.  It may change and will not effect the specification or specification version of Authzee.
 
+
 ### Table of Contents
 
+- [Example](#example)
 - [Available SDKs](#available-sdks)
 - [SDK Standards](#sdk-standards)
+    - [Language Translations](#language-translations)
     - [Low Level API](#low-level-api)
     - [Authzee Class](#authzee-class)
     - [Compute Modules](#compute-modules)
     - [Storage Modules](#storage-modules)
     - [Module Locality](#module-locality)
     - [Storage Latches](#storage-latches)
+    - [Handling Errors](#handling-errors)
     - [Standard Types](#standard-types)
+- [SDK Full Example](#sdk-full-example)
 - [Standard JMESPath Extensions](#standard-jmespath-extensions)
-    - [INNER JOIN](#inner-join)
+    - [INNER JOIN](#inner-join) TODO - Add other joins: left and outer
     - [regex Find](#regex-find)
     - [regex Find All](#regex-find-all)
     - [regex Groups](#regex-groups)
     - [regex Groups All](#regex-groups-all)
+
+## Example
+
+
+```python
+from authzee import Authzee, InProcessCompute, InProcessStorage, jmespath_execute, paginator
+
+storage = {}
+authz = Authzee(
+    execute=jmespath_execute,
+    compute_type=InProcessCompute,
+    compute_kwargs={},
+    storage_type=InProcessStorage,
+    storage_kwargs={
+        "storage_ptr": storage
+    },
+    config={
+        "authzee": {
+            "raise_crits": True
+        }
+    }
+)
+authz.construct()
+# authz.destroy()
+authz.start()
+# authz.shutdown()
+
+context_def = {
+    "context_type": "Team",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "Team"
+        ],
+        "properties": {
+            "Team": {
+                "type": "string"
+            }
+        }
+    }
+}
+authz.put_context_def(context_def)
+# authz.delete_context_def(context_def["context_type"])
+
+identity_def = {
+    "identity_type": "User",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "username",
+            "email",
+            "department"
+        ],
+        "properties": {
+            "username": {
+                "type": "string"
+            },
+            "email": {
+                "type": "string"
+            },
+            "department": {
+                "type": "string"
+            }
+        }
+    }
+}
+authz.put_identity_def(identity_def)
+# authz.delete_identity_def(identity_def["identity_type"])
+
+authz.put_resource_def(
+    {
+        "resource_type": "Balloon",
+        "actions": [
+            "Balloon:Inflate",
+            "Balloon:Deflate",
+            "Balloon:ListBalloons"
+        ],
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "color",
+                "size",
+                "psi",
+                "is_inflated"
+            ],
+            "properties": {
+                "color": {
+                    "type": "string",
+                    "enum": [
+                        "green",
+                        "purple"
+                    ]
+                },
+                "size": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "psi": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Pounds per square inch of inflated air."
+                },
+                "is_inflated": {
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+)
+# authz.delete_resource_def("Balloon")
+
+for page in paginator(authz.list_context_defs):
+    for context_def in page.context_defs:
+        print(context_def)
+
+for page in paginator(authz.list_identity_defs):
+    for identity_def in page.identity_defs:
+        print(identity_def)
+
+for page in paginator(authz.list_resource_defs):
+    for resource_def in page.resource_defs:
+        print(resource_def)
+
+grant = authz.enact(
+    {
+        "name": "Balloon Sales and maintenance Inflate",
+        "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+        "tags": {
+            "SomeKey": "SomeVal"
+        },
+        "effect": "allow",
+        "actions": [
+            "Balloon:Inflate"
+        ],
+        "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+        "evaluation_handler": "evaluate",
+        "equality": True,
+        "data": {
+            "allowed_departments": [
+                "Maintenance",
+                "Balloon Sales"
+            ]
+        }
+    }
+)
+# authz.repeal(grant["grant_uuid"], purge=False)
+
+for page in paginator(authz.list_grants, effect="allow"):
+    for g in page.grants:
+        print(g)
+
+for page in paginator(authz.list_grant_refs):
+    for ref in page.grant_refs:
+        print(ref)
+
+request = {
+    "identities": {
+        "User": [
+            {
+                "username": "tester",
+                "email": "tester@example.com",
+                "department": "Balloon Sales"
+            }
+        ]
+    },
+    "action": "Balloon:Inflate",
+    "resource_type": "Balloon",
+    "resource": {
+        "color": "green",
+        "size": 2.7,
+        "psi": 7.2,
+        "is_inflated": True
+    },
+    "context_type": "Team",
+    "context": {
+        "Team": "My Team"
+    },
+    "evaluation_handler": "grant"
+}
+authorize_result = authz.authorize(request)
+print(authorize_result)
+# {
+#     "is_authorized": True,
+#     "grant": {
+#         "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
+#         "name": "Balloon Sales and maintenance Inflate",
+#         "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+#         "effect": "allow",
+#         "actions": [
+#             "Balloon:Inflate"
+#         ],
+#         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#         "evaluation_handler": "evaluate",
+#         "equality": True,
+#         "data": {
+#             "allowed_departments": [
+#                 "Maintenance",
+#                 "Balloon Sales"
+#             ]
+#         }
+#     },
+#     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#     "has_failed": False,
+#     "critical_errors": {}
+# }
+
+audit_result = authz.audit(
+    request,
+    effect="allow",
+    action="Balloon:Inflate",
+    page_ref=None
+)
+print(audit_result)
+# {
+#     "results": [
+#         {
+#             "is_applicable": True,
+#             "query_result": True,
+#             "grant": {
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
+#                 "name": "Balloon Sales and maintenance Inflate",
+#                 "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+#                 "effect": "allow",
+#                 "actions": [
+#                     "Balloon:Inflate"
+#                 ],
+#                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#                 "evaluation_handler": "evaluate",
+#                 "equality": True,
+#                 "data": {
+#                     "allowed_departments": [
+#                         "Maintenance",
+#                         "Balloon Sales"
+#                     ]
+#                 }
+#             },
+#             "errors": {}
+#         }
+#     ],
+#     "has_failed": False,
+#     "errors": {},
+#     "next_page_ref": None
+# }
+
+batch_request = {
+    "identities": {
+        "User": [
+            {
+                "username": "tester",
+                "email": "tester@example.com",
+                "department": "Balloon Sales"
+            }
+        ]
+    },
+    "action": "Balloon:Inflate",
+    "resource_type": "Balloon",
+    "resource": {
+        "color": "green",
+        "size": 2.7,
+        "psi": 7.2,
+        "is_inflated": True
+    },
+    "context_type": "Team",
+    "context": {
+        "Team": "My Team"
+    },
+    "evaluation_handler": "grant",
+    "batch": [
+        {},
+        {
+            "identities": {
+                "User": [
+                    {
+                        "username": "tester2",
+                        "email": "tester2@example.com",
+                        "department": "Balloon Popper"
+                    }
+                ]
+            }
+        }
+    ]
+}
+batch_authorize_result = authz.batch_authorize(batch_request)
+print(batch_authorize_result)
+# {
+#     "batch_results": [
+#         {
+#             "is_authorized": True,
+#             "grant": {
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
+#                 "name": "Balloon Sales and maintenance Inflate",
+#                 "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+#                 "effect": "allow",
+#                 "actions": [
+#                     "Balloon:Inflate"
+#                 ],
+#                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#                 "evaluation_handler": "evaluate",
+#                 "equality": True,
+#                 "data": {
+#                     "allowed_departments": [
+#                         "Maintenance",
+#                         "Balloon Sales"
+#                     ]
+#                 }
+#             },
+#             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#             "has_failed": False,
+#             "critical_errors": {}
+#         },
+#         {
+#             "is_authorized": False,
+#             "grant": None,
+#             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
+#             "has_failed": False,
+#             "critical_errors": {}
+#         }
+#     ],
+#     "has_failed": False,
+#     "errors": {}
+# }
+
+batch_audit_result = authz.batch_audit(
+    batch_request,
+    effect="allow",
+    action="Balloon:Inflate",
+    page_ref=None
+)
+print(batch_audit_result)
+# {
+#     "results": [
+#         {
+#             "grant": {
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
+#                 "name": "Balloon Sales and maintenance Inflate",
+#                 "description": "Allow people in the Balloon Sales and Maintenance departments to inflate balloons.",
+#                 "effect": "allow",
+#                 "actions": [
+#                     "Balloon:Inflate"
+#                 ],
+#                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#                 "evaluation_handler": "evaluate",
+#                 "equality": True,
+#                 "data": {
+#                     "allowed_departments": [
+#                         "Maintenance",
+#                         "Balloon Sales"
+#                     ]
+#                 }
+#             },
+#             "batch_results": [
+#                 {
+#                     "is_applicable": True,
+#                     "query_result": True,
+#                     "errors": {}
+#                 },
+#                 {
+#                     "is_applicable": False,
+#                     "query_result": False,
+#                     "errors": {}
+#                 }
+#             ]
+#         }
+#     ],
+#     "has_failed": False,
+#     "errors": {},
+#     "next_page_ref": None
+# }
+```
 
 
 ## Available SDKs
@@ -35,9 +412,9 @@ SDKs are considered:
 - **SDK Standard** - Follows the Authzee SDK standard.  It's not a bad thing if the library does not follow the standard.  You can expect a different interface than the official SDKs. 
 - **Official** - Branded as the official Authzee SDK for a language. Again, not a bad thing if the library isn't official.
 
-| Language | Code Repo | Package - Repo | Authzee Compliant | Maintained | SDK Standard | Official |
-|---|---|---|:---:|:---:|:---:|:---:|
-| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ✅ | ✅ | ✅ | ✅ |
+| Language | Code Repo | Package Repo | Authzee Compliant | Maintained | SDK Standard | Official | Notes |
+|---|---|---|:---:|:---:|:---:|:---:|:---:|
+| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ✅ | ✅ | ✅ | ✅ | None |
 
 <!-- 
 Green checks for all that are compliant
@@ -55,16 +432,12 @@ The following sections outline Authzee SDK standards.  All examples are given in
 
 The suggested architecture for the high level API of SDKs is to have a primary class, `Authzee`, and create instances from it.  This class provides the only public API to the Authzee SDKs. 
 
-> **NOTE** - The docs will use class and method terminology, but for languages that don't, translate as so:
-> - Classes -> struct definitions
-> - Class instances or objects -> struct instances
-> - Methods -> struct methods or functions that act on a struct 
-
-Under this object, identity definitions, resource definitions, and the JMESPath search function are static.
-The Authzee object is created with a compute module and a storage module. The compute module will be used to provide the compute resources for running workflows, and the storage module will be used to store and retrieve grants and other compute state objects. 
+Under this object, the JSON query search function is static.
+The Authzee object is created with a compute module and a storage module. The compute module will be used to provide the compute resources for running operations, and the storage module will be used to store and retrieve grants and other compute state objects. 
 
 > **NOTE** - The Standard describes the minimum expectations of what an Authzee SDK should meet.  SDKs are welcome to have more functionality!!!
 
+- [Language Translations](#language-translations)
 - [Low Level API](#low-level-api)
 - [Authzee Class](#authzee-class)
 - [Compute Modules](#compute-modules)
@@ -73,193 +446,962 @@ The Authzee object is created with a compute module and a storage module. The co
 - [Standard Types](#standard-types)
 - [Storage Latches](#storage-latches)
 
+### Language Translations
+
+These docs will use python as the example language. For languages that don't support Classes and methods, translate as well as you can:
+- Classes -> opaque struct definitions
+- Class instances or objects -> struct instances
+- Methods -> struct methods or functions that act on a struct 
+ 
+Function/method parameter are expected to be able to grow for all methods/functions and for class/struct instantiation.  For languages that don't support all of these features like C and Rust:
+- Authzee structs should be opaque and only created with a function
+- All methods should accept the Authzee struct pointer, required params, and an opaque struct for optional and future arguments. 
+
+In the examples, the most simple python types and data structures are given for clarity.  SDKs are free to change simple types like str to UUID.  They can also change complex types like dicts to structs, classes, data classes etc.  As long as they support adding fields without breaking the existing API. 
+
 
 ## Low Level API
 
 Authzee SDKs should offer both a high and low level APIs.  
 The majority of this document will focus on the high level APIs that are more easily consumed. 
 
-The low level APIs should also exist, and directly follow the specification for Authzee. 
+The low level APIs should also exist, and directly follow the specification/reference for Authzee. 
 This is to give a core point of logic for the higher level APIs, and the ability to use a Authzee specification-like interface directly.  
 
-It should include these values to import:
+It should include these variables to import:
 
-- `identity_definition_schema` - The current identity definition schema.
-- `resource_definition_schema` - The current resource definition schema.
-- `authzee_version` - The current version of the Authzee specification supported.
+- `authzee_specification_version` - The latest version of the Authzee specification supported.
+- `context_definition_schema` - Context Definition Schema
+- `identity_definition_schema` - Identity Definition Schema
+- `resource_definition_schema` - Resource Definition Schema
+- `grant_schema` - Grant Schema
+- `generic_error_schema` - General Error Schema
+- `validate_defs_result_schema` - Return value schema for `validate_defs` function
+- `validate_grants_result_schema` - Return value schema for `validate_grants` function
+- `request_schema` - Authzee Request Schema
+- `validate_request_result_schema` - Return value schema for `validate_request` function
+- `evaluate_one_result_schema` - Return value schema for the `evaluate_one` function
+- `audit_result_schema` - Return value schema for the `audit` operation/function
+- `authorize_result_schema` - Return value schema for the `authorization` operation/function
+- `batch_request_schema` - Authzee Batch Request Schema
+- `validate_batch_request_result_schema` - Return value schema for the `validate_batch_request` function
+- `batch_audit_result_schema` - Return value schema for the `batch_audit` operation/function
+- `batch_authorize_result_schema` - Return value schema for the `batch_authorize` operation/function
 
 It should include these functions from the authzee reference:
 
+
 ```python
-def validate_definitions(
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]]
-) -> Dict[str, AnyJSON]:
+def validate_context_defs(context_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
 ```
+
 ```python
-def generate_schemas(
-    identity_defs: List[Dict[str, AnyJSON]],
-    resource_defs: List[Dict[str, AnyJSON]]
-) -> Dict[str, AnyJSON]:
+def validate_identity_defs(identity_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
 ```
+
+```python
+def validate_resource_defs(resource_defs: List[Dict[str, AnyJSON]]) -> Dict[str, AnyJSON]:
+```
+
 ```python
 def validate_grants(
-    grants: List[Dict[str, AnyJSON]], 
-    schema: Dict[str, AnyJSON]
+    grants: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
+
 ```python
 def validate_request(
-    request: Dict[str, AnyJSON], schema: 
-    Dict[str, AnyJSON]
+    request: Dict[str, AnyJSON],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs:List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]]
 ) -> Dict[str, AnyJSON]:
 ```
+
+```python
+def validate_batch_request(
+    batch_request: Dict[str, AnyJSON],
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs:List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]]
+) -> Dict[str, AnyJSON]:
+``` 
+
 ```python
 def evaluate_one(
     request: Dict[str, AnyJSON], 
     grant: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON],
+    only_crits: bool
 ) -> Dict[str, AnyJSON]:
 ```
+
+The `evaluate_one` function is for evaluating a request against one grant.
+`only_crits` is a flag to only return critical errors.
+
 ```python
 def audit(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON]
-) -> Dict[str, List[Dict[str, AnyJSON]]]:
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, List[Dict[str, AnyJSON]]]: 
 ```
+
+> **NOTE** - `audit` and `authorize` functions do not run the validation steps before the core operation.
+
 ```python
 def authorize(
     request: Dict[str, AnyJSON], 
     grants: List[Dict[str, AnyJSON]],
-    search: Callable[[str, AnyJSON], AnyJSON]
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
 ```
+
+> **NOTE** - Workflow functions perform all steps that need to be done for an operation.  They will return different result depending on if there are failures.  The are included as a way to easily test low level functionality and are just a simplification of the spec. 
+
 ```python
 def audit_workflow(
+    context_defs: List[Dict[str, AnyJSON]],
     identity_defs: List[Dict[str, AnyJSON]],
     resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
-):
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
 ```
+
 ```python
 def authorize_workflow(
+    context_defs: List[Dict[str, AnyJSON]],
     identity_defs: List[Dict[str, AnyJSON]],
     resource_defs: List[Dict[str, AnyJSON]],
     grants: List[Dict[str, AnyJSON]],
     request: Dict[str, AnyJSON],
-    search: Callable[[str, AnyJSON], AnyJSON]
-):
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
+```
+
+```python
+def batch_audit(
+    batch_request: Dict[str, AnyJSON], 
+    grants: List[Dict[str, AnyJSON]],
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, List[Dict[str, AnyJSON]]]: 
+```
+
+> **NOTE** - `batch_audit` and `batch_authorize` functions do not run the validation steps before the core operation.
+
+```python
+def batch_authorize(
+    batch_request: Dict[str, AnyJSON], 
+    grants: List[Dict[str, AnyJSON]],
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, List[Dict[str, AnyJSON]]]: 
+```
+
+```python
+def batch_audit_workflow(
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
+    grants: List[Dict[str, AnyJSON]],
+    batch_request: Dict[str, AnyJSON],
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
+```
+
+```python
+def batch_authorize_workflow(
+    context_defs: List[Dict[str, AnyJSON]],
+    identity_defs: List[Dict[str, AnyJSON]],
+    resource_defs: List[Dict[str, AnyJSON]],
+    grants: List[Dict[str, AnyJSON]],
+    batch_request: Dict[str, AnyJSON],
+    execute: Callable[[str, AnyJSON], AnyJSON]
+) -> Dict[str, AnyJSON]:
 ```
 
 
 ## Authzee Class
 
+The `Authzee` class is the primary public API for the SDK. It wraps compute and storage modules and provides all authorization operations.
+
 The `Authzee` class should take these arguments when created:
-- Identity Definitions
-- Resource Definitions
-- JMESPath search function
+- JSON query execute function
 - Compute Module type and arguments
+    - keyword args where available, or else ordered arguments
 - Storage Module type and arguments
+    - keyword args where available, or else ordered arguments
+- Compute storage kwargs (optional) - override storage kwargs that the compute module will use. Only include kwargs you want to override.
+- [Authzee Config](#authzee-config) override or null to take defaults.
 
-If the language supports async, there should also be an async version, `AuthzeeAsync`. 
+If the language supports async, there should also be an `AuthzeeAsync` variant. `AuthzeeAsync` has the same constructor signature and methods as `Authzee`, but all methods are async.
 
-These are the methods for the Authzee class.  For the `AuthzeeAsync` class, they should all be async.
 
-```python
-def start() -> None:
-```
-- Start up Authzee app.  
-- Initialize runtime resources
-- Needs to run before any methods or vars are accessed.
-- Run the same method for compute and storage modules.
-- After this method is complete these public instance vars or getters must be available:
-    - locality - Authzee [Module Locality](#module-locality) to tell the limit of where other Authzee instances can be created.
-    - parallel_paging_supported - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination. 
+### Authzee Config
 
-```python
-def shutdown() -> None:
-```
-- shutdown authzee app
-- clean up runtime resources
+Config is organized per-method — each root key corresponds to a method name and holds that method's specific setting.  The `authzee` root key is for general Authzee instance settings. 
 
-```python
-def setup() -> None:
-```
-- Construct backend resources for compute and storage
-- one time setup 
+Authzee instances have a default set of configs. 
 
-```python
-def teardown() -> None:
-```
-- tear down backend resources 
-- destructive - may lose all storage and compute etc.
+The configs can be changes by passing them when creating an instance.
+
+Every method on the `Authzee` class (and `AuthzeeAsync`) accepts a config parameter. This allows overriding configuration at the call-level without changing the instance-level configuration. 
+
+
+#### Config Precedence
+
+Configuration is resolved through 3 levels (least to most precedence):
+
+1. **Default config values** — The built-in defaults shown below.+
+2. **Instance-level config** — Passed via the `config` parameter at `Authzee` construction. Only provided keys override the defaults.
+3. **Method-call config override** — Passed via the `config` parameter on any method call. Only provided keys override the resolved instance config.
+
+Only the keys you provide at a higher-precedence level override the values from the lower level. Everything else keeps its resolved value.
+
+#### AuthzeeConfig Full Example (all defaults)
 
 ```python
-def enact(new_grant: NewGrant) -> Grant:
+{
+    "authzee": {
+        "raise_crits": True
+    },
+    "start": {
+        "compute_start": {
+            "storage": {}
+        },
+        "storage_start": {}
+    },
+    "shutdown": {
+        "compute_shutdown": {
+            "storage": {}
+        },
+        "storage_shutdown": {}
+    },
+    "construct": {
+        "compute_construct": {},
+        "storage_construct": {}
+    },
+    "destroy": {
+        "compute_destroy": {},
+        "storage_destroy": {}
+    },
+    "validate_context_def": {},
+    "list_context_defs": {
+        "page_size": 100,
+        "use_cache": False
+    },
+    "get_context_def": {
+        "use_cache": False
+    },
+    "put_context_def": {},
+    "delete_context_def": {},
+    "validate_identity_def": {},
+    "list_identity_defs": {
+        "page_size": 100,
+        "use_cache": False
+    },
+    "get_identity_def": {
+        "use_cache": False
+    },
+    "put_identity_def": {},
+    "delete_identity_def": {},
+    "validate_resource_def": {},
+    "list_resource_defs": {
+        "page_size": 100,
+        "use_cache": False
+    },
+    "get_resource_def": {
+        "use_cache": False
+    },
+    "put_resource_def": {},
+    "delete_resource_def": {},
+    "validate_grant": {},
+    "list_grants": {
+        "page_size": 100,
+        "use_cache": False
+    },
+    "get_grant": {
+        "use_cache": False
+    },
+    "enact": {},
+    "repeal": {},
+    "list_grant_refs": {
+        "page_size": 10,
+        "use_cache": False
+    },
+    "cleanup_latches": {},
+    "validate_request": {
+        "get_context_def": {
+            "use_cache": True
+        },
+        "use_list_context_defs": True,
+        "list_context_defs": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "get_identity_def": {
+            "use_cache": True
+        },
+        "use_list_identity_defs": True,
+        "list_identity_defs": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "get_resource_def": {
+            "use_cache": True
+        },
+        "use_list_resource_defs": True,
+        "list_resource_defs": {
+            "page_size": 100,
+            "use_cache": True
+        }
+    },
+    "validate_batch_request": {
+        "get_context_def": {
+            "use_cache": True
+        },
+        "use_list_context_defs": True,
+        "list_context_defs": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "get_identity_def": {
+            "use_cache": True
+        },
+        "use_list_identity_defs": True,
+        "list_identity_defs": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "get_resource_def": {
+            "use_cache": True
+        },
+        "use_list_resource_defs": True,
+        "list_resource_defs": {
+            "page_size": 100,
+            "use_cache": True
+        }
+    },
+    "audit": {
+        "validate_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "list_grants": {
+            "page_size": 100,
+            "use_cache": True
+        }
+    },
+    "batch_audit": {
+        "validate_batch_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "list_grants": {
+            "page_size": 100,
+            "use_cache": True
+        }
+    },
+    "authorize": {
+        "validate_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "list_grants": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "parallel_paging": True,
+        "list_grant_refs": {
+            "page_size": 10,
+            "use_cache": True
+        }
+    },
+    "batch_authorize": {
+        "validate_batch_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "validate_request": {
+            "get_context_def": {
+                "use_cache": True
+            },
+            "use_list_context_defs": True,
+            "list_context_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_identity_def": {
+                "use_cache": True
+            },
+            "use_list_identity_defs": True,
+            "list_identity_defs": {
+                "page_size": 100,
+                "use_cache": True
+            },
+            "get_resource_def": {
+                "use_cache": True
+            },
+            "use_list_resource_defs": True,
+            "list_resource_defs": {
+                "page_size": 100,
+                "use_cache": True
+            }
+        },
+        "list_grants": {
+            "page_size": 100,
+            "use_cache": True
+        },
+        "parallel_paging": True,
+        "list_grant_refs": {
+            "page_size": 10,
+            "use_cache": True
+        }
+    }
+}
 ```
-- add a new grant.
+
+
+These are the methods for the Authzee class. For the `AuthzeeAsync` class, they should all be async.
 
 ```python
-def repeal(grant_uuid: UUID) -> None:
+class Authzee:
+
+    def __init__(
+        self,
+        execute: Callable[[str, Any], Any],
+        compute_type: Type[ComputeModule],
+        compute_kwargs: Dict[str, Any],
+        storage_type: Type[StorageModule],
+        storage_kwargs: Dict[str, Any],
+        compute_storage_kwargs: Dict[str, Any] | None = None,
+        config: AuthzeeConfigOverride | None = None
+    ):
+        pass
+
+
+    def start(self, config: AuthzeeConfigOverride | None = None) -> GenericResult:
+        """Start up Authzee app.
+
+        - Initialize runtime resources
+        - Needs to run before any methods or vars are accessed.
+        - Run the same method for compute and storage modules.
+        - After this method is complete these public instance vars or getters must be available:
+            - locality - Authzee [Module Locality](#module-locality) to tell the limit of where other Authzee instances can be created.
+            - has_parallel_paging - if the instance of Authzee supports processing grant pages in parallel according to the compute and storage combination.
+        """
+        pass
+
+    
+    def shutdown(self, config: AuthzeeConfigOverride | None = None) -> GenericResult:
+        """Shutdown the authzee app. Cleans up runtime resources.
+        """
+        pass
+
+
+    def construct(self, config: AuthzeeConfigOverride | None = None) -> GenericResult:
+        """Construct backend resources for compute and storage
+   
+        One time setup.
+        """
+        pass
+
+
+    def destroy(self, config: AuthzeeConfigOverride | None = None) -> GenericResult:
+        """Destroy down backend resources.
+        
+        destructive - may lose all storage and compute etc.
+        """
+        pass
+
+
+    def list_context_defs(
+        self, 
+        page_ref: str | None,
+        config: AuthzeeConfigOverride | None = None
+    ) -> ContextDefsPage:
+        """Get a page of context definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def validate_context_def(
+        self,
+        context_def: ContextDef,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Validate a context definition.
+        """
+        pass
+
+
+    def get_context_def(
+        self, 
+        context_type: str, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> ContextDefResult:
+        """Get a context definition by type.
+
+        If the context_type does not match a stored context definition, the result will have `context_def` set to null and `has_failed` set to true.
+        """
+        pass
+
+
+    def put_context_def(
+        self, 
+        context_def: ContextDef, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Add a new Context Definition or update an existing one.
+        """
+
+
+    def delete_context_def(
+        self, 
+        context_type: str, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Delete a context definition by type.
+        """
+        pass
+
+
+    def validate_identity_def(
+        self,
+        identity_def: IdentityDef,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Validate an identity definition.
+        """
+        pass
+
+
+    def list_identity_defs(
+        self, 
+        page_ref: str | None, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> IdentityDefsPage:
+        """Get a page of identity definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def get_identity_def(
+        self, 
+        identity_type: str,
+        config: AuthzeeConfigOverride | None = None
+    ) -> IdentityDefResult:
+        """Get an identity definition by type.
+
+        If the identity_type does not match a stored identity definition, the result will have `identity_def` set to null and `has_failed` set to true.
+        """
+        pass
+
+
+    def put_identity_def(
+        self, 
+        identity_def: IdentityDef, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Add a new Identity Definition or update an existing one
+        """
+        pass
+
+
+    def delete_identity_def(
+        self, 
+        identity_type: str,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Delete an identity definition by type.
+        """
+        pass
+
+
+    def validate_resource_def(
+        self,
+        resource_def: ResourceDef,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Validate a resource definition.
+        """
+        pass
+
+
+    def list_resource_defs(
+        self, 
+        page_ref: str | None, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> ResourceDefsPage:
+        """Get a page of resource definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    def get_resource_def(
+        self, 
+        resource_type: str,
+        config: AuthzeeConfigOverride | None = None
+    ) -> ResourceDefResult:
+        """Get a resource definition by type.
+
+        If the resource_type does not match a stored resource definition, the result will have `resource_def` set to null and `has_failed` set to true.
+        """
+        pass
+
+
+    def put_resource_def(
+        self, 
+        resource_def: ResourceDef,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Add a new Resource Definition or update an existing one.
+        """
+        pass
+
+
+    def delete_resource_def(
+        self, 
+        resource_type: str,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Delete a resource definition by type.
+        """
+        pass
+
+
+    def validate_grant(
+        self,
+        grant: Grant,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Validate a grant.
+        """
+        pass
+
+
+    def enact(
+        self, 
+        grant: Grant,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Add a new grant. 
+
+        **NOTE** - For scalability, grants should only be created and destroyed.  Storage modules may do their best to check if a grant UUID exists, but may not always be correct.  Only ever put in new UUIDs, not ones known to exist.
+        """
+        pass
+
+
+    def repeal(
+        self, 
+        grant_uuid: UUID, 
+        purge: bool = False,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Delete a grant.
+        
+        `purge` will scan all grant partitions.  Slower but can be used to clean up corrupted grants.
+        """
+        pass
+
+
+    def get_grant(
+        self, 
+        grant_uuid: UUID,
+        config: AuthzeeConfigOverride | None = None
+    ) -> GrantResult:
+        """Get a grant by UUID.
+
+        If the grant_uuid does not match a stored grant, the result will have `grant` set to null and `has_failed` set to true.
+        """
+        pass
+
+
+    def list_grants(
+        self,
+        effect: str | None, 
+        action: str | None, 
+        page_ref: str | None, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> GrantsPage:
+        """Retrieve a page of grants.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+
+        effect - Filter by grant effect. Accepts "allow", "deny", or null.
+            Null means no filtering by effect. When non-null, only grants whose
+            effect field matches the filter value are included.
+        action - Filter by resource action. Accepts a resource action string or null.
+            Null means no filtering by action. When non-null, only grants whose
+            actions field contains the filter value are included.
+        """
+        pass
+
+
+    def list_grant_refs(
+        self,
+        effect: str | None, 
+        action: str | None, 
+        page_ref: str | None, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> PageRefsPage:
+        """Retrieve a page of grant page references for parallel pagination.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+
+        For some storage modules this may not be possible, check the `parallel_paging` value.
+
+        effect - Filter by grant effect. Accepts "allow", "deny", or null.
+            Null means no filtering by effect. When non-null, only grants whose
+            effect field matches the filter value are included.
+        action - Filter by resource action. Accepts a resource action string or null.
+            Null means no filtering by action. When non-null, only grants whose
+            actions field contains the filter value are included.
+        """
+        pass
+
+    
+    def cleanup_latches(
+        self, 
+        before: Datetime, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Delete all latches before the specified datetime.
+
+        - operations should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
+        """
+        pass
+
+
+    def validate_request(
+        self,
+        request: AuthzeeRequest, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Validate a request.
+        """
+        pass
+
+
+    def audit(
+        self,
+        request: AuthzeeRequest, 
+        effect: str | None,
+        action: str | None,
+        page_ref: str | None, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> AuditResultPage:
+        """Run the Audit Operation for a page of results.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+
+        effect - Filter by grant effect. Accepts "allow", "deny", or null.
+            Null means no filtering by effect. When non-null, only grants whose
+            effect field matches the filter value are included in the audit.
+        action - Filter by resource action. Accepts a resource action string or null.
+            Null means no filtering by action. When non-null, only grants whose
+            actions field contains the filter value are included in the audit.
+        """
+        pass
+
+
+    def authorize(
+        self, 
+        request: AuthzeeRequest,
+        config: AuthzeeConfigOverride | None = None
+    ) -> AuthorizeResult:
+        """Run the Authorize Operation.
+        """
+        pass
+
+
+    def validate_batch_request(
+        self,
+        batch_request: AuthzeeBatchRequest, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> GenericResult:
+        """Validate a batch request.
+        """
+        pass
+
+
+    def batch_audit(
+        self,
+        batch_request: AuthzeeBatchRequest, 
+        effect: str | None,
+        action: str | None,
+        page_ref: str | None, 
+        config: AuthzeeConfigOverride | None = None
+    ) -> BatchAuditResultPage:
+        """Run the Batch Audit Operation for a page of results.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+
+        effect - Filter by grant effect. Accepts "allow", "deny", or null.
+            Null means no filtering by effect. When non-null, only grants whose
+            effect field matches the filter value are included in the audit.
+        action - Filter by resource action. Accepts a resource action string or null.
+            Null means no filtering by action. When non-null, only grants whose
+            actions field contains the filter value are included in the audit.
+        """
+        pass
+
+
+    def batch_authorize(
+        self, 
+        batch_request: AuthzeeBatchRequest,
+        config: AuthzeeConfigOverride | None = None
+    ) -> BatchAuthorizeResult:
+        """Run the Batch Authorize Operation.
+        """
+        pass
 ```
-- delete a grant.
+
+
+### Paginator
+
+The `paginator()` utility function provides automatic pagination through all pages from any page-returning method. It replaces the old auto-paginating `list_*` iterator methods.
 
 ```python
-def get_grant(grant_uuid: UUID) -> Grant:
+def paginator(page_method, **kwargs):
+    """Iterate through all pages from a page-returning method.
+
+    Yields each page result.
+    Terminates when next_page_ref is None or has_failed is True.
+    """
+    ...
 ```
-- Get a grant by UUID
+
+For `AuthzeeAsync`, use `paginator_async()`:
 
 ```python
-def get_grants_page(
-    effect: str | None, 
-    action: str | None, 
-    page_ref: str | None, 
-    grants_page_size: int
-) -> GrantsPage:
+async def paginator_async(page_method, **kwargs):
+    """Async version of paginator for use with AuthzeeAsync.
+
+    Yields each page result via an async generator.
+    Terminates when next_page_ref is None or has_failed is True.
+    """
+    ...
 ```
-- Retrieve a page of grants
+
+#### Usage Examples
 
 ```python
-def get_grant_page_refs_page(
-    effect: str | None, 
-    action: str | None, 
-    page_ref: str | None, 
-    grants_page_size: int,
-    refs_page_size: int
-) -> PageRefsPage:
-```
-- Retrieve a page of grant page references for parallel pagination
-- For some storage modules this may not be possible, check the `parallel_paging` value.
+# Paginate through all context definitions
+for page in paginator(authz.list_context_defs):
+    for context_def in page.context_defs:
+        print(context_def)
 
-```python
-def audit_page(
-    request: AuthzeeRequest, 
-    page_ref: str | None, 
-    page_size: int, 
-    parallel_paging: bool, 
-    refs_page_size: int
-) -> AuditPage:
-```
-- Run the Audit Workflow for a page of results.
-- Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
+# Paginate through grants filtered by effect
+for page in paginator(authz.list_grants, effect="allow", action=None):
+    for grant in page.grants:
+        print(grant)
 
-```python
-def authorize(
-    request: AuthzeeRequest, 
-    page_size: int, 
-    grants_page_size: int, 
-    refs_page_size: int
-) -> AuthorizeResult:
+# Paginate through grant refs
+for page in paginator(authz.list_grant_refs, effect=None, action="Balloon:Inflate"):
+    for ref in page.page_refs:
+        print(ref)
 ```
-- Run the Authorize Workflow.
 
 
 ## Compute Modules
 
-Compute modules provide a standard API for running workflows on compute.  Compute Modules should not be used directly but through the Authzee class.
+Compute modules provide a standard API for running operation on compute.  Compute Modules should not be used directly but through the Authzee class.
 They have direct access to the storage module and use it to retrieve grants. 
 They may also use the storage module to create and retrieve latches that help with compute state.  Especially for compute that is spread across multiple systems.
 
@@ -267,63 +1409,150 @@ They may also use the storage module to create and retrieve latches that help wi
 
 Compute Modules should take any module specific arguments when created.
 
-Compute modules objects should implement these methods:
+Compute modules objects should implement these methods. Every method accepts its dedicated config class as a required parameter. The config class name follows the pattern `Compute{MethodName}Config` for lifecycle methods (e.g., `ComputeStartConfig` for `start`) and `{MethodName}Config` for operation methods (e.g., `AuditConfig` for `audit`). The Authzee class is responsible for resolving the full config and passing the appropriate method-specific config object to the compute module.
 
 ```python
-def start(
-    identity_defs: List[IdentityDef], 
-    resource_defs: List[ResourceDef], 
-    search: Callable[[str, Any], Any], 
-    storage_type: Type[StorageModule], 
-    storage_kwargs: Dict[str, Any]
-) -> None:
-```
-- start up compute module
-- run before use
-- After this method is complete these public instance vars or getters must be available:
-    - locality - Compute [Module Locality](#module-locality) 
-    - parallel_paging_supported - if the compute module supports processing grants with parallel paging
+class ComputeModule:
 
-```python
-def shutdown() -> None:
-```
-- shutdown compute module
-- clean up runtime resources
 
-```python
-def setup() -> None:
-```
-- Construct backend resources for compute 
-- one time setup 
+    async def start(
+        self,
+        execute: Callable[[str, Any], Any],
+        storage_type: Type[StorageModule],
+        storage_kwargs: Dict[str, Any],
+        config: ComputeStartConfig
+    ) -> GenericResult:
+        """Start up compute module.
 
-```python
-def teardown() -> None:
-```
-- tear down backend resources 
-- destructive - may lose all long lasting compute resources
+        - run before use
+        - After this method is complete these public instance vars or getters must be available and stable:
+            - locality - Compute [Module Locality](#module-locality)
+            - has_parallel_paging - if the compute module supports processing grants with parallel paging
+        """
+        pass
 
-```python
-def audit_page(
-    request: AuthzeeRequest, 
-    page_ref: str | None, 
-    grants_page_size: int, 
-    parallel_paging: bool, 
-    refs_page_size: int
-) -> AuditPage:
-```
-- Run the Audit Workflow for a page of results.
-- Parallel pagination will send a whole page of grant page refs to be computed at a time which can help to cut down on latency between pages but may produce significantly more results.
 
-```python
-def authorize(
-    request: AuthzeeRequest, 
-    page_size: int, 
-    grants_page_size: int, 
-    refs_page_size: int
-) -> AuthorizeResult:
-```
-- Run the Authorize Workflow.
+    async def shutdown(self, config: ComputeShutdownConfig) -> GenericResult:
+        """Shutdown Compute module.
 
+        - clean up runtime resources
+        """
+        pass
+
+
+    async def construct(self, config: ComputeConstructConfig) -> GenericResult:
+        """Construct backend resources for compute.
+
+        - one time setup
+        """
+        pass
+
+
+    async def destroy(self, config: ComputeDestroyConfig) -> GenericResult:
+        """Tear down backend resources.
+
+        - destructive - may lose all long lasting compute resources
+        """
+        pass
+
+
+    async def validate_context_def(
+        self,
+        context_def: ContextDef,
+        config: ValidateContextDefConfig
+    ) -> GenericResult:
+        pass
+
+
+    async def validate_identity_def(
+        self,
+        identity_def: IdentityDef,
+        config: ValidateIdentityDefConfig
+    ) -> GenericResult:
+        pass
+
+
+    async def validate_resource_def(
+        self,
+        resource_def: ResourceDef,
+        config: ValidateResourceDefConfig
+    ) -> GenericResult:
+        pass
+
+
+    async def validate_grant(
+        self,
+        grant: Grant,
+        config: ValidateGrantConfig
+    ) -> GenericResult:
+        pass
+
+
+    async def validate_request(
+        self,
+        request: AuthzeeRequest,
+        config: ValidateRequestConfig
+    ) -> GenericResult:
+        """Validate a request.
+        """
+        pass
+
+
+    async def validate_batch_request(
+        self,
+        batch_request: AuthzeeBatchRequest,
+        config: ValidateBatchRequestConfig
+    ) -> GenericResult:
+        """Validate a batch request.
+        """
+        pass
+
+
+    async def audit(
+        self,
+        request: AuthzeeRequest,
+        page_ref: str | None,
+        config: AuditConfig
+    ) -> AuditResultPage:
+        """Run the Audit Operation for a page of results.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    async def authorize(
+        self,
+        request: AuthzeeRequest,
+        config: AuthorizeConfig
+    ) -> AuthorizeResult:
+        """Run the Authorize Operation.
+        """
+        pass
+
+
+    async def batch_audit(
+        self,
+        batch_request: AuthzeeBatchRequest,
+        page_ref: str | None,
+        config: BatchAuditConfig
+    ) -> BatchAuditResultPage:
+        """Run the Batch Audit Operation for a page of results.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    async def batch_authorize(
+        self,
+        batch_request: AuthzeeBatchRequest,
+        config: BatchAuthorizeConfig
+    ) -> BatchAuthorizeResult:
+        """Run the Batch Authorize Operation.
+        """
+        pass
+```
 
 ## Storage Modules
 
@@ -333,102 +1562,287 @@ Storage modules provide a standard API for storing and retrieving grants and [St
 
 Storage Modules should take any module specific arguments when created.
 
-Storage modules should implement these methods:
+Storage modules should implement these methods. Every method accepts its dedicated config class as a required parameter. The config class name follows the pattern `Storage{MethodName}Config` for lifecycle methods (e.g., `StorageStartConfig` for `start`) and `{MethodName}Config` for operation methods (e.g., `ListGrantsConfig` for `list_grants`). The Authzee class is responsible for resolving the full config and passing the appropriate method-specific config object to the storage module.
 
 ```python
-def start(
-    identity_defs: List[IdentityDef], 
-    resource_defs: List[ResourceDef]
-) -> None:
-```
-- start up storage module
-- run before use
-- After this method is complete these public instance vars or getters must be available:
-    - locality - Storage [Module Locality](#module-locality) 
-    - parallel_paging_supported - if the storage modules supports parallel paging (returning a page of grant page references). 
+class StorageModule:
 
-```python
-def shutdown() -> None:
-```
-- shutdown storage module
-- clean up runtime resources
+    def __init__(self): 
+        pass
 
-```python
-def setup() -> None:
-```
-- Construct backend resources for storage 
-- one time setup 
 
-```python
-def teardown() -> None:
-```
-- tear down backend resources 
-- destructive - may lose all long lasting compute resources
+    async def start(self, config: StorageStartConfig) -> GenericResult:
+        """Start up storage module.
 
-```python
-def enact(new_grant: NewGrant) -> Grant:
-```
-- add a new grant.
+        - run before use
+        - After this method is complete these public instance vars or getters must be available:
+            - locality - Storage [Module Locality](#module-locality)
+            - has_parallel_paging - if the storage module supports parallel paging (returning a page of grant page references).
+        """
+        pass
 
-```python
-def repeal(grant_uuid: UUID) -> None:
-```
-- delete a grant.
 
-```python
-def get_grant(grant_uuid: UUID) -> Grant:
-```
-- Get a grant by UUID
+    async def shutdown(self, config: StorageShutdownConfig) -> GenericResult:
+        """Shutdown storage module.
 
-```python
-def get_grants_page(
-    effect: str | None, 
-    action: str | None, 
-    page_ref: str | None,
-    grants_page_size: int
-) -> GrantsPage:
-```
-- get a page of grants
+        - clean up runtime resources
+        """
+        pass
 
-```python
-def get_grant_page_refs_page(
-    effect: str | None, 
-    action: str | None, 
-    page_ref: str | None, 
-    grants_page_size: int,
-    refs_page_size: int
-) -> PageRefsPage:
-```
-- get a page of grant page references for parallel pagination
-- For some storage modules this may not be possible, check the `parallel_paging` value.
 
-```python
-def create_latch() -> StorageLatch:
-```
-- Create a new [storage latch](#storage-latches) by UUID
+    async def construct(self, config: StorageConstructConfig) -> GenericResult:
+        """Construct backend resources for storage.
 
-```python
-def get_latch(storage_latch_uuid) -> StorageLatch:
-```
-- Get a [storage latch](#storage-latches) by UUID
+        - one time setup
+        """
+        pass
 
-```python
-def set_latch(storage_latch_uuid) -> StorageLatch:
-```
-- Set a [storage latch](#storage-latches) by UUID
 
-```python
-def delete_latch(storage_latch_uuid) -> None:
-```
-- Delete a [storage latch](#storage-latches) by UUID
+    async def destroy(self, config: StorageDestroyConfig) -> GenericResult:
+        """Tear down backend resources.
 
-```python
-def cleanup_latches(before: Datetime) -> None:
-```
-- Delete all latches before the specified datetime.
-- Workflows should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
+        - destructive - may lose all long lasting storage resources
+        """
+        pass
 
-> **NOTE** - When listing grants there are 2 filters: `effect` and `action`.  Storage modules should partition grants on these 2 fields.
+
+    async def list_context_defs(
+        self,
+        page_ref: str | None,
+        config: ListContextDefsConfig
+    ) -> ContextDefsPage:
+        """Get a page of context definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    async def get_context_def(
+        self,
+        context_type: str,
+        config: GetContextDefConfig
+    ) -> ContextDefResult:
+        """Get a context definition by type.
+        """
+        pass
+
+
+    async def put_context_def(
+        self,
+        context_def: ContextDef,
+        config: PutContextDefConfig
+    ) -> GenericResult:
+        """Add a new Context Definition or update an existing one.
+        """
+        pass
+
+
+    async def delete_context_def(
+        self,
+        context_type: str,
+        config: DeleteContextDefConfig
+    ) -> GenericResult:
+        """Delete a context definition by type.
+        """
+        pass
+
+
+    async def list_identity_defs(
+        self,
+        page_ref: str | None,
+        config: ListIdentityDefsConfig
+    ) -> IdentityDefsPage:
+        """Get a page of identity definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    async def get_identity_def(
+        self,
+        identity_type: str,
+        config: GetIdentityDefConfig
+    ) -> IdentityDefResult:
+        """Get an identity definition by type.
+        """
+        pass
+
+
+    async def put_identity_def(
+        self,
+        identity_def: IdentityDef,
+        config: PutIdentityDefConfig
+    ) -> GenericResult:
+        """Add a new Identity Definition or update an existing one.
+        """
+        pass
+
+
+    async def delete_identity_def(
+        self,
+        identity_type: str,
+        config: DeleteIdentityDefConfig
+    ) -> GenericResult:
+        """Delete an identity definition by type.
+        """
+        pass
+
+
+    async def list_resource_defs(
+        self,
+        page_ref: str | None,
+        config: ListResourceDefsConfig
+    ) -> ResourceDefsPage:
+        """Get a page of resource definitions.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    async def get_resource_def(
+        self,
+        resource_type: str,
+        config: GetResourceDefConfig
+    ) -> ResourceDefResult:
+        """Get a resource definition by type.
+        """
+        pass
+
+
+    async def put_resource_def(
+        self,
+        resource_def: ResourceDef,
+        config: PutResourceDefConfig
+    ) -> GenericResult:
+        """Add a new Resource Definition or update an existing one.
+        """
+        pass
+
+
+    async def delete_resource_def(
+        self,
+        resource_type: str,
+        config: DeleteResourceDefConfig
+    ) -> GenericResult:
+        """Delete a resource definition by type.
+        """
+        pass
+
+
+    async def enact(
+        self,
+        grant: Grant,
+        config: EnactConfig
+    ) -> GenericResult:
+        """Add a new grant.
+        """
+        pass
+
+
+    async def repeal(
+        self,
+        grant_uuid: str,
+        purge: bool,
+        config: RepealConfig
+    ) -> GenericResult:
+        """Delete a grant.
+        """
+        pass
+
+
+    async def get_grant(
+        self,
+        grant_uuid: str,
+        config: GetGrantConfig
+    ) -> GrantResult:
+        """Get a grant by UUID.
+        """
+        pass
+
+
+    async def list_grants(
+        self,
+        effect: str | None,
+        action: str | None,
+        page_ref: str | None,
+        config: ListGrantsConfig
+    ) -> GrantsPage:
+        """Retrieve a page of grants.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+        """
+        pass
+
+
+    async def list_grant_refs(
+        self,
+        effect: str | None,
+        action: str | None,
+        page_ref: str | None,
+        config: ListGrantRefsConfig
+    ) -> PageRefsPage:
+        """Retrieve a page of grant page references for parallel pagination.
+
+        Pass the returned page reference to get the next page until a null page reference is returned.
+
+        For some storage modules this may not be possible.
+        Check the `parallel_paging` attribute on the storage module after `start()` is complete.
+        """
+        pass
+
+
+    async def create_latch(self, config: CreateLatchConfig) -> StorageLatchResult:
+        """Create a new [storage latch](#storage-latches).
+        """
+        pass
+
+
+    async def get_latch(
+        self,
+        storage_latch_uuid: str,
+        config: GetLatchConfig
+    ) -> StorageLatchResult:
+        """Get a [storage latch](#storage-latches) by UUID.
+        """
+        pass
+
+
+    async def set_latch(
+        self,
+        storage_latch_uuid: str,
+        config: SetLatchConfig
+    ) -> StorageLatchResult:
+        """Set a [storage latch](#storage-latches) by UUID.
+        """
+        pass
+
+
+    async def delete_latch(
+        self,
+        storage_latch_uuid: str,
+        config: DeleteLatchConfig
+    ) -> GenericResult:
+        """Delete a [storage latch](#storage-latches) by UUID.
+        """
+        pass
+
+
+    async def cleanup_latches(
+        self,
+        before: datetime.datetime,
+        config: CleanupLatchesConfig
+    ) -> GenericResult:
+        """Delete all latches before the specified datetime.
+
+        - operations should clean up their own latches, but in case of a failure this can be used to clean up zombie latches.
+        """
+        pass
+```
+
+> **NOTE** - When listing grants there are 2 filters: `effect` and `action`.  Storage modules should partition grants on these 2 fields if they can.
 
 ## Module Locality
 
@@ -460,47 +1874,156 @@ The compute locality compatibility matrix with storage localities:
 Authzee Localities are usually the same as the storage locality.
 
 
-## Storage Latches
+## Handling Errors
 
-Storage latches are flag like objects kept in the storage module. 
+The SDK should return normalized results for all operations that include any errors in the results. 
 
-```json
-{
-    "storage_latch_uuid": "7fa89195-d455-444c-ad53-9f1c66a0fc85",
-    "set": false,
-    "created_at": "2025-07-20T04:13:17.292144Z"
-}
-```
+If the Language supports exceptions, then the Authzee Class should support the ability to raise critical errors as exceptions. 
 
-Storage latches can only be created, set, or deleted. 
-They cannot be unset. 
+Exceptions should provide a message and the full result of the function with all errors. 
 
-Compute modules may call on the storage module to create latches to manage the state of workflows.  When compute is shared over the network this becomes a necessary piece to communicate different workflow statuses.
+
+### Exception Hierarchy
+
+If the language support exception hierarchies it should be as follows:
+
+- root exception for Authzee.  
+    - Authzee Specification Exception
+        - Definition Specification Error
+        - Grant Specification Error
+        - Request Specification Error
+        - Evaluation Specification Error
+    - Authzee SDK Exception
+        - SDKs are free to implement any other exceptions as needed.  Try to denote that they are SDK exceptions where possible.
 
 
 ## Standard Types
 
 The input and output objects (data class instances, struct instances) should take a standard form when dealing with the Authzee class. The Authzee class provides the only public API to the SDKs, but the compute and storage classes are expected to provide consistent APIs to make compute and storage classes interchangeable. 
 
+The SDKs build on some existing data structures from the spec and use some totally new.
+
 Standard Types:
+- [AuthzeeConfig](#authzeeconfig)
 - [page_ref](#page_ref)
+- [GenericResult and *Results](#genericresult-and-results)
+- [Page Results](#page-results)
 - [Grant](#grant)
-- [NewGrant](#newgrant)
-- [GrantsPage](#grantspage)
-- [PageRefsPage](#grantpagerefspage)
 - [AuthzeeRequest](#authzeerequest)
-- [AuditPage](#auditpage)
+- [AuditResultPage](#auditresultpage)
 - [AuthorizeResult](#authorizeresult)
+- [AuthzeeBatchRequest](#authzeebatchrequest)
+- [BatchAuditResultPage](#batchauditresultpage)
+- [BatchAuthorizeResult](#batchauthorizeresult)
+
+
+### AuthzeeConfig
+
+See [Authzee Config](#authzee-config) in the Authzee Class section for the full per-method config structure, `AuthzeeConfigOverride`, and the 3-level precedence model.
+
 
 ### page_ref
 
-Authzee relies on pagination to make it's operations scalable. 
-`page_ref` represents a string token to a specific page of resources.  To get the first page of a resource the `page_ref` should have a `null` value.  `next_ref` is present in responses to be passed on the next function call to retrieve the next page.  When `next_ref` is a `null` value, the current page is considered the last and should not be passed back to the function.
+Authzee relies on pagination to make its operations scalable. 
+`page_ref` represents a string token to a specific page of resources.  To get the first page of a resource the `page_ref` should have a `null` value.  `next_page_ref` is present in results to be passed in the following function call to retrieve the next page.  When `next_page_ref` is a `null` value, the current page is considered the last and should not be passed back to the function.
+
+
+### GenericResult and *Results
+
+`GenericResult` simply returns if the function has failed and any associated errors.  
+Types from Authzee that are prefixed with `Result` are simply that type nested in an object with fields in `GenericResult` as well.
+
+Example structure for Grant:
+
+```json
+{
+    "grant": {}, // grant or null
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+The results should use these field names:
+
+- `Grant` -> `grant`
+- `ContextDef` -> `context_def`
+- `IdentityDef` -> `identity_def`
+- `ResourceDef` -> `resource_def`
+
+#### GenericResult Example
+
+```json
+{
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+#### GenericResult Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "GenericResult",
+    "description": "An object representing the a result from an authzee function.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "has_failed",
+        "errors"
+    ],
+    "properties": {
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the request has failed from a critical error or not."
+        },
+        "errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "generic results errors",
+            "description": "Errors returned running and Authzee function. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error.",
+            "type": "object",
+            "additionalProperties": true,
+            "required": [],
+            "properties": {}
+        }
+    }
+}
+```
+
+### Page Results
+
+Authzee supplies several resources that are paginated including: grants, context definitions, identity definitions, resource definitions, and page references. 
+
+Each of these has generalized paged results that will contain a field for the list of items, as well `next_page_ref` and the fields from [GenericResult](#genericresult-and-results). 
+
+GrantsPage Example:
+
+```json
+{
+    "grants": [], // list of grants" or null if error
+    "next_page_ref": "asdfds", // token or null
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+Mapping of resource pages to field containing items: 
+- `GrantsPage` -> `grants`
+- `ContextDefsPage` -> `context_defs`    
+- `IdentityDefsPage` -> `identity_defs`  
+- `ResourceDefsPage` -> `resource_defs`
+- `PageRefsPage` -> `page_refs`
 
 
 ### Grant
 
 Grants should offer more flexibility over the reference implementation, and should be standard across the SDKs.
+
+In the SDK standard, grants are an immutable resource.  They can only be enacted(created) or repealed(destroyed).
+This is a purposeful limitation to enable better scaling of grants. 
+
+
+#### Grant Example
 
 ```json
 {
@@ -516,100 +2039,1657 @@ Grants should offer more flexibility over the reference implementation, and shou
         "Balloon:Inflate"
     ],
     "query": "contains(request.identities.Group[? contains(grant.data.allowed_groups, cn)]",
-    "query_validation": "validate",
+    "evaluation_handler": "evaluate",
     "equality": true,
     "data": {
         "allowed_groups": "MyGroup"
-    },
-    "context_schema": {
-        "type": "object",
-        "required": [
-            "some_context_field"
-        ]
-    },
-    "context_validation": "none"
+    }
 }
 ```
+
+#### Grant Schema
+
 
 They should provide these additional fields over the [Grant Specification](./specification.md#grants), and they should also be available to query during runtime. 
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `grant_uuid` | string(UUID) | ✅ | UUID for the grant. |
-| `name` | string |  ✅ | People friendly name for the grant |
-| `description` | string |  ✅ | People friendly long description for the grant. |
-| `tags` | object[string, string] | ✅ | Additional people metadata for the grant. An object whose keys and values are strings. |
-
-Generally speaking, grants should only be created or deleted, never updated. 
-This simplifies many storage and compute structures and allows for more scalability. 
-
-
-### NewGrant
-
-Used when creating a new grant.  The same as [Grant](#grant) without the `grant_uuid` field as that is generated by Authzee.
-
-
-### GrantsPage
-
-A single page of [Grants](#grant).
-
 ```json
 {
-    "grants": [],
-    "next_ref": "abc123"
-}
-```
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `grants` | array[Grant]| ✅ | The array of grants. |
-| `next_ref` | string OR null |  ✅ | A token used to reference the next page of grants to retrieve from Authzee/the storage module. |
-
-
-### PageRefsPage
-
-A page of page references.
-
-```json
-{
-    "page_refs": [
-        "abc123"
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Grant",
+    "description": "A grant is an object representing enacted authorization rules.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "grant_uuid",
+        "name",
+        "description",
+        "tags",
+        "effect",
+        "actions",
+        "data",
+        "query",
+        "evaluation_handler",
+        "equality"
     ],
-    "next_ref": "def456"
+    "properties": {
+        "grant_uuid": {
+            "type": "string",
+            "format": "uuid"
+        },
+        "name": {
+            "type": "string",
+            "description": "Short name for the grant"
+        },
+        "description": {
+            "type": "string",
+            "description": "Longer description for the grant "
+        },
+        "tags": {
+            "type": "object",
+            "description": "General purpose Key/Value pairs for categorization.",
+            "patternProperties": {
+                "^[A-Za-z0-9_]*$": {
+                    "type": "string"
+                }
+            }
+        },
+        "effect": {
+            "type": "string",
+            "enum": [
+                "allow",
+                "deny"
+            ],
+            "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+        },
+        "actions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "title": "Resource Action",
+                "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]*$",
+                "minLength": 1,
+                "maxLength": 512
+            },
+            "description": "List of actions this grant applies to or null to match any resource action."
+        },
+        "data": {
+            "type": "object",
+            "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+        },
+        "query": {
+            "type": "string",
+            "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+        },
+        "evaluation_handler": {
+            "title": "Grant-Level Evaluation Handler Setting",
+            "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+            "type": "string",
+            "enum": [
+                "evaluate",
+                "error",
+                "critical"
+            ]
+        },
+        "equality": {
+            "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+        }
+    }
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `page_refs` | array[strings] | ✅ | An array of page references that can be used to retrieve several pages of a resource in parallel. |
-| `next_ref` | string OR null |  ✅ | A token used to reference the next page of page refs to retrieve from Authzee/the storage module. |
+
+### Storage Latches
+
+Storage latches are flag like objects kept in the storage module. 
+Storage latches can only be created, set, or deleted. 
+They cannot be unset or otherwise mutated.
+
+Compute modules may call on the storage module to create latches to manage the state of operations.  When compute is shared over the network this becomes a necessary piece to communicate different operation statuses.
+
+
+#### Storage Latch Example
+
+```json
+{
+    "storage_latch_uuid": "7fa89195-d455-444c-ad53-9f1c66a0fc85",
+    "is_set": false,
+    "created_at": "2025-07-20T04:13:17.292144Z"
+}
+```
+
+
+#### Storage Latch Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "StorageLatch",
+    "description": "An object representing a latch held in the storage module.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "storage_latch_uuid",
+        "is_set",
+        "created_at"
+    ],
+    "properties": {
+        "storage_latch_uuid": {
+            "type": "string",
+            "format": "uuid"
+        },
+        "is_set": {
+            "type": "boolean",
+            "description": "Is the latch set or not"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    }
+}
+```
 
 
 ### AuthzeeRequest
 
-The standard "Request" object used to initiate an Authzee workflow. Should match the [Authzee Request Specification](./specification.md#requests), where some fields are updated depending on the identity and resource definitions.
+The standard "Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests).
 
 
-### AuditPage
+### AuditResultPage
 
-A page of Audit Workflow results.  Conforms to the [Audit Workflow Results](./specification.md#audit-workflow-result), where some fields are updated depending on the identity and resource definitions. It will also have a `next_ref` field for pagination. 
+A page of Audit operation results.  Conforms to the [Audit Operation Results](./specification.md#audit). It will also have a `next_page_ref` field for pagination, and updated fields for grants. 
+
+
+#### AuditResultPage Example
+
+```json
+{
+    "grants": [
+        {
+            "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
+            "name": "My grant name",
+            "description": "Longer description here to explain what the grant is for.",
+            "tags": {
+                "some_key": "some_val"
+            },
+            "effect": "allow",
+            "actions": [
+                "Balloon:Pop",
+                "Balloon:Inflate"
+            ],
+            "query": "contains(request.identities.Group[? contains(grant.data.allowed_groups, cn)]",
+            "evaluation_handler": "evaluate",
+            "equality": true,
+            "data": {
+                "allowed_groups": "MyGroup"
+            }
+        }
+    ],
+    "results": [
+        {
+            "is_applicable": true,
+            "query_result": true,
+            "errors": {}
+        }
+    ],
+    "next_page_ref": "abc123",
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+#### AuditResultPage Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Audit Result",
+    "description": "Result for the audit operation.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "grants",
+        "results",
+        "next_page_ref",
+        "has_failed",
+        "errors"
+    ],
+    "properties": {
+        "grants": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "grant_uuid",
+                    "name",
+                    "description",
+                    "tags",
+                    "effect",
+                    "actions",
+                    "data",
+                    "query",
+                    "evaluation_handler",
+                    "equality"
+                ],
+                "properties": {
+                    "grant_uuid": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Short name for the grant"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Longer description for the grant "
+                    },
+                    "tags": {
+                        "type": "object",
+                        "description": "General purpose Key/Value pairs for categorization.",
+                        "patternProperties": {
+                            "^[A-Za-z0-9_]*$": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "effect": {
+                        "type": "string",
+                        "enum": [
+                            "allow",
+                            "deny"
+                        ],
+                        "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                    },
+                    "actions": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                            "title": "Resource Action",
+                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_.:-]*$",
+                            "minLength": 1,
+                            "maxLength": 512
+                        },
+                        "description": "List of actions this grant applies to or null to match any resource action."
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                    },
+                    "evaluation_handler": {
+                        "title": "Grant-Level Evaluation Handler Setting",
+                        "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                        "type": "string",
+                        "enum": [
+                            "evaluate",
+                            "error",
+                            "critical"
+                        ]
+                    },
+                    "equality": {
+                        "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                    }
+                }
+
+            }
+        },
+        "results": {
+            "type": "array",
+            "description": "List of grant evaluation results for each respective grant index.",
+            "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                    "is_applicable",
+                    "query_result",
+                    "errors"
+                ],
+                "properties": {
+                    "is_applicable": {
+                        "type": "boolean",
+                        "description": "If the grant is applicable to the request or not."
+                    },
+                    "query_result": {
+                        "description": "Result from running the JSON query."
+                    },
+                    "errors": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Operation Result Errors",
+                        "description": "Errors returned from Authzee Operations.",
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [],
+                        "properties": {
+                            "query": {
+                                "type": "array",
+                                "items": {
+                                    "title": "Query Error",
+                                    "description": "Error when a JSON query fails.",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "required": [
+                                        "is_critical",
+                                        "message"
+                                    ],
+                                    "properties": {
+                                        "is_critical": {
+                                            "type": "boolean",
+                                            "description": "If this error is critical. Critical errors generally halt further operations."
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Detailed message about what caused the error."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "next_page_ref": {
+            "type": "string", 
+            "description": "Used to retrieve the next page of audit results",
+            "contentEncoding": "base64"
+
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the request has failed from a critical error or not."
+        },
+        "errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Operation Result Errors",
+            "description": "Errors returned from Authzee Operations. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error",
+            "type": "object",
+            "additionalProperties": true,
+            "required": [],
+            "properties": {
+                "query": {
+                    "type": "array",
+                    "items": {
+                        "title": "Query Error",
+                        "description": "Error when a JSON query fails.",
+                        "type": "object",
+                        "additionalProperties": true,
+                        "required": [
+                            "is_critical",
+                            "message"
+                        ],
+                        "properties": {
+                            "is_critical": {
+                                "type": "boolean",
+                                "description": "If this error is critical. Critical errors generally halt further operations."
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Detailed message about what caused the error."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
 
 
 ### AuthorizeResult
 
-The [Authorize Workflow Results](./specification.md#authorize-workflow-response), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource definitions.
+The standard [Authorize operation Results](./specification.md#authorize) are returned with updated fields for grants.
+
+The `has_failed` field is a required boolean on every AuthorizeResult. When `has_failed` is `true`, `is_authorized` is always `false` and `message` indicates a critical error has occurred. This can happen when a grant's `evaluation_handler` is set to `"critical"` and the query fails, or when an internal SDK error prevents the operation from completing.
+
+
+#### AuthorizeResult Example (Successful Authorization)
+
+```json
+{
+    "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
+    "name": "My grant name",
+    "description": "Longer description here to explain what the grant is for.",
+    "tags": {
+        "some_key": "some_val"
+    },
+    "is_authorized": true,
+    "grant": {
+        "effect": "allow",
+        "actions": [
+            "Balloon:Read",
+            "pop"
+        ],
+        "query": "contains(request.identities.User[0].role, 'admin')",
+        "evaluation_handler": "evaluate",
+        "equality": true,
+        "data": {}
+    },
+    "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+    "has_failed": false,
+    "critical_errors": {}
+}
+```
+
+#### AuthorizeResult Example (Critical Error)
+
+When a critical error occurs during authorization, `has_failed` is `true` and `is_authorized` is always `false`.
+
+```json
+{
+    "is_authorized": false,
+    "grant": null,
+    "message": "A critical error has occurred. Therefore, the request is not authorized.",
+    "has_failed": true,
+    "critical_errors": {
+        "query": [
+            {
+                "is_critical": true,
+                "message": "Query evaluation failed: invalid JMESPath expression in grant 6ce44005-8735-45ac-ae76-38e22e66f615"
+            }
+        ]
+    }
+}
+```
+
+#### Authorize Result Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Authorize Result",
+    "description": "Result for the authorize operation.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "is_authorized",
+        "grant",
+        "message",
+        "has_failed",
+        "critical_errors"
+    ],
+    "properties": {
+        "is_authorized": {
+            "type": "boolean",
+            "description": "true if the request is authorized.  false if it is not authorized."
+        },
+        "grant": {
+            "description": "Grant that was responsible for the authorization decision, if applicable.",
+            "anyOf": [
+                {
+                    "type": "null",
+                    "description": "No grant was involved in the authorization decision."
+                },
+                {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "title": "Grant",
+                    "description": "A grant is an object representing enacted authorization rules.",
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                        "grant_uuid",
+                        "name",
+                        "description",
+                        "tags",
+                        "effect",
+                        "actions",
+                        "data",
+                        "query",
+                        "evaluation_handler",
+                        "equality"
+                    ],
+                    "properties": {
+                        "grant_uuid": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Short name for the grant"
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Longer description for the grant "
+                        },
+                        "tags": {
+                            "type": "object",
+                            "description": "General purpose Key/Value pairs for categorization.",
+                            "patternProperties": {
+                                "^[A-Za-z0-9_]*$": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "effect": {
+                            "type": "string",
+                            "enum": [
+                                "allow",
+                                "deny"
+                            ],
+                            "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                        },
+                        "actions": {
+                            "type": "array",
+                            "uniqueItems": true,
+                            "items": {
+                                "title": "Resource Action",
+                                "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_.:-]*$",
+                                "minLength": 1,
+                                "maxLength": 512
+                            },
+                            "description": "List of actions this grant applies to or null to match any resource action."
+                        },
+                        "data": {
+                            "type": "object",
+                            "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                        },
+                        "evaluation_handler": {
+                            "title": "Grant-Level Evaluation Handler Setting",
+                            "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                            "type": "string",
+                            "enum": [
+                                "evaluate",
+                                "error",
+                                "critical"
+                            ]
+                        },
+                        "equality": {
+                            "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                        }
+                    }
+                }
+            ]
+        },
+        "message": {
+            "type": "string",
+            "description": "Details about why the request was authorized or not.",
+            "enum": [
+                "A critical error has occurred. Therefore, the request is not authorized.",
+                "A deny grant is applicable to the request. Therefore, the request is not authorized.",
+                "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+                "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
+            ]
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the request has failed from a critical error or not."
+        },
+        "critical_errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Operation Result Errors",
+            "description": "Errors returned from Authzee Operations. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error",
+            "type": "object",
+            "additionalProperties": true,
+            "required": [],
+            "properties": {
+                "query": {
+                    "type": "array",
+                    "items": {
+                        "title": "Query Error",
+                        "description": "Error when a JSON query fails.",
+                        "type": "object",
+                        "additionalProperties": true,
+                        "required": [
+                            "is_critical",
+                            "message"
+                        ],
+                        "properties": {
+                            "is_critical": {
+                                "type": "boolean",
+                                "description": "If this error is critical. Critical errors generally halt further operations."
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Detailed message about what caused the error."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+### AuthzeeBatchRequest
+
+The standard "Batch Request" object used to initiate an Authzee operation. Should match the [Authzee Request Specification](./specification.md#requests).
+
+
+### BatchAuditResultPage
+
+A page of Audit operation results.  Conforms to the [Audit operation Results](./specification.md#audit-operation-result), where some fields are updated depending on the identity and resource defs. It will also have a `next_page_ref` field for pagination. 
+
+#### BatchAuditResultPage Example
+
+
+```json
+{
+    "grants": [
+        {
+            "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
+            "name": "My grant name",
+            "description": "Longer description here to explain what the grant is for.",
+            "tags": {
+                "some_key": "some_val"
+            },
+            "effect": "allow",
+            "actions": [
+                "inflate"
+            ],
+            "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+            "evaluation_handler": "error",
+            "equality": true,
+            "data": {}
+        }
+    ],
+    "batch_results": [
+        {
+            "results": [
+                {
+                    "is_applicable": true,
+                    "query_result": true,
+                    "errors": {}
+                }
+            ],
+            "has_failed": false,
+            "errors": {}
+        }
+    ],
+    "next_page_ref": "def456", 
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+#### BatchAuditResultPage Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch Audit Result Page",
+    "description": "Page of results for the Batch Audit Operation.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "grants",
+        "batch_results",
+        "next_page_ref",
+        "has_failed",
+        "errors"
+    ],
+    "properties": {
+        "grants": {
+            "type": "array",
+            "description": "List of grants that have been processed for the request.",
+            "items": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "Grant",
+                "description": "A grant is an object representing enacted authorization rules.",
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                    "grant_uuid",
+                    "name",
+                    "description",
+                    "tags",
+                    "effect",
+                    "actions",
+                    "data",
+                    "query",
+                    "evaluation_handler",
+                    "equality"
+                ],
+                "properties": {
+                    "grant_uuid": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Short name for the grant"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Longer description for the grant "
+                    },
+                    "tags": {
+                        "type": "object",
+                        "description": "General purpose Key/Value pairs for categorization.",
+                        "patternProperties": {
+                            "^[A-Za-z0-9_]*$": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "effect": {
+                        "type": "string",
+                        "enum": [
+                            "allow",
+                            "deny"
+                        ],
+                        "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                    },
+                    "actions": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                            "title": "Resource Action",
+                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_.:-]*$",
+                            "minLength": 1,
+                            "maxLength": 512
+                        },
+                        "description": "List of actions this grant applies to or null to match any resource action."
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                    },
+                    "evaluation_handler": {
+                        "title": "Grant-Level Evaluation Handler Setting",
+                        "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                        "type": "string",
+                        "enum": [
+                            "evaluate",
+                            "error",
+                            "critical"
+                        ]
+                    },
+                    "equality": {
+                        "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                    }
+                }
+            }
+        },
+        "batch_results": {
+            "type": "array",
+            "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
+            "items": {
+                "type": "object",
+                "description": "Audit batch item result.",
+                "additionalProperties": true,
+                "required": [
+                    "results",
+                    "has_failed",
+                    "errors"
+                ],
+                "properties": {
+                    "results": {
+                        "type": "array",
+                        "description": "List of grant evaluation results for each respective grant index.",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "required": [
+                                "is_applicable",
+                                "query_result",
+                                "errors"
+                            ],
+                            "properties": {
+                                "is_applicable": {
+                                    "type": "boolean",
+                                    "description": "If the grant is applicable to the request or not."
+                                },
+                                "query_result": {
+                                    "description": "Result from running the JSON query."
+                                },
+                                "errors": {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "title": "Operation Result Errors",
+                                    "description": "Errors returned from Authzee Operations.",
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [],
+                                    "properties": {
+                                        "query": {
+                                            "type": "array",
+                                            "items": {
+                                                "title": "Query Error",
+                                                "description": "Error when a JSON query fails.",
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "required": [
+                                                    "is_critical",
+                                                    "message"
+                                                ],
+                                                "properties": {
+                                                    "is_critical": {
+                                                        "type": "boolean",
+                                                        "description": "If this error is critical. Critical errors generally halt further operations."
+                                                    },
+                                                    "message": {
+                                                        "type": "string",
+                                                        "description": "Detailed message about what caused the error."
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "has_failed": {
+                        "type": "boolean",
+                        "description": "If the request has failed from a critical error or not."
+                    },
+                    "errors": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Operation Result Errors",
+                        "description": "Errors returned from Authzee Operations. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error",
+                        "type": "object",
+                        "additionalProperties": true,
+                        "required": [],
+                        "properties": {
+                            "query": {
+                                "type": "array",
+                                "items": {
+                                    "title": "Query Error",
+                                    "description": "Error when a JSON query fails.",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "required": [
+                                        "is_critical",
+                                        "message"
+                                    ],
+                                    "properties": {
+                                        "is_critical": {
+                                            "type": "boolean",
+                                            "description": "If this error is critical. Critical errors generally halt further operations."
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Detailed message about what caused the error."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the batch request could not be validated and failed or not. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error"
+        },
+        "errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Batch Result Errors",
+            "description": "Errors returned from Authzee Batch requests.",
+            "type": "object",
+            "additionalProperties": true,
+            "required": [],
+            "properties": {}
+        }
+    }
+}
+```
+
+### BatchAuthorizeResult
+
+The [Authorize operation Results](./specification.md#authorize-operation-result), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource defs.
+
+The `has_failed` field appears at two levels in a BatchAuthorizeResult:
+
+- **Top-level `has_failed`**: Indicates the batch request itself failed validation (e.g., the batch request object was invalid). When `true`, the `batch_results` array may be empty or incomplete.
+- **Per-item `has_failed`**: Each AuthorizeResult within `batch_results` has its own `has_failed` field. When `true` on a per-item result, that individual authorization encountered a critical error, `is_authorized` is `false`, and `message` indicates the error.
+
+#### BatchAuthorizeResult Example (Successful Batch)
+
+
+```json
+{
+    "batch_results": [
+        {
+            "is_authorized": true,
+            "grant": {
+                "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
+                "name": "My grant name",
+                "description": "Longer description here to explain what the grant is for.",
+                "tags": {
+                    "some_key": "some_val"
+                },
+                "effect": "allow",
+                "actions": [
+                    "Balloon:Read",
+                    "pop"
+                ],
+                "query": "contains(request.identities.User[0].role, 'admin')",
+                "evaluation_handler": "evaluate",
+                "equality": true,
+                "data": {}
+            },
+            "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+            "has_failed": false,
+            "critical_errors": {}
+        },
+        {
+            "is_authorized": false,
+            "grant": null,
+            "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
+            "has_failed": false,
+            "critical_errors": {}
+        }
+    ],
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+#### BatchAuthorizeResult Example (Per-Item Critical Error)
+
+In this example, the batch itself succeeded but one item in the batch encountered a critical error.
+
+```json
+{
+    "batch_results": [
+        {
+            "is_authorized": true,
+            "grant": {
+                "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
+                "name": "My grant name",
+                "description": "Longer description here to explain what the grant is for.",
+                "tags": {
+                    "some_key": "some_val"
+                },
+                "effect": "allow",
+                "actions": [
+                    "Balloon:Read",
+                    "pop"
+                ],
+                "query": "contains(request.identities.User[0].role, 'admin')",
+                "evaluation_handler": "evaluate",
+                "equality": true,
+                "data": {}
+            },
+            "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+            "has_failed": false,
+            "critical_errors": {}
+        },
+        {
+            "is_authorized": false,
+            "grant": null,
+            "message": "A critical error has occurred. Therefore, the request is not authorized.",
+            "has_failed": true,
+            "critical_errors": {
+                "query": [
+                    {
+                        "is_critical": true,
+                        "message": "Query evaluation failed: invalid JMESPath expression in grant a1b2c3d4-5678-9012-abcd-ef0123456789"
+                    }
+                ]
+            }
+        }
+    ],
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+#### BatchAuthorizeResult Example (Batch Validation Failure)
+
+When the batch request itself fails validation, the top-level `has_failed` is `true`.
+
+```json
+{
+    "batch_results": [],
+    "has_failed": true,
+    "errors": {
+        "request": [
+            {
+                "is_critical": true,
+                "message": "Batch request validation failed: identity type 'InvalidUser' does not match any registered identity definition."
+            }
+        ]
+    }
+}
+```
+
+
+#### BatchAuthorizeResult Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch Authorize Result",
+    "description": "Result for the Batch Authorize Operation.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "batch_results",
+        "has_failed",
+        "errors"
+    ],
+    "properties": {
+        "batch_results": {
+            "type": "array",
+            "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
+            "items": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "Authorize Result",
+                "description": "Result for the authorize operation.",
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                    "is_authorized",
+                    "grant",
+                    "message",
+                    "has_failed",
+                    "critical_errors"
+                ],
+                "properties": {
+                    "is_authorized": {
+                        "type": "boolean",
+                        "description": "true if the request is authorized.  false if it is not authorized."
+                    },
+                    "grant": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Grant",
+                        "description": "A grant is an object representing enacted authorization rules.",
+                        "type": "object",
+                        "additionalProperties": true,
+                        "required": [
+                            "grant_uuid",
+                            "name",
+                            "description",
+                            "tags",
+                            "effect",
+                            "actions",
+                            "data",
+                            "query",
+                            "evaluation_handler",
+                            "equality"
+                        ],
+                        "properties": {
+                            "grant_uuid": {
+                                "type": "string",
+                                "format": "uuid"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Short name for the grant"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Longer description for the grant "
+                            },
+                            "tags": {
+                                "type": "object",
+                                "description": "General purpose Key/Value pairs for categorization.",
+                                "patternProperties": {
+                                    "^[A-Za-z0-9_]*$": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "effect": {
+                                "type": "string",
+                                "enum": [
+                                    "allow",
+                                    "deny"
+                                ],
+                                "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                            },
+                            "actions": {
+                                "type": "array",
+                                "uniqueItems": true,
+                                "items": {
+                                    "title": "Resource Action",
+                                    "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z0-9_.:-]*$",
+                                    "minLength": 1,
+                                    "maxLength": 512
+                                },
+                                "description": "List of actions this grant applies to or null to match any resource action."
+                            },
+                            "data": {
+                                "type": "object",
+                                "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                            },
+                            "query": {
+                                "type": "string",
+                                "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                            },
+                            "evaluation_handler": {
+                                "title": "Grant-Level Evaluation Handler Setting",
+                                "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                                "type": "string",
+                                "enum": [
+                                    "evaluate",
+                                    "error",
+                                    "critical"
+                                ]
+                            },
+                            "equality": {
+                                "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                            }
+                        }
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Details about why the request was authorized or not.",
+                        "enum": [
+                            "A critical error has occurred. Therefore, the request is not authorized.",
+                            "A deny grant is applicable to the request. Therefore, the request is not authorized.",
+                            "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+                            "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
+                        ]
+                    },
+                    "has_failed": {
+                        "type": "boolean",
+                        "description": "If the request has failed from a critical error or not. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error"
+                    },
+                    "critical_errors": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Operation Result Errors",
+                        "description": "Errors returned from Authzee Operations.",
+                        "type": "object",
+                        "additionalProperties": true,
+                        "required": [],
+                        "properties": {
+                            "query": {
+                                "type": "array",
+                                "items": {
+                                    "title": "Query Error",
+                                    "description": "Error when a JSON query fails.",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "required": [
+                                        "is_critical",
+                                        "message"
+                                    ],
+                                    "properties": {
+                                        "is_critical": {
+                                            "type": "boolean",
+                                            "description": "If this error is critical. Critical errors generally halt further operations."
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Detailed message about what caused the error."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the batch request could not be validated and failed or not. "
+        },
+        "errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Batch Result Errors",
+            "description": "Errors returned from Authzee Batch requests. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error",
+            "type": "object",
+            "additionalProperties": true,
+            "required": [],
+            "properties": {}
+        }
+    }
+}
+```
+
+
+## SDK Full Example
+
+This comprehensive example demonstrates the full lifecycle of using the Authzee SDK with the new API.
+
+```python
+
+from authzee import Authzee, InProcessCompute, InProcessStorage, jmespath_execute, paginator
+
+# Create an Authzee instance with the config param
+storage = {}
+authz = Authzee(
+    execute=jmespath_execute,
+    compute_type=InProcessCompute,
+    compute_kwargs={},
+    storage_type=InProcessStorage,
+    storage_kwargs={
+        "storage_ptr": storage
+    },
+    config={
+        "authzee": {
+            "raise_crits": True
+        },
+        "list_grants": {
+            "page_size": 50
+        }
+    }
+)
+
+# One time creation and setup of resources
+authz.construct()
+
+# Initialization and creation of runtime resources
+authz.start()
+
+# --- Define context, identity, and resource ---
+
+context_def = {
+    "context_type": "Team",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "Team"
+        ],
+        "properties": {
+            "Team": {
+                "type": "string"
+            }
+        }
+    }
+}
+authz.put_context_def(context_def)
+
+identity_def = {
+    "identity_type": "User",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "username",
+            "email",
+            "department"
+        ],
+        "properties": {
+            "username": {
+                "type": "string"
+            },
+            "email": {
+                "type": "string"
+            },
+            "department": {
+                "type": "string"
+            }
+        }
+    }
+}
+authz.put_identity_def(identity_def)
+
+resource_def = {
+    "resource_type": "Balloon",
+    "actions": [
+        "Balloon:Inflate",
+        "Balloon:Deflate",
+        "Balloon:ListBalloons"
+    ],
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "color",
+            "size",
+            "psi",
+            "is_inflated"
+        ],
+        "properties": {
+            "color": {
+                "type": "string",
+                "enum": [
+                    "green",
+                    "purple"
+                ]
+            },
+            "size": {
+                "type": "number",
+                "minimum": 0
+            },
+            "psi": {
+                "type": "number",
+                "minimum": 0
+            },
+            "is_inflated": {
+                "type": "boolean"
+            }
+        }
+    }
+}
+authz.put_resource_def(resource_def)
+
+# --- Validate definitions ---
+
+context_val_result = authz.validate_context_def(context_def)
+print(context_val_result)
+# {"has_failed": False, "errors": {}}
+
+identity_val_result = authz.validate_identity_def(identity_def)
+print(identity_val_result)
+# {"has_failed": False, "errors": {}}
+
+resource_val_result = authz.validate_resource_def(resource_def)
+print(resource_val_result)
+# {"has_failed": False, "errors": {}}
+
+# --- Enact a grant ---
+
+grant = authz.enact(
+    {
+        "name": "Balloon Sales Inflate",
+        "description": "Allow people in the Balloon Sales department to inflate balloons.",
+        "tags": {
+            "department": "sales"
+        },
+        "effect": "allow",
+        "actions": [
+            "Balloon:Inflate"
+        ],
+        "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+        "evaluation_handler": "evaluate",
+        "equality": True,
+        "data": {
+            "allowed_departments": [
+                "Maintenance",
+                "Balloon Sales"
+            ]
+        }
+    }
+)
+
+# --- Validate a grant ---
+
+grant_val_result = authz.validate_grant(grant)
+print(grant_val_result)
+# {"has_failed": False, "errors": {}}
+
+# --- List definitions using paginator ---
+
+for page in paginator(authz.list_context_defs):
+    print(page)
+    # {
+    #     "context_defs": [...],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+for page in paginator(authz.list_identity_defs):
+    print(page)
+    # {
+    #     "identity_defs": [...],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+for page in paginator(authz.list_resource_defs):
+    print(page)
+    # {
+    #     "resource_defs": [...],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+# --- List grants with effect/action filters using paginator ---
+
+for page in paginator(
+    authz.list_grants,
+    effect="allow",
+    action="Balloon:Inflate"
+):
+    print(page)
+    # {
+    #     "grants": [...],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+# --- Get a specific definition by type ---
+
+context_def_result = authz.get_context_def("Team")
+print(context_def_result)
+# {
+#     "context_def": {
+#         "context_type": "Team",
+#         "schema": {...}
+#     },
+#     "has_failed": False,
+#     "errors": {}
+# }
+
+# --- Validate and authorize a request ---
+
+request = {
+    "identities": {
+        "User": [
+            {
+                "username": "tester",
+                "email": "tester@example.com",
+                "department": "Balloon Sales"
+            }
+        ]
+    },
+    "action": "Balloon:Inflate",
+    "resource_type": "Balloon",
+    "resource": {
+        "color": "green",
+        "size": 2.7,
+        "psi": 7.2,
+        "is_inflated": True
+    },
+    "context_type": "Team",
+    "context": {
+        "Team": "My Team"
+    },
+    "evaluation_handler": "grant"
+}
+
+validate_result = authz.validate_request(request)
+print(validate_result)
+# {"has_failed": False, "errors": {}}
+
+authorize_result = authz.authorize(request)
+print(authorize_result)
+# {
+#     "is_authorized": True,
+#     "grant": {
+#         "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
+#         "name": "Balloon Sales Inflate",
+#         "description": "Allow people in the Balloon Sales department to inflate balloons.",
+#         "effect": "allow",
+#         "actions": [
+#             "Balloon:Inflate"
+#         ],
+#         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+#         "evaluation_handler": "evaluate",
+#         "equality": True,
+#         "data": {
+#             "allowed_departments": [
+#                 "Maintenance",
+#                 "Balloon Sales"
+#             ]
+#         }
+#     },
+#     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#     "has_failed": False,
+#     "critical_errors": {}
+# }
+
+# --- Audit with effect/action filters ---
+
+for page in paginator(
+    authz.audit,
+    request=request,
+    effect="allow",
+    action="Balloon:Inflate"
+):
+    print(page)
+    # {
+    #     "results": [
+    #         {
+    #             "is_applicable": True,
+    #             "query_result": True,
+    #             "grant": {...},
+    #             "errors": {}
+    #         }
+    #     ],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+# --- Batch authorize ---
+
+batch_request = {
+    "identities": {
+        "User": [
+            {
+                "username": "tester",
+                "email": "tester@example.com",
+                "department": "Balloon Sales"
+            }
+        ]
+    },
+    "action": "Balloon:Inflate",
+    "resource_type": "Balloon",
+    "resource": {
+        "color": "green",
+        "size": 2.7,
+        "psi": 7.2,
+        "is_inflated": True
+    },
+    "context_type": "Team",
+    "context": {
+        "Team": "My Team"
+    },
+    "evaluation_handler": "grant",
+    "batch": [
+        {},
+        {
+            "identities": {
+                "User": [
+                    {
+                        "username": "tester2",
+                        "email": "tester2@example.com",
+                        "department": "Balloon Popper"
+                    }
+                ]
+            }
+        }
+    ]
+}
+
+batch_authorize_result = authz.batch_authorize(batch_request)
+print(batch_authorize_result)
+# {
+#     "batch_results": [
+#         {
+#             "is_authorized": True,
+#             "grant": {
+#                 "grant_uuid": "8df01e31-819e-45e4-a06b-95d25b89e927",
+#                 "name": "Balloon Sales Inflate",
+#                 "description": "Allow people in the Balloon Sales department to inflate balloons.",
+#                 "effect": "allow",
+#                 "actions": [
+#                     "Balloon:Inflate"
+#                 ],
+#                 "query": "...",
+#                 "evaluation_handler": "evaluate",
+#                 "equality": True,
+#                 "data": {
+#                     "allowed_departments": [
+#                         "Maintenance",
+#                         "Balloon Sales"
+#                     ]
+#                 }
+#             },
+#             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+#             "has_failed": False,
+#             "critical_errors": {}
+#         },
+#         {
+#             "is_authorized": False,
+#             "grant": None,
+#             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
+#             "has_failed": False,
+#             "critical_errors": {}
+#         }
+#     ],
+#     "has_failed": False,
+#     "errors": {}
+# }
+
+# --- Batch audit with effect/action filters ---
+
+for page in paginator(
+    authz.batch_audit,
+    batch_request=batch_request,
+    effect="allow",
+    action="Balloon:Inflate"
+):
+    print(page)
+    # {
+    #     "results": [
+    #         {
+    #             "grant": {...},
+    #             "batch_results": [
+    #                 {
+    #                     "is_applicable": True,
+    #                     "query_result": True,
+    #                     "errors": {}
+    #                 },
+    #                 {
+    #                     "is_applicable": False,
+    #                     "query_result": False,
+    #                     "errors": {}
+    #                 }
+    #             ]
+    #         }
+    #     ],
+    #     "has_failed": False,
+    #     "errors": {},
+    #     "next_page_ref": None
+    # }
+
+# --- Shutdown ---
+
+authz.shutdown()
+```
 
 
 ## Standard JMESPath Extensions
 
-JMESPath libraries offer the ability extend functionality by making new functions available in JMESPath queries. 
-Authzee purposely takes a JMESPath search function as an argument so that custom functions can be used. Authzee SDKs should also offer a set of JMESPath functions out of the box the are helpful to Authzee grant queries.
+JMESPath is also the preferred JSON query language for Authzee as it has a specification and JMESPath SDKs generally offer the ability extend functionality by making new functions available in JMESPath queries. 
+Because of this, Authzee SDKs should also offer a set of out of the box JMESPath functions the are helpful to Authzee grant queries.
 
 - [INNER JOIN](#inner-join) - Join 2 arrays in a fashion similar to an SQL INNER JOIN. 
+- [LEFT JOIN](#left-join) - Join 2 arrays in a fashion similar to an SQL LEFT JOIN.
+- [OUTER JOIN](#outer-join) - Join 2 arrays in a fashion similar to an SQL OUTER JOIN.
+- [Is Identity Present](#is-identity-present) - Check if the given identity type is in the request and at least one instance was given.
 - [regex Find](#regex-find) - Run a regex pattern on a string or array of strings to find the first match.
 - [regex Find All](#regex-find-all) - Run a regex pattern on a string or array of strings to find all matches.
 - [regex Groups](#regex-groups) - Run a regex pattern on a string or array of strings to find the first match, and extract the groups.
 - [regex Groups All](#regex-groups-all) - Run a regex pattern on a string or array of strings to find all matches, and extract the groups.
+- [String Lower](#string-lower) - Convert string to lower case.
+- [String Upper](#string-upper) - Convert string to upper case.
 
 
 The sections are given in the same format as the [JMESPath Built-in Function Specification](https://jmespath.org/specification.html#built-in-functions)
@@ -644,6 +3724,10 @@ Examples:
         {
             "r_field": "hello",
             "r_other_field": "other other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
         }
     ]`,
     lhs.l_field == rhs.r_field
@@ -659,6 +3743,16 @@ Examples:
         "rhs": {
             "r_field": "hello",
             "r_other_field": "other other thing"
+        }
+    },
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
         }
     }
 ]           </code></pre>
@@ -683,7 +3777,7 @@ Examples:
 ) </code></pre>
         </td>
         <td>
-            <code>[]</code>
+            <pre><code>[]</code></pre>
         </td>
     </tr>
 </table>
@@ -700,7 +3794,7 @@ def inner_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]
     result = []
     for l in lhs:
         for r in rhs:
-            if jmespath.search( # Should use passed in jmespath search function.
+            if jmespath.search( # Should use jmespath search function set in Authzee.
                 expr,
                 {
                     "lhs": l,
@@ -716,6 +3810,372 @@ def inner_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]
     
     return result
 
+```
+
+
+### LEFT JOIN
+
+`array[object] left_join(array[any] $lhs, array[any] $rhs, expression->boolean expr)`
+
+Modeled after SQL LEFT JOIN functionality.  Takes 2 arrays and an expression and returns all combinations of elements from the arrays where the expression evaluates to `true`. If an element from the left hand side does match any elements from the right hand side, then the left hand side element is returned with null for the right hand side. 
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        }
+    },
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
+        }
+    }
+]           </code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": null
+    }
+]           </code></pre>
+        </td>
+    </tr>
+</table>
+
+Simple python function example:
+
+```python
+from typing import Any, Dict, List
+
+import jmespath
+
+
+def left_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]]:
+    result = []
+    for l in lhs:
+        lhs_match = False
+        for r in rhs:
+            if jmespath.search( # Should use jmespath search function set in Authzee.
+                expr,
+                {
+                    "lhs": l,
+                    "rhs": r
+                }
+            ) is True:
+                lhs_match = True
+                result.append(
+                    {
+                        "lhs": l,
+                        "rhs": r
+                    }
+                )
+        
+        if lhs_match is False:
+            result.append(
+                {
+                    "lhs": l,
+                    "rhs": None
+                }
+            )
+    
+    return result
+```
+
+
+### OUTER JOIN
+
+`array[object] outer_join(array[any] $lhs, array[any] $rhs, expression->boolean expr)`
+
+Modeled after SQL FULL OUTER JOIN functionality.  Takes 2 arrays and an expression and returns all combinations of elements from the arrays where the expression evaluates to `true`. If an element from the left hand side does match any elements from the right hand side, then the left hand side element is returned with null for the right hand side. If an element from the right hand side does match any elements from the left hand side, then the right hand side element is returned with null for the left hand side. 
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        },
+        {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other thing"
+        }
+    },
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": {
+            "r_field": "hello",
+            "r_other_field": "other other other thing"
+        }
+    },
+    {
+        "lhs": null,
+        "rhs": {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    }
+]           </code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>inner_join(
+    `[
+        {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        {
+            "l_field": "goodbye",
+            "other_field": "another thing"
+        },
+        {
+            "l_field": "goodbye",
+            "other_field": "another another thing"
+        }
+    ]`,
+    `[
+        {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    ]`,
+    lhs.l_field == rhs.r_field
+) </code></pre>
+        </td>
+        <td>
+            <pre><code>[
+    {
+        "lhs": {
+            "l_field": "hello",
+            "other_field": "thing"
+        },
+        "rhs": null
+    },
+    {
+        "lhs": {
+            "l_field": "goodbye",
+            "other_field": "another thing"
+        },
+        "rhs": {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    },
+    {
+        "lhs": {
+            "l_field": "goodbye",
+            "other_field": "another another thing"
+        },
+        "rhs": {
+            "r_field": "goodbye",
+            "r_other_field": "other thing"
+        }
+    }
+]           </code></pre>
+        </td>
+    </tr>
+</table>
+
+Simple python function example:
+
+```python
+from typing import Any, Dict, List
+
+import jmespath
+
+
+def outer_join(lhs: List[Any], rhs: List[Any], expr: str) -> List[Dict[str, Any]]:
+    result = []
+    unmatched_rhs = set(rhs)
+    for l in lhs:
+        lhs_match = False
+        for r in rhs:
+            if jmespath.search( # Should use jmespath search function set in Authzee.
+                expr,
+                {
+                    "lhs": l,
+                    "rhs": r
+                }
+            ) is True:
+                unmatched_rhs.discard(r)
+                lhs_match = True
+                result.append(
+                    {
+                        "lhs": l,
+                        "rhs": r
+                    }
+                )
+        
+        if lhs_match is False:
+            result.append(
+                {
+                    "lhs": l,
+                    "rhs": None
+                }
+            )
+    
+    for r in unmatched_rhs:
+        result.append(
+            {
+                "lhs": None,
+                "rhs": r
+            }
+        )
+    
+    return result
+```
+
+### Is Identity Present
+
+`boolean is_identity_present(string $itype, object $request)`
+
+Return true if the given identity type exists in the request and it has one or more instances present, or else return false.
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>is_identity_present("ADGroup", `{"identities": {"ADUser": []}}`)</code></pre>
+        </td>
+        <td>
+           <pre><code>false</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>is_identity_present("ADGroup", `{"identities": {"ADGroup": []}}`)</code></pre>
+        </td>
+        <td>
+            <pre><code>false</code></pre>
+        </td>
+    </tr>
+     <tr>
+        <td>
+           <pre><code>is_identity_present("ADGroup", `{"identities": {"ADGroup": [{"name": "thing"}]}}`)</code></pre>
+        </td>
+        <td>
+            <pre><code>true</code></pre>
+        </td>
+    </tr>
+</table>
+
+Simple Python Example:
+
+```python
+def is_identity_present(itype: str, request: dict) -> bool:
+    if itype in request['identities'] and len(request['identities'][itype]) > 0:
+        return True
+    
+    return False
 ```
 
 
@@ -738,34 +4198,34 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find('pattern.*', 'some string here')</code>
+           <pre><code>regex_find('pattern.*', 'some string here')</code></pre>
         </td>
         <td>
-            <code>null</code>
-        </td>
-    </tr>
-    <tr>
-        <td>
-           <code>regex_find('string.+', 'some string here')</code>
-        </td>
-        <td>
-            <code>"string here"</code>
+            <pre><code>null</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_find('string.+', `["something", "here"]`)</code>
+           <pre><code>regex_find('string.+', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[null, null]</code>
+            <pre><code>"string here"</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_find('string.+', `["something", "a string now", "here"]`)</code>
+           <pre><code>regex_find('string.+', `["something", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[null, "string now", null]</code>
+            <pre><code>[null, null]</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>regex_find('string.+', `["something", "a string now", "here"]`)</code></pre>
+        </td>
+        <td>
+            <pre><code>[null, "string now", null]</code></pre>
         </td>
     </tr>
 </table>
@@ -816,26 +4276,26 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_find_all('pattern', 'some string here')</code>
+           <pre><code>regex_find_all('pattern', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[]</code>
-        </td>
-    </tr>
-    <tr>
-        <td>
-           <code>regex_find_all('string[0-9]', 'some string3 here string4')</code>
-        </td>
-        <td>
-            <code>["string3", "string4"]</code>
+            <pre><code>[]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_find_all('string.+', `["something", "here"]`)</code>
+           <pre><code>regex_find_all('string[0-9]', 'some string3 here string4')</code></pre>
         </td>
         <td>
-            <code>[[], []]</code>
+            <pre><code>["string3", "string4"]</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+           <pre><code>regex_find_all('string.+', `["something", "here"]`)</code></pre>
+        </td>
+        <td>
+            <pre><code>[[], []]</code></pre>
         </td>
     </tr>
     <tr>
@@ -905,18 +4365,18 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_groups('pattern.*', 'some string here')</code>
+           <pre><code>regex_groups('pattern.*', 'some string here')</code></pre>
         </td>
         <td>
-            <code>null</code>
+            <pre><code>null</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups('string.+', 'some string here')</code>
+           <pre><code>regex_groups('string.+', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[]</code>
+           <pre><code>[]</code></pre>
         </td>
     </tr>
     <tr>
@@ -927,23 +4387,23 @@ Examples:
 )</code></pre>
         </td>
         <td>
-            <code>[null, "my_group9"]</code>
+            <pre><code>[null, "my_group9"]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups('string.+', `["something", "here"]`)</code>
+           <pre><code>regex_groups('string.+', `["something", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[null, null]</code>
+            <pre><code>[null, null]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups('string.+', `["something", "a string now", "here"]`)</code>
+           <pre><code>regex_groups('string.+', `["something", "a string now", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[null, [], null]</code>
+            <pre><code>[null, [], null]</code></pre>
         </td>
     </tr>
     <tr>
@@ -958,7 +4418,7 @@ Examples:
 )</code></pre>
         </td>
         <td>
-            <code>[null, [null, "my_group9"], null]</code>
+            <pre><code>[null, [null, "my_group9"], null]</code></pre>
         </td>
     </tr>
 </table>
@@ -1026,18 +4486,18 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_groups_all('pattern.*', 'some string here')</code>
+           <pre><code>regex_groups_all('pattern.*', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[]</code>
+            <pre><code>[]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups_all('string.+', 'some string here')</code>
+           <pre><code>regex_groups_all('string.+', 'some string here')</code></pre>
         </td>
         <td>
-            <code>[[]]</code>
+            <pre><code>[[]]</code></pre>
         </td>
     </tr>
     <tr>
@@ -1045,7 +4505,7 @@ Examples:
            <pre><code>regex_groups_all(
     'string (my_group[0-4])|string (my_other_group[5-9])', 
     'a string my_other_group9 another string my_group2'
-)</pre></code>
+)</code></pre>
         </td>
         <td>
             <pre><code>[
@@ -1062,18 +4522,18 @@ Examples:
     </tr>
     <tr>
         <td>
-           <code>regex_groups_all('string.+', `["something", "here"]`)</code>
+           <pre><code>regex_groups_all('string.+', `["something", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[[], []]</code>
+           <pre> <code>[[], []]</code></pre>
         </td>
     </tr>
     <tr>
         <td>
-           <code>regex_groups_all('string.+', `["something", "a string now", "here"]`)</code>
+           <pre><code>regex_groups_all('string.+', `["something", "a string now", "here"]`)</code></pre>
         </td>
         <td>
-            <code>[[], [[]], []]</code>
+            <pre><code>[[], [[]], []]</code></pre>
         </td>
     </tr>
     <tr>
@@ -1127,4 +4587,81 @@ def regex_groups_all(pattern: str, subject: Union[str, List[str]]) -> Union[List
             )
     
     return result
+```
+
+### String Lower
+
+`string lower(string $subject)`
+
+Convert the subject string to lowercase.
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>lower('BALLOON')</code></pre>
+        </td>
+        <td>
+            <pre><code>"balloon"</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>lower('balloon')</code></pre>
+        </td>
+        <td>
+            <pre><code>"balloon"</code></pre>
+        </td>
+    </tr>
+</table>
+
+Simple python function example:
+
+```python
+def lower(subject: str) -> str:
+    return string.lower()
+```
+
+
+### String Upper
+
+`string upper(string $subject)`
+
+Convert the subject string to lowercase.
+
+Examples:
+
+<table>
+    <tr>
+        <th>Expression</th>
+        <th>Result</th>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>upper('balloon')</code></pre>
+        </td>
+        <td>
+            <pre><code>"BALLOON"</code></pre>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <pre><code>upper('BALLOON')</code></pre>
+        </td>
+        <td>
+            <pre><code>"BALLOON"</code></pre>
+        </td>
+    </tr>
+</table>
+
+Simple python function example:
+
+```python
+def upper(subject: str) -> str:
+    return string.upper()
 ```

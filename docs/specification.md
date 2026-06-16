@@ -1,5 +1,5 @@
 # Authzee Specification 
-## Version 0.2.0
+## Version 0.3.0
 
 This document describes the specification for **Authzee**.
 
@@ -7,98 +7,404 @@ For a quick introduction to the core Authzee engine see the [README](../README).
 
 For language specific use and guidance see the [SDKs](./sdks)
 
-Authzee is a highly expressive grant-based authorization engine.  It uses JSON Schemas to define and validate all inputs and outputs. Grants are evaluated against the request data and grant data using JMESpath to make access control decisions. 
+Authzee is a highly expressive grant-based authorization engine.  It uses JSON Schemas (Draft 2020-12) to define and validate all inputs and outputs. Grants are evaluated against the request data and grant data using a JSON query language of your choice to make access control decisions. JMESpath is preferred because it has a specification and is extensible.
+
+Authzee offers several standard *operations*.  A common use case is the "Authorize" operation which determines authorization.  These *operations* are fed *requests*.  *Requests* consist of Identities, a resource action, a resource type, a resource instance, a context type, and a context instance.  Identities are a way to describe a *calling entity's* identities.  They could be user, groups, roles, etc.  Resources represents resources that need to be authorized for.  Resource actions are actions that are performed on those resources. Context is a way to pass extra structured data into a request.  Identities, resources, and contexts are defined as needed.  These are then validated and can be used to validate requests.  The request are then passed to the operations like authorize, along with *grants*.  Grants are used to define authorization rules. 
+
+
+## Specification Guidance and Limitations
+
+- This is the Authzee Specification. It is not the best or most efficient way to use Authzee.  It is a succinct description of Authzee functionality that is hopefully presented in an implementation agnostic fashion.  
+- Not all of the functionality described here is meant to be part of an implementation's "public" API.  It is just to establish standards for Authzee. 
+- Case conventions can be changed to align with language conventions.
+- Input and output data structures can have additional properties where allowed in their respective schemas.  Implementations are expected to build upon the base schemas. 
+- Errors and especially critical errors are left up to implementations to decide the method of presenting the error. Whether it is directly returned from a function, raised via an exception, or by other means. 
+    - Errors and results are still expected to follow the schemas laid out here. 
+    - For example, an "Authorize" operation that encounters a critical error should always include the result matching the Authorize Result Schema when the error is presented. 
+    - For something like a validation error on an identity, the return value or exception should include a data structure that matches the Definition Error Schema.
+- Titles and descriptions included in the schema fields are considered part of the spec.  Check the schemas first for detailed information on the fields. 
+
 
 ### Table of Contents
 
-- [Authzee Specification](#authzee-specification)
-- [Definitions](#definitions)
+- [Definition of Terms](#definition-of-terms)
+- [Context Definitions](#context-definitions)
+    - [Context Definition Example](#context-definition-example)
+    - [Context Definition Schema](#context-definition-schema)
+    - [Context Definition Validation](#context-definition-validation)
 - [Identity Definitions](#identity-definitions)
+    - [Identity Definition Example](#identity-definition-example)
+    - [Identity Definition Schema](#identity-definition-schema)
+    - [Identity Definition Validation](#identity-definition-validation)
 - [Resource Definitions](#resource-definitions)
+    - [Resource Definition Example](#resource-definition-example)
+    - [Resource Definition Schema](#resource-definition-schema)
+    - [Resource Definition Validation](#resource-definition-validation)
 - [Grants](#grants)
+    - [Grant Example](#grant-example)
+    - [Grant Schema](#grant-schema)
+    - [Grant Validation](#grant-validation)
 - [Requests](#requests)
-- [Workflows](#workflows)
-- [Common Workflow Steps](#common-workflow-steps)
-- [Grant Evaluations](#grant-evaluations)
-- [Workflow Errors](#workflow-errors)
-- [Audit Workflow](#audit-workflow)
-- [Authorize Workflow](#authorize-workflow)
+    - [Request Example](#request-example)
+    - [Request Schema](#request-schema)
+    - [Request Validation](#request-validation)
+- [Batch Requests](#batch-requests)
+    - [Batch Request Example](#batch-request-example)
+    - [Batch Request Schema](#batch-request-schema)
+    - [Batch Request Validation](#batch-request-validation)
+- [Evaluations](#evaluations)
+    - [Request Evaluation](#request-evaluation)
+    - [Batch Request Evaluation](#batch-request-evaluation)
+- [Operations](#operations)
+    - [Audit](#audit)
+        - [Audit Result Example](#audit-result-example)
+        - [Audit Result Schema](#audit-result-schema) 
+    - [Authorize](#authorize)
+        - [Authorize Result Example](#authorize-result-example)
+        - [Authorize Result Schema](#authorize-result-schema) 
+    - [Batch Audit](#batch-audit)
+        - [Batch Audit Result Example](#batch-audit-result-example)
+        - [Batch Audit Result Schema](#batch-audit-result-schema) 
+    - [Batch Authorize](#batch-authorize)
+        - [Batch Authorize Result Example](#batch-authorize-result-example)
+        - [Batch Authorize Result Schema](#batch-authorize-result-schema) 
+- [Errors](#errors)
+    - [Error Types](#error-types)
+    - [Error Example](#error-example)
+    - [Error Schema](#error-schema)
 
 
-## Definitions
+
+## Definition of Terms
+
+Definitions specific to Authzee and used throughout the specification:
 
 - **Identity** - An object representing a specific type of identity to consider when authorizing.
 - **Resource** - An object representing a specific type of resource to authorize for.
 - **Resource Action (Action)** - A name for a specific action taken on a resource.
-- **Workflow** - A specific authorization process and the detailed steps to complete it.
-- **Authorization Request (Request)** - The object used to specify identities, resources, actions, and other configurations to start a wokflow.
+- **Grant** - Defines rules for authorization. 
+- **Operation (Op)** - Distinct, named authorization functionality for a request. Audit, Authorize, Batch Audit, and Batch Authorize.
+- **Authorization Request (Request)** - The object used to specify identities, resources, actions, and other configurations that are passed to functions.
+- **Request Evaluation** - When a request data structure is evaluated against a grant to determine if the grant is applicable to the request.
 - **Calling Entity (Entity)** - Who or what is represented by a request.  A calling entity can have many identities of the same and different types. 
-- **Grant** - The unit of authorization that defines the conditions needed for an entity to perform an action on a resource, and the effect, if the grant is applicable.
 
 
-## Identity Definitions
+## Context Definitions
 
-Identity definitions describe the types of identities that a calling entity possesses to make authorization requests. These represent "who" is trying to access the resources.  Authzee generally refer's to "who" as the calling entity. Each identity type has a unique name and a JSON Schema that validates the structure and contents of identity objects that are passed in requests.
+Context is included in requests as extra structured data.  The definition includes a unique context type name, and the schema for the request context.
 
-**Common Identity Types:**
-- **Users**: Individual people with attributes like ID, email, department, roles
-- **Groups**: Collections of users with shared characteristics (teams, departments, projects)
-- **Roles**: Permission sets that define what actions can be performed
-- **Applications**: Systems or services that act on behalf of users
-- **API Keys**: Programmatic access tokens with associated permissions
-
-This can also be extended to Identity Provider specific identities like **EntraGroup**, **OktaRole**, **ADUser**
-
-Identity definitions enable flexible representation of complex organizational structures and permission models.
-
-**Identity Definition Example**
+### Context Definition Example
 
 ```json
 {
-    "identity_type": "User",
+    "context_type": "event",
     "schema": {
         "type": "object",
-        "additionalProperties": false,
-        "required": [
-            "name",
-            "email",
-            "role",
-            "age"
-        ],
         "properties": {
-            "name": {
+            "request_source": {
                 "type": "string"
             },
-            "email": {
-                "type": "string"
-            },
-            "role": {
+            "timestamp": {
                 "type": "string",
-                "enum": [
-                    "reader",
-                    "contributor",
-                    "admin"
-                ]
+                "format": "date-time"
             },
-            "age": {
-                "type": "integer"
+            "event_type": {
+                "type": "string"
             }
         }
     }
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `identity_type` | string | ✅ | Unique identifier for this identity type. Must be alphanumeric with underscores only. Used as a key in request identity objects. |
-| `schema` | object | ✅ | JSON Schema (Draft 2020-12) that defines the structure and validation rules for identity objects of this type. All identity instances passed in requests must conform to this schema. |
+
+### Context Definition Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Context Definition",
+    "description": "A request context definition.  Defines a type of context that can be passed with Authzee requests.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "context_type",
+        "schema"
+    ],
+    "properties": {
+        "context_type": {
+            "title": "Authzee Context Type",
+            "description": "A unique name to identity this context type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://json-schema.org/draft/2020-12/schema",
+            "$vocabulary": {
+                "https://json-schema.org/draft/2020-12/vocab/core": true,
+                "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+                "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
+                "https://json-schema.org/draft/2020-12/vocab/validation": true,
+                "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+                "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
+                "https://json-schema.org/draft/2020-12/vocab/content": true
+            },
+            "$dynamicAnchor": "meta",
+            "title": "Core and Validation specifications meta-schema",
+            "allOf": [
+                {
+                    "$ref": "meta/core"
+                },
+                {
+                    "$ref": "meta/applicator"
+                },
+                {
+                    "$ref": "meta/unevaluated"
+                },
+                {
+                    "$ref": "meta/validation"
+                },
+                {
+                    "$ref": "meta/meta-data"
+                },
+                {
+                    "$ref": "meta/format-annotation"
+                },
+                {
+                    "$ref": "meta/content"
+                }
+            ],
+            "type": [
+                "object",
+                "boolean"
+            ],
+            "$comment": "This meta-schema also defines keywords that have appeared in previous drafts in order to prevent incompatible extensions as they remain in common use.",
+            "properties": {
+                "definitions": {
+                    "$comment": "\"definitions\" has been replaced by \"$defs\".",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$dynamicRef": "#meta"
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "dependencies": {
+                    "$comment": "\"dependencies\" has been split and replaced by \"dependentSchemas\" and \"dependentRequired\" in order to serve their differing semantics.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "anyOf": [
+                            {
+                                "$dynamicRef": "#meta"
+                            },
+                            {
+                                "$ref": "meta/validation#/$defs/stringArray"
+                            }
+                        ]
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "$recursiveAnchor": {
+                    "$comment": "\"$recursiveAnchor\" has been replaced by \"$dynamicAnchor\".",
+                    "$ref": "meta/core#/$defs/anchorString",
+                    "deprecated": true
+                },
+                "$recursiveRef": {
+                    "$comment": "\"$recursiveRef\" has been replaced by \"$dynamicRef\".",
+                    "$ref": "meta/core#/$defs/uriReferenceString",
+                    "deprecated": true
+                }
+            }
+        }
+    }
+}
+```
+
+
+### Context Definition Validation
+
+Context definitions are valid if all of the following conditions are met:
+- The definition is valid against the context definition schema
+- The definition's `context_type` is unique among context definitions
+- The definition schema's base type is "object"
+
+If an error occurs when validating an context definition, a critical, `definition` type [Error](#errors) should be returned/raised.
+
+
+## Identity Definitions
+
+Identity definitions describe the types of identities that a calling entity possesses to make requests. These represent "who" is trying to access the resources. Each identity type has a unique name and a JSON Schema that validates the structure and contents of identity objects that are passed in requests.
+
+**Common Identity Types:**
+- **Users**: Individual people with attributes like ID, email, department, roles
+- **Groups**: Collections of users with shared characteristics (teams, departments, projects)
+- **Roles**: Permission sets that define what actions can be performed
+- **Applications**: Systems or services that act on behalf of users
+
+This can also be extended to Identity Provider specific identities or anything else you could use to help identify a calling entity.
+
+Identity definitions enable flexible representation of complex organizational structures and permission models.
+
+### Identity Definition Example
+
+```json
+{
+    "identity_type": "User",
+    "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+            "id",
+            "department"
+            "email"
+        ],
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "department": {
+                "type": "string",
+                "enum": [
+                    "balloon",
+                    "string",
+                    "disposal",
+                    "party_planning"
+                ]
+            },
+            "email": {
+                "type": "string",
+                "format": "email"
+            }
+        }
+    }
+}
+```
+
+
+### Identity Definition Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Identity Definition",
+    "description": "An identity definition.  Defines a type of identity to use with Authzee.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "identity_type",
+        "schema"
+    ],
+    "properties": {
+        "identity_type": {
+            "title": "Authzee Identity Type",
+            "description": "A unique name to identity this identity type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://json-schema.org/draft/2020-12/schema",
+            "$vocabulary": {
+                "https://json-schema.org/draft/2020-12/vocab/core": true,
+                "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+                "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
+                "https://json-schema.org/draft/2020-12/vocab/validation": true,
+                "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+                "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
+                "https://json-schema.org/draft/2020-12/vocab/content": true
+            },
+            "$dynamicAnchor": "meta",
+            "title": "Core and Validation specifications meta-schema",
+            "allOf": [
+                {
+                    "$ref": "meta/core"
+                },
+                {
+                    "$ref": "meta/applicator"
+                },
+                {
+                    "$ref": "meta/unevaluated"
+                },
+                {
+                    "$ref": "meta/validation"
+                },
+                {
+                    "$ref": "meta/meta-data"
+                },
+                {
+                    "$ref": "meta/format-annotation"
+                },
+                {
+                    "$ref": "meta/content"
+                }
+            ],
+            "type": [
+                "object",
+                "boolean"
+            ],
+            "$comment": "This meta-schema also defines keywords that have appeared in previous drafts in order to prevent incompatible extensions as they remain in common use.",
+            "properties": {
+                "definitions": {
+                    "$comment": "\"definitions\" has been replaced by \"$defs\".",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$dynamicRef": "#meta"
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "dependencies": {
+                    "$comment": "\"dependencies\" has been split and replaced by \"dependentSchemas\" and \"dependentRequired\" in order to serve their differing semantics.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "anyOf": [
+                            {
+                                "$dynamicRef": "#meta"
+                            },
+                            {
+                                "$ref": "meta/validation#/$defs/stringArray"
+                            }
+                        ]
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "$recursiveAnchor": {
+                    "$comment": "\"$recursiveAnchor\" has been replaced by \"$dynamicAnchor\".",
+                    "$ref": "meta/core#/$defs/anchorString",
+                    "deprecated": true
+                },
+                "$recursiveRef": {
+                    "$comment": "\"$recursiveRef\" has been replaced by \"$dynamicRef\".",
+                    "$ref": "meta/core#/$defs/uriReferenceString",
+                    "deprecated": true
+                }
+            }
+        }
+    }
+}
+```
+
+### Identity Definition Validation
+
+Identity definitions are valid if all of the following conditions are met:
+- The definition is valid against the identity definition schema
+- The definition's `identity_type` is unique among identity definitions
+- The definition schema's base type is "object"
+
+If an error occurs when validating an identity definition, a critical, `definition` type [Error](#errors) should be returned/raised.
 
 
 ## Resource Definitions 
 
 Resource definitions describe the types of resources that can be accessed and what actions can be performed on them. These represent "what" is being accessed. 
 
-**Resource Definition Example**
+### Resource Definition Example
 
 ```json
 {
@@ -127,74 +433,248 @@ Resource definitions describe the types of resources that can be accessed and wh
                 "type": "integer"
             }
         }
-    },
-    "parent_types": [],
-    "child_types": [
-        "BalloonString"
-    ]
+    }
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `resource_type` | string | ✅ | Unique identifier for this resource type. Must be alphanumeric with underscores only. Used to identify the resource type in authorization requests. |
-| `actions` | array[string] | ✅ | List of unique action names that can be performed on this resource type. Actions can include dots, hyphens, colons, and underscores. Common patterns include using a namespace like "Balloon:inflate". It is best to have actions unique to resource types but it is not strictly enforced.|
-| `schema` | object | ✅ | JSON Schema (Draft 2020-12) that defines the structure and validation rules for resource objects of this type. All resource instances must conform to this schema. |
-| `parent_types` | array[string] | ✅ | Array of resource type names that can be parents of this resource type. Parent resources represent containment relationships (e.g., a BalloonStore contains Balloons). Can be empty if no parents exist. |
-| `child_types` | array[string] | ✅ | Array of resource type names that can be children of this resource type. Child resources are contained by this resource type (e.g., a Balloon contains BalloonStrings). Can be empty if no children exist. |
+
+### Resource Definition Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Resource Definition",
+    "description": "A resource definition.  Defines a type of resource to use with Authzee.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "resource_type",
+        "actions",
+        "schema"
+    ],
+    "properties": {
+        "resource_type": {
+            "title": "Authzee Resource Type",
+            "description": "A unique name to identity this resource type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "actions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "title": "Resource Action",
+                "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]*$",
+                "minLength": 1,
+                "maxLength": 512
+            }
+        },
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://json-schema.org/draft/2020-12/schema",
+            "$vocabulary": {
+                "https://json-schema.org/draft/2020-12/vocab/core": true,
+                "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+                "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
+                "https://json-schema.org/draft/2020-12/vocab/validation": true,
+                "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+                "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
+                "https://json-schema.org/draft/2020-12/vocab/content": true
+            },
+            "$dynamicAnchor": "meta",
+            "title": "Core and Validation specifications meta-schema",
+            "allOf": [
+                {
+                    "$ref": "meta/core"
+                },
+                {
+                    "$ref": "meta/applicator"
+                },
+                {
+                    "$ref": "meta/unevaluated"
+                },
+                {
+                    "$ref": "meta/validation"
+                },
+                {
+                    "$ref": "meta/meta-data"
+                },
+                {
+                    "$ref": "meta/format-annotation"
+                },
+                {
+                    "$ref": "meta/content"
+                }
+            ],
+            "type": [
+                "object",
+                "boolean"
+            ],
+            "$comment": "This meta-schema also defines keywords that have appeared in previous drafts in order to prevent incompatible extensions as they remain in common use.",
+            "properties": {
+                "definitions": {
+                    "$comment": "\"definitions\" has been replaced by \"$defs\".",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$dynamicRef": "#meta"
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "dependencies": {
+                    "$comment": "\"dependencies\" has been split and replaced by \"dependentSchemas\" and \"dependentRequired\" in order to serve their differing semantics.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "anyOf": [
+                            {
+                                "$dynamicRef": "#meta"
+                            },
+                            {
+                                "$ref": "meta/validation#/$defs/stringArray"
+                            }
+                        ]
+                    },
+                    "deprecated": true,
+                    "default": {}
+                },
+                "$recursiveAnchor": {
+                    "$comment": "\"$recursiveAnchor\" has been replaced by \"$dynamicAnchor\".",
+                    "$ref": "meta/core#/$defs/anchorString",
+                    "deprecated": true
+                },
+                "$recursiveRef": {
+                    "$comment": "\"$recursiveRef\" has been replaced by \"$dynamicRef\".",
+                    "$ref": "meta/core#/$defs/uriReferenceString",
+                    "deprecated": true
+                }
+            }
+        }
+    }
+}
+```
+
+
+### Resource Definition Validation
+
+Resource definitions are valid if all of the following conditions are met:
+- The definition is valid against the resource definition schema
+- The definition's `resource_type` is unique among resource definitions
+- The definition schema's base type is "object"
+
+If an error occurs when validating an resource definition, a critical, `definition` type [Error](#errors) should be returned/raised.
 
 
 ## Grants
 
-Grants are the core authorization unit. They query the request and grant data using JMESPath. 
+Grants are the Authzee authorization rules. They query the request and grant data using the specified JSON query language. 
 
-The grant schema is generated based on the identity and resource definitions. 
 
-**Grant Example**
+### Grant Example
 
 ```json
 {
     "effect": "allow",
     "actions": [
-        "Balloon:Pop",
         "Balloon:Inflate"
     ],
-    "query": "contains(request.identities.Group[? contains(grant.data.allowed_groups, cn)]",
-    "query_validation": "validate",
+    "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
+    "evaluation_handler": "evaluate",
     "equality": true,
     "data": {
-        "allowed_groups": "MyGroup"
-    },
-    "context_schema": {
-        "type": "object",
-        "required": [
-            "some_context_field"
+        "allowed_departments": [
+            "balloon",
+            "string"
         ]
-    },
-    "context_validation": "none"
+    }
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `effect` | string | ✅ | Whether this grant allows or denies access. Must be either "allow" or "deny". Deny grants always take precedence over allow grants. |
-| `actions` | array | ✅ | List of resource actions this grant applies to. Must match actions defined in resource definitions. If an empty array is given, the grant will match all current and future actions. |
-| `query` | string | ✅ | JMESPath expression that evaluates the request data. Has access to `request` (the full request object) and `grant` (the current grant with its data). The top-level query data structure is: `{"request": <request_object>, "grant": <grant_object>}` |
-| `query_validation` | string | ✅ | How to handle JMESPath query errors. Options: <ul><li>`"validate"` - Query errors cause the grant to be inapplicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
-| `equality` | any | ✅ | Expected result from the query for this grant to be applicable. Can be any JSON value (boolean, string, number, object, array, null). |
-| `data` | object | ✅ | Additional data made available to the query as `grant.data`. Useful for storing metadata or values used in query evaluation. |
-| `context_schema` | object | ✅ | JSON Schema for validating the request context. Used to ensure the request has the required context data for this grant. |
-| `context_validation` | string | ✅ | How to handle context validation. Options: <ul><li>`"none"` - There is no validation</li><li>`"validate"` - Context is validated and if the context is invalid, the grant is not applicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
+
+### Grant Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Grant",
+    "description": "A grant is an object representing enacted authorization rules.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "effect",
+        "actions",
+        "data",
+        "query",
+        "evaluation_handler",
+        "equality"
+    ],
+    "properties": {
+        "effect": {
+            "type": "string",
+            "enum": [
+                "allow",
+                "deny"
+            ],
+            "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+        },
+        "actions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "title": "Resource Action",
+                "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]*$",
+                "minLength": 1,
+                "maxLength": 512
+            },
+            "description": "List of actions this grant applies to or null to match any resource action."
+        },
+        "data": {
+            "type": "object",
+            "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+        },
+        "query": {
+            "type": "string",
+            "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+        },
+        "evaluation_handler": {
+            "title": "Grant-Level Evaluation Handler Setting",
+            "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+            "type": "string",
+            "enum": [
+                "evaluate",
+                "error",
+                "critical"
+            ]
+        },
+        "equality": {
+            "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+        }
+    }
+}
+```
+
+
+### Grant Validation
+
+Grant are valid if all of the following conditions are met:
+- The grant is valid against the grant schema
+
+> **NOTE** - Grant actions are not validated so that grants can be created for future resource actions, and for performance purposes in the SDKs. 
+
+If an error occurs when validating a grant, a critical, `grant` type [Error](#errors) should be returned/raised.
 
 
 ## Requests
 
-Requests represent a specific authorization question: "Should the calling entity, that has these identities, be allowed to perform this action on this resource?" 
+Requests represent a calling entity's request for perform an operation on identities, an action, a resource type, a resource instance, a context type, and a context instance. 
 
 
-The request schema is generated based on the identity and resource definitions. 
-
-**Request Example**
+### Request Example
 
 ```json
 {
@@ -211,6 +691,11 @@ The request schema is generated based on the identity and resource definitions.
                 "name": "balloon-specialists",
                 "department": "party_planning",
                 "type": "team"
+            },
+            {
+                "name": "balloon-reader",
+                "department": "party_planning",
+                "type": "team"
             }
         ],
         "Role": [
@@ -225,1052 +710,1416 @@ The request schema is generated based on the identity and resource definitions.
             }
         ]
     },
+    "action": "Balloon:Inflate",
     "resource_type": "Balloon",
-    "action": "inflate",
     "resource": {
-        "id": "balloon456",
-        "color": "red",
-        "size": "large",
-        "material": "latex",
-        "owner_department": "party_planning",
-        "inflated": false
+        "color": "green",
+        "max_diameter": 12.03,
+        "psi": 27
     },
-    "parents": {
-        "BalloonStore": [
+    "evaluation_handler": "error",
+    "context_type": "event",
+    "context": {
+        "request_source": "web_ui",
+        "timestamp": "2023-12-07T10:30:00Z",
+        "event_type": "birthday_party"
+    }
+}
+```
+
+### Request Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Authzee Operation Request",
+    "description": "Request for an Authzee Operation.",
+    "additionalProperties": false,
+    "required": [
+        "identities",
+        "action",
+        "resource_type",
+        "resource",
+        "context_type",
+        "context",
+        "evaluation_handler"
+    ],
+    "properties": {
+        "identities": {
+            "description": "Object whose keys are the identity types, and values are an array of instances of that identity type.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [],
+            "patternProperties": {
+                "^[A-Za-z0-9_]*$": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
+        },
+        "action": {
+            "title": "Resource Action",
+            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]*$",
+            "minLength": 1,
+            "maxLength": 512
+        },
+        "resource_type": {
+            "title": "Authzee Resource Type",
+            "description": "A unique name to identity this resource type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "resource": {
+            "type": "object",
+            "description": "Resource for the request that is an instance of the given resource_type."
+        },
+        "context_type": {
+            "title": "Authzee Context Type",
+            "description": "A unique name to identity this context type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "context": {
+            "type": "object",
+            "description": "Context for the request that is an instance of the given context_type."
+        },
+        "evaluation_handler": {
+            "title": "Request-Level Evaluation Error Handling Setting",
+            "description": "Request-level Evaluation Handler Setting. Can be used to override grant level evaluation handling. 'grant' - Use the grant level setting. No override. 'evaluation' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result. 'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+            "type": "string",
+            "enum": [
+                "grant",
+                "evaluate",
+                "error",
+                "critical"
+            ]
+        }
+    }
+}
+```
+
+### Request Validation
+
+Requests are valid if all of the following conditions are met:
+- The request is valid against the request schema
+- The context type is equal to one of the passed in/registered context definition's context type.
+- The context instance is valid against the schema of the matching context definition.
+- All identity types are valid against passed in/registered identity definitions.
+- All identity instances are valid against the schemas given in their respective passed in/registered identity definitions.
+- The resource type is equal to one of the passed in/registered resource definition's resource type.
+- The resource instance is valid against the schema of the matching resource definition.
+- The resource action is equal to one of the actions in the matching resource definition.
+
+
+If an error occurs when validating a request, a critical, `request` type [Error](#errors) should be returned/raised.
+
+
+## Batch Requests
+
+Batch requests represent a calling entity's request to perform an operation on a list of items with a specific action.  This includes the ability to specify the same or different fields for:
+- Identities
+- Resource Type
+- Resource
+- Query Validation
+- Context Type
+- Context
+
+Grants are naturally partitioned on actions. Batch requests try to take advantage of this by balancing the time to retrieve grants vs the time to process them.
+
+### Batch Request Example
+
+```json
+{
+    "identities": {
+        "User": [
             {
-                "id": "store123",
-                "name": "Party Central",
-                "owner_department": "party_planning",
-                "location": "Building A"
+                "id": "user123",
+                "department": "party_planning",
+                "email": "john.doe@company.com"
+            }
+        ],
+        "Group": [
+            {
+                "name": "event-team",
+                "department": "party_planning", 
+                "type": "team"
+            },
+            {
+                "name": "party-planning-dept",
+                "department": "party_planning",
+                "type": "department"
+            }
+        ],
+        "Role": [
+            {
+                "name": "party-coordinator",
+                "permissions": [
+                    "balloon:read",
+                    "balloon:inflate",
+                    "balloon:tie"
+                ],
+                "level": "advanced"
             }
         ]
     },
-    "children": {
-        "BalloonString": [
-            {
-                "id": "string1",
-                "length": 24.5,
-                "color": "white",
-                "material": "cotton"
-            }
-        ]
+    "action": "Balloon:Inflate",
+    "resource_type": "Balloon",
+    "resource": {
+        "color": "green",
+        "max_diameter": 12.03,
+        "psi": 27
     },
-    "query_validation": "error",
+    "context_type": "event",
     "context": {
         "request_source": "web_ui",
         "timestamp": "2023-12-07T10:30:00Z",
         "event_type": "birthday_party"
     },
-    "context_validation": "grant"
+    "evaluation_handler": "grant",
+    "batch": [
+        {
+            "resource": {
+                "color": "purple",
+                "max_diameter": 12.05,
+                "psi": 29
+            }
+        },
+        { 
+            "identities": {
+                "User": [
+                    {
+                        "id": "user345",
+                        "department": "party_planning",
+                        "email": "john.doe@company.com"
+                    }
+                ],
+                "Group": [
+                    {
+                        "name": "My Special group",
+                        "department": "special_dept", 
+                        "type": "team"
+                    }
+                ]
+            },
+            "resource_type": "Balloon",
+            "resource": {
+                "color": "purple",
+                "max_diameter": 12.03,
+                "psi": 27
+            },
+            "context_type": "event", 
+            "context":  {
+                "request_source": "web_ui",
+                "timestamp": "2023-12-07T10:30:00Z",
+                "event_type": "birthday_party"
+            },
+            "evaluation_handler": "error"
+        },
+        {} 
+    ]  
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `identities` | object | ✅ | Map of identity type names to arrays of identity objects. Each identity type must match a defined identity definition and conform to its schema. |
-| `resource_type` | string | ✅ | The type of resource being accessed. Must match a defined resource definition, `resource_type`. |
-| `action` | string | ✅ | The specific action being requested on the resource. Must be one of the actions defined for the resource type. |
-| `resource` | object | ✅ | The target resource object. Must conform to the schema defined for the resource type. |
-| `parents` | object | ✅ | Map of parent resource type names to arrays of parent resource objects. Only includes types listed in the resource definition's `parent_types`. |
-| `children` | object | ✅ | Map of child resource type names to arrays of child resource objects. Only includes types listed in the resource definition's `child_types`. |
-| `query_validation` | string | ✅ | Request-level override for query validation. Options: <ul><li>`"grant"` - Use the grant level query validation setting</li><li>`"validate"` - Query errors cause the grant to be inapplicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
-| `context` | object | ✅ | Additional context data for authorization decisions. Available to grant queries as `request.context`. The structure can be flexible depending on grant and request level context validation settings. |
-| `context_validation` | string | ✅ | Request-level override for context validation. Options: <ul><li>`"grant"` - Use the grant level context validation setting</li><li>`"none"` - There is no validation</li><li>`"validate"` - Context is validated and if the context is invalid, the grant is not applicable to the request</li><li>`"error"` - Includes the 'validate' setting checks, and also adds errors to the result</li><li>`"critical"` - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early</li></ul> |
+### Batch Request Schema
 
-
-## Workflows
-
-Authzee supports the following workflows.
-
-|Workflow|Description|
-|--------|-----------|
-|[Audit](#audit-workflow)|Find all applicable grants for a given request.|
-|[Authorize](#authorize-workflow)|Compute if the given request is authorized.|
-
-> **NOTE** - The spec defines and describes *complete workflows*, inputs, and outputs in detail.  It does not describe a full on API. This is done to leave room for customization based on language, compute, and storage.  A reference implementation of the most literal form is given to demonstrate the the spec. See the SDKs or the [SDK Patterns](#recommended-sdk-patterns) for more usable code and patterns.
-
-
-## Common Workflow Steps
-
-Authzee Workflows share the same initial parts with minor differences. These initial steps are defined here:
-
-1. [Define Identity and Resource Types](#1-define-identity-and-resource-types)
-2. [Validate Definitions](#2-validate-definitions)
-3. [Generate Schemas](#3-generate-schemas) 
-4. [Create Grants](#4-create-grants)
-5. [Validate Grants](#5-validate-grants)
-6. [Create Request](#6-create-request)
-7. [Validate Request](#7-validate-request)
-
-Along with the above steps, workflows must perform [Grant Evaluations](#grant-evaluations) against a request.
-
-Workflows also share the same format of [Error Results]()
-
-### 1. Define Identity and Resource Types
-
-Create definitions for your identities and resources like the examples given above.  
-
-### 2. Validate Definitions
-
-Ensure all definitions are valid by comparing them to the static schemas and other checks.
-
-- See `validate_definitions(identity_defs, resource_defs)` in the reference implementation
-- Validate identity definitions
-    - For each identity definition validate it against the static identity definition schema.
-        ```json
-        {
-            "title": "Identity Definition",
-            "description": "An identity definition.  Defines a type of identity to use with Authzee.",
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch Operation Request",
+    "description": "Request for an Authzee Batch Operation.",
+    "additionalProperties": true,
+    "required": [
+        "identities",
+        "action",
+        "resource_type",
+        "resource",
+        "context_type",
+        "context",
+        "evaluation_handler",
+        "batch"
+    ],
+    "properties": {
+        "identities": {
+            "description": "Object whose keys are the identity types, and values are an array of instances of that identity type. Applies to all items in the batch unless the batch item overwrites it by specifying a different, non-null value.",
             "type": "object",
             "additionalProperties": false,
-            "required": [
-                "identity_type",
-                "schema"
-            ],
-            "properties": {
-                "identity_type": {
-                    "title": "Authzee Type",
-                    "description": "A unique name to identity this type.",
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9_]*$",
-                    "minLength": 1,
-                    "maxLength": 256
-                },
-                "schema":{
-                    "$ref": "https://json-schema.org/draft/2020-12/schema"
-                }
-            }
-        }
-        ```
-    - Validate that `identity_type`s are unique
-- Validate resource definitions
-    - For each resource definition, validate it against the static resource definition schema.
-        ```json
-        {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Resource Definition",
-            "description": "An resource definition.  Defines a type of resource to use with Authzee.",
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-                "resource_type",
-                "actions",
-                "schema",
-                "parent_types",
-                "child_types"
-            ],
-            "properties": {
-                "resource_type": {
-                    "title": "Authzee Type",
-                    "description": "A unique name to identity this type.",
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9_]*$",
-                    "minLength": 1,
-                    "maxLength": 256
-                },
-                "actions": {
+            "required": [],
+            "patternProperties": {
+                "^[A-Za-z0-9_]*$": {
                     "type": "array",
-                    "uniqueItems": true,
                     "items": {
-                        "title": "Resource Action",
-                        "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common.",
-                        "type": "string",
-                        "pattern": "^[A-Za-z0-9_.:-]*$",
-                        "minLength": 1,
-                        "maxLength": 512
+                        "type": "object"
                     }
-                },
-                "schema": {
-                    "$ref": "https://json-schema.org/draft/2020-12/schema"
-                },
-                "parent_types": {
-                    "type": "array",
-                    "uniqueItems": true,
-                    "items": {
-                        "type": "string"
-                    },
-                    "description": "Types that are a parent of this resource.  When instances of these types are passed to the request they will be checked against their schemas and against the hierarchy."
-                },
-                "child_types": {
-                    "type": "array",
-                    "uniqueItems": true,
-                    "items": {
-                        "type": "string"
-                    },
-                    "description": "Types that are a child of this resource.  When instances of these types are passed to the request they will be checked against their schemas and against the hierarchy."
                 }
             }
-        }
-        ```
-- Validate that the `resource_type`s are unique
-- If any errors occur during validation of this step:
-    - add them to the result `errors.definition` field array as critical errors.  
-    - After this step finishes, exit the workflow.
-    - Errors when validating identity definitions should have error definition type of `"identity"`, and set the `definition` field to the invalid definition.
-
-### 3. Generate Schemas
-
-Create JSON schemas for grants, errors, requests, and responses based on the identity and resource definitions.   
-- See `generate_schemas(identity_defs, resource_defs)` in the reference implementation
-- **Grant Schema**
-    - Start with a base schema 
-        ```json
-        {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Grant",
-            "description": "A grant is an object representing an enacted authorization rule.",
+        },
+        "action": {
+            "title": "Resource Action",
+            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]*$",
+            "minLength": 1,
+            "maxLength": 512
+        },
+        "resource_type": {
+            "title": "Authzee Resource Type",
+            "description": "A unique name to identity this resource type. Applies to all items in the batch unless the batch item overwrites it by specifying a different, non-null value.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "resource": {
             "type": "object",
-            "additionalProperties": false,
-            "required": [
-                "effect",
-                "actions",
-                "query",
-                "query_validation",
-                "equality",
-                "data",
-                "context_schema",
-                "context_validation"
-            ],
-            "properties": {
-                "effect": {
-                    "type": "string",
-                    "enum": [
-                        "allow",
-                        "deny"
-                    ],
-                    "description": "Any applicable deny grant will always cause the request to be not authorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and not authorized."
-                },
-                "actions": {
-                    "type": "array",
-                    "uniqueItems": true,
-                    "items": {
-                        "type": "array",
-                        "uniqueItems": true,
-                        "items": {
-                            "title": "Resource Action",
-                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common.",
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9_.:-]*$",
-                            "minLength": 1,
-                            "maxLength": 512
-                        }
-                    },
-                    "description": "List of actions this grant applies to or null to match any resource action."
-                },
-                "query": {
-                    "type": "string",
-                    "description": "JMESPath query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
-                },
-                "query_validation": {
-                    "type": "string",
-                    "title": "Grant-Level Query Validation Setting",
-                    "description": "Grant-level query validation setting. Set how the query errors are treated. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early.",
-                    "enum": [
-                        "validate",
-                        "error",
-                        "critical"
-                    ]
-                },
-                "equality": {
-                    "description": "Expected value for they query to return.  If the query result matches this value the grant is a considered applicable to the request."
-                },
-                "data": {
-                    "type": "object",
-                    "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
-                },
-                "context_schema": {
-                    "$ref": "https://json-schema.org/draft/2020-12/schema"
-                },
-                "context_validation": {
-                    "type": "string",
-                    "title": "Grant-Level Context Validation",
-                    "description": "Grant-level context validation setting. Set how the request context is validated against the grant context schema. 'none' - there is no validation. 'validate' - Context is validated and if the context is invalid, the grant is not applicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early.",
-                    "enum": [
-                        "none",
-                        "validate",
-                        "error",
-                        "critical"
-                    ]
-                }
-            }
-        }
-        ```
-    - On the base schema, the `properties.actions.items` is given an `enum` property that consists of the set of all available actions from all resource definitions
-
-- **Error Schema** 
-    - Start with a base schema
-        ```json
-        {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Workflow Errors",
-            "description": "Errors returned from Authzee workflows.",
+            "description": "Resource for the request that is an instance of the given resource_type. Applies to all items in the batch unless the batch item overwrites it by specifying a different, non-null value."
+        },
+        "context_type": {
+            "title": "Authzee Context Type",
+            "description": "A unique name to identity this context type.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]*$",
+            "minLength": 1,
+            "maxLength": 256
+        },
+        "context": {
             "type": "object",
-            "additionalProperties": false,
-            "required": [
-                "context",
-                "definition",
+            "description": "Context for the request that is an instance of the given context_type. Applies to all items in the batch unless the batch item overwrites it by specifying a different, non-null value."
+        },
+        "evaluation_handler": {
+            "title": "Request-Level Evaluation Error Handling Setting",
+            "description": "Request-level Evaluation Handler Setting. Can be used to override grant level evaluation handling. 'grant' - Use the grant level setting. No override. 'evaluation' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result. 'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early. Applies to all items in the batch unless the batch item overwrites it by specifying a different, non-null value.",
+            "type": "string",
+            "enum": [
                 "grant",
-                "jmespath",
-                "request"
-            ],
-            "properties": {
-                "context": {
-                    "type": "array",
-                    "items": {
-                        "title": "Context Error",
-                        "description": "Error when the request context is not valid against the expected context for the grant.",
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                            "message",
-                            "critical",
-                            "grant"
-                        ],
-                        "properties": {
-                            "message": {
-                                "type": "string",
-                                "description": "Detailed message about what caused the error."
-                            },
-                            "critical": {
-                                "type": "boolean",
-                                "description": "If this error caused the the workflow to exit early."
-                            },
-                            "grant": {
-                                "$ref": "#/$defs/grant"
-                            }
-                        }
-                    }
-                },
-                "definition": {
-                    "type": "array",
-                    "items": {
-                        "title": "Definition Error",
-                        "description": "Error when an identity or resource definition is not valid.",
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                            "message",
-                            "critical",
-                            "definition_type",
-                            "definition"
-                        ],
-                        "properties": {
-                            "message": {
-                                "type": "string",
-                                "description": "Detailed message about what caused the error."
-                            },
-                            "critical": {
-                                "type": "boolean",
-                                "description": "If this error caused the the workflow to exit early."
-                            },
-                            "definition_type": {
-                                "type": "string",
-                                "enum": [
-                                    "identity",
-                                    "resource"
-                                ]
-                            },
-                            "definition": {}
-                        }
-                    }
-                },
-                "grant": {
-                    "type": "array",
-                    "items": {
-                        "title": "Grant Error",
-                        "description": "Error when an grant is not valid.",
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                            "message",
-                            "critical",
-                            "grant"
-                        ],
-                        "properties": {
-                            "message": {
-                                "type": "string",
-                                "description": "Detailed message about what caused the error."
-                            },
-                            "critical": {
-                                "type": "boolean",
-                                "description": "If this error caused the the workflow to exit early."
-                            },
-                            "grant": {}
-                        }
-                    }
-                },
-                "jmespath": {
-                    "type": "array",
-                    "items": {
-                        "title": "JMESPath Error",
-                        "description": "Error when a JMESPath query for a grant produces an error.",
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                            "message",
-                            "critical",
-                            "grant"
-                        ],
-                        "properties": {
-                            "message": {
-                                "type": "string",
-                                "description": "Detailed message about what caused the error."
-                            },
-                            "critical": {
-                                "type": "boolean",
-                                "description": "If this error caused the the workflow to exit early."
-                            },
-                            "grant": {
-                                "$ref": "#/$defs/grant"
-                            }
-                        }
-                    }
-                },
-                "request": {
-                    "type": "array",
-                    "items": {
-                        "title": "Workflow Request Error",
-                        "description": "Error when a request is not valid.",
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                            "message",
-                            "critical",
-                        ],
-                        "properties": {
-                            "message": {
-                                "type": "string",
-                                "description": "Detailed message about what caused the error."
-                            },
-                            "critical": {
-                                "type": "boolean",
-                                "description": "If this error caused the the workflow to exit early."
-                            }
-                        }
-                    }
-                }
-            },
-            "$defs": {
-                "grant": {}
-            }
-        }
-        ```
-    - On the base schema, the `$defs.grant` property is set to the grant schema generated before this.
-
-- **Request Schema**
-    - Start with a base schema
-        ```json
-        {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Workflow Request",
-            "description": "Request for an Authzee workflow.",
-            "anyOf": [],
-            "$defs": {
-                "identities": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [],
-                    "properties": {}
-                },
-                "query_validation": {
-                    "type": "string",
-                    "title": "Request-Level Query Validation Setting",
-                    "description": "Request-level query validation setting. Overrides grant-level settings for query validation. Set how the query errors are treated. 'grant' - Use the grant level query validation setting. 'validate' - Query errors cause the grant to be inapplicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early.",
-                    "enum": [
-                        "grant",
-                        "validate",
-                        "error",
-                        "critical"
-                    ]
-                },
-                "context": {
-                    "type": "object",
-                    "patternProperties": {
-                        "^[a-zA-Z0-9_]{1,256}$": {}
-                    }
-                },
-                "context_validation": {
-                    "type": "string",
-                    "title": "Request-Level Context Validation",
-                    "description": "Request-level context validation setting. Overrides grant-level settings for context validation. Set how the request context is validated against the grant context schema. 'grant' - Use the grant level context validation setting. 'none' - There is no validation. 'validate' - Context is validated and if the context is invalid, the grant is not applicable to the request. 'error' - Includes the 'validate' setting checks, and also adds errors to the result. 'critical' Includes the 'error' setting checks, and will flag the error as critical, thus exiting the workflow early.",
-                    "enum": [
-                        "grant",
-                        "none",
-                        "validate",
-                        "error",
-                        "critical"
-                    ]
-                }
-            }
-        }
-        ```
-    - For each resource definition:
-        - Start with a resource base schema 
-            ```json
-            {
-                "title": "'{{ resource_type }}' Resource Type Workflow Request",
-                "description": "'{{ resource_type }}' resource type request for an Authzee workflow.",
+                "evaluate",
+                "error",
+                "critical"
+            ]
+        },
+        "batch": {
+            "type": "array",
+            "description": "Batch of resources and contexts to process with shared identities, action, resource type, and context type.",
+            "minItems": 1,
+            "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                    "identities",
-                    "resource_type",
-                    "action",
-                    "resource",
-                    "parents",
-                    "children",
-                    "query_validation",
-                    "context",
-                    "context_validation"
-                ],
+                "required": [],
                 "properties": {
                     "identities": {
-                        "$ref": "#/$defs/identities"
-                    },
-                    "action": {
-                        "type": "string" 
+                        "description": "Object whose keys are the identity types, and values are an array of instances of that identity type. Overrides the batch request level if the field exists and is not null.",
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "additionalProperties": false,
+                        "required": [],
+                        "patternProperties": {
+                            "^[A-Za-z0-9_]*$": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                }
+                            }
+                        }
                     },
                     "resource_type": {
-                        "const": "{{ resource_type }}" 
+                        "title": "Authzee Resource Type",
+                        "description": "A unique name to identity this resource type. Overrides the batch request level if the field exists and is not null.",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[A-Za-z0-9_]*$",
+                        "minLength": 1,
+                        "maxLength": 256
                     },
                     "resource": {
-                        "$ref": "#/$defs/{{ resource_type }}"
-                    }, 
-                    "parents": {
                         "type": "object",
-                        "additionalProperties": false,
-                        "required": [],
-                        "properties": {}
-                    }, 
-                    "children": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [],
-                        "properties": {}
+                        "description": "Resource for this batch item, that is an instance of the given resource_type"
                     },
-                    "query_validation": {
-                        "$ref": "#/$defs/query_validation"
+                    "context_type": {
+                        "title": "Authzee Context Type",
+                        "description": "A unique name to identity this context type. Overrides the batch request level if the field exists and is not null.",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[A-Za-z0-9_]*$",
+                        "minLength": 1,
+                        "maxLength": 256
                     },
                     "context": {
-                        "$ref": "#/$defs/context"
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Context for the request that is an instance of context_type. Overrides the batch request level if the field exists and is not null."
                     },
-                    "context_validation": {
-                        "$ref": "#/$defs/context_validation"
-                    }
-                }
-            }
-            ```
-        - Replace all occurrences of `{{ resource_type }}` with the resource definition `resource_type`.
-        - On the resource base schema, update the `properties.actions.enum` value as the resource definition `actions` field value
-        - On the request base schema, add a field `$defs.{{ resource_type }}` with the value of the resource definition `schema` field, where `{{ resource_type }}` is replaced with the resource definition `resource_type`
-        - For each Parent type in the resource definition `parent_types` field
-            - Append the parent type to the resource base schema `properties.parents.required` array.
-            - Create the new field on the resource base schema `properties.parents.properties.{{ parent_type }}` with value set to 
-                ```json
-                {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/$defs/{{ parent_type }}"
-                    }
-                }
-                ```
-                replacing all occurrences of `{{ parent_type }}` with the parent type
-        - For each Child type in the resource definition `child_types` field
-            - Append the child type to the resource base schema `properties.children.required` array.
-            - Create the new field on the resource base schema `properties.children.properties.{{ child_type }}` with value set to 
-                ```json
-                {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/$defs/{{ child_type }}"
-                    }
-                }
-                ```
-                replacing all occurrences of `{{ child_type }}` with the child type
-        - Append this base schema to the request schema `anyOf` field array.
-
-### 4. Create Grants 
-
-Define Grants as show above.
-
-### 5. Validate Grants
-
-Ensure grants are valid using the previously generated schemas and other checks.
-
-- See `validate_grants(grants, schema)` in the reference implementation
-- For each grant, validate against the grant schema generated in step 3.
-- If any errors occur during validation of this step:
-    -  add them to the result `errors.grant` field array as critical errors. 
-    - After this step completes, exit the workflow.
-    - Set the error `grant` field to the invalid grant.
-
-
-### 6. Create Request
-
-Build an authorization request as show above.
-
-### 7. Validate Request
-Ensure the request is valid using the previously generated request schema and other checks.
-- See `validate_request(validate_request, schema)` in the reference implementation
-- Validate the request against the request schema generated in step 3.
-- If any errors occur during validation of this step:
-    - add them to the result `errors.definition` field array as critical errors
-    - After this step is complete, exit the workflow.
-
-
-## Grant Evaluations
-
-A common step to workflows is to evaluate a grant against a request to see if they are applicable. 
-
-For a grant to be applicable it must follow this logic:
-
-1. The request action is in the grant's `actions` field, or the grant's `actions` field is empty.
-    - If not the grant is not applicable
-2. The context validation setting is set to the grant's `context_validation` if the request's `context_validation` is set to grant, or else it is set to the request's value.
-3. If the context validation is set to `"none"` then go to step 5.
-4. If the context is invalid, and context validation is set to:
-    - `"validate"` - The grant is not applicable.
-    - `"error"` - The grant is not applicable and an error is added to the results `errors.context` field array.
-    - `"critical"` - The grant is not applicable and a critical error is added to the results. This will cause the workflow to exit immediately.
-5. The given JMESPath search function is used to run the query under the grant's `query` field against the request and current grant data 
-    - as so:
-        ```json
-        {
-            "grant": {{ grant data }},
-            "request": {{ request data }}
-        }
-        ```
-    - For example: To access the grant actions in the query you would use `grant.actions`.  To access the request resource type you would use `request.resource_type`. 
-
-6. If the JMESPath search produces an error and the query validation is set to:
-    - `"validate"` - The grant is not applicable.
-    - `"error"` - The grant is not applicable and an error is added to the results
-    - `"critical"` - the grant is not applicable and a critical error is added to the results.  The workflow immediately exits.
-7. If the JMESPath result equals the grant's `equality` field value, then the grant is considered applicable.  If it does not match, then the grant is not applicable to the request.
-
-
-## Workflow Errors
-
-Workflows return the same format of error results. 
-Error schemas are generated based on identity and resource definitions. 
-
-```json
-{
-    "other_workflow_field": {},
-    "errors": {
-        "context": [],
-        "definition": [],
-        "grant": [],
-        "jmespath": [],
-        "request": []
-    }
-}
-```
-
-Under the `errors` field is an object where each field is an error type.
-
-- [Context Error](#context-error)
-- [Definition Error](#definition-error)
-- [Grant Error](#grant-error)
-- [JMESpath Error](#jmespath-error)
-- [Request Error](#request-error)
-
-
-### Context Error
-
-An error occurred when validating the request context against a grant context schema.
-
-```json
-{
-    "errors": {
-        "context": [
-            {
-                "message": "'request_source' is a required property",
-                "critical": false,
-                "grant": {
-                    "effect": "allow",
-                    "actions": [
-                        "read"
-                    ],
-                    "query": "true",
-                    "query_validation": "error",
-                    "equality": true,
-                    "data": {},
-                    "context_schema": {
-                        "type": "object",
-                        "properties": {
-                            "request_source": {
-                                "type": "string"
-                            }
-                        },
-                        "required": [
-                            "request_source"
+                    "evaluation_handler": {
+                        "title": "Request-Level Evaluation Error Handling Setting",
+                        "description": "Request-level Evaluation Handler Setting. Can be used to override grant level evaluation handling. 'grant' - Use the grant level setting. No override. 'evaluation' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result. 'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early. Overrides the batch request level if the field exists and is not null.",
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "grant",
+                            "evaluate",
+                            "error",
+                            "critical"
                         ]
-                    },
-                    "context_validation": "error"
-                }
-            }
-        ],
-        "definition": [],
-        "grant": [],
-        "jmespath": [],
-        "request": []
-    }
-}
-```
-
-| Field    | Type    | Required | Description                                                                          |
-|----------|---------|:--------:|--------------------------------------------------------------------------------------|
-| message  | string  | ✅       | A message describing the error.                                                      |
-| critical | boolean | ✅       | A flag for if the error is critical. Critical errors will cause a workflow to halt. |
-| grant    | object<[Grant](#grants)>  | ✅       | The grant whose context schema did not match the requests context.                   |
-
-
-### Definition Error
-
-An error occurred when validating an identity or resource definitions.
-
-```json
-{
-    "errors": {
-        "context": [],
-        "definition": [
-            {
-                "message": "Identity types must be unique. 'User' is present more than once.",
-                "critical": true,
-                "definition_type": "identity",
-                "definition": {
-                    "identity_type": "User",
-                    "schema": {
-                        "type": "object"
                     }
                 }
             }
-        ],
-        "grant": [],
-        "jmespath": [],
-        "request": []
-    }
-}
-```
-
-| Field           | Type    | Required | Description                                                                          |
-|-----------------|---------|:--------:|--------------------------------------------------------------------------------------|
-| message         | string  | ✅       | A message describing the error.                                                      |
-| critical        | boolean | ✅       | A flag for if the error is critical.  Critical errors will cause a workflow to halt. |
-| definition_type | string  | ✅       | The definition type that did not pass validation. `identity` or `resource`           |
-| definition      | any     | ✅       | The value passed as the definition that did not pass validation.                     |
-
-
-### Grant Error
-
-An error occurred when validating a grant. 
-
-```json
-{
-    "errors": {
-        "context": [],
-        "definition": [],
-        "grant": [
-            {
-                "message": "The grant is not valid. Schema Error: 'invalid_action' is not one of ['read', 'inflate', 'deflate', 'pop', 'tie']",
-                "critical": true,
-                "grant": {
-                    "effect": "allow",
-                    "actions": [
-                        "invalid_action"
-                    ],
-                    "query": "true",
-                    "query_validation": "error",
-                    "equality": true,
-                    "data": {},
-                    "context_schema": {
-                        "type": "object"
-                    },
-                    "context_validation": "none"
-                }
-            }
-        ],
-        "jmespath": [],
-        "request": []
-    }
-}
-```
-
-| Field    | Type    | Required | Description                                                                          |
-|----------|---------|:--------:|--------------------------------------------------------------------------------------|
-| message  | string  | ✅       | A message describing the error.                                                      |
-| critical | boolean | ✅       | A flag for if the error is critical.  Critical errors will cause a workflow to halt. |
-| grant    | any     | ✅       | The value that did not pass the grant validation.                                    |
-
-
-### JMESPath Error
-
-An error occurred when running the JMESPath query while evaluating a grant.
-
-```json
-{
-    "errors": {
-        "context": [],
-        "definition": [],
-        "grant": [],
-        "jmespath": [
-            {
-                "message": "Invalid function name: invalid_function",
-                "critical": false,
-                "grant": {
-                    "effect": "allow",
-                    "actions": [
-                        "read"
-                    ],
-                    "query": "invalid_function(request.identities.User[0].department)",
-                    "query_validation": "error",
-                    "equality": true,
-                    "data": {},
-                    "context_schema": {
-                        "type": "object"
-                    },
-                    "context_validation": "none"
-                }
-            }
-        ],
-        "request": []
-    }
-}
-```
-
-| Field    | Type    | Required | Description                                                                          |
-|----------|---------|:--------:|--------------------------------------------------------------------------------------|
-| message  | string  | ✅       | A message describing the error.                                                      |
-| critical | boolean | ✅       | A flag for if the error is critical. Critical errors will cause a workflow to halt. |
-| grant    | object<[Grant](#grants)>| ✅       | The grant whose query resulted in a JMESPath error.                                  |
-
-
-### Request Error
-
-An error occurred when validating a request.
-
-```json
-{
-    "errors": {
-        "context": [],
-        "definition": [],
-        "grant": [],
-        "jmespath": [],
-        "request": [
-            {
-                "message": "The request is not valid for the request schema: 'invalid_action' is not one of ['read', 'inflate', 'deflate', 'pop', 'tie']",
-                "critical": true
-            }
-        ]
-    }
-}
-```
-
-| Field    | Type    | Required | Description                                                                          |
-|----------|---------|:--------:|--------------------------------------------------------------------------------------|
-| message  | string  |    ✅    | A message describing the error.                                                      |
-| critical | boolean |    ✅    | A flag for if the error is critical.  Critical errors will cause a workflow to halt. |
-
-
-
-## Audit Workflow
-
-The Audit Workflow is used to evaluate grants against a request, collect applicable grants, and collect errors. 
-
-There are 8 steps.  The first 7 steps are same as in [Common Workflow Steps](#common-workflow-steps) except Step 3.
-
-The Audit result schema is generated in addition to the others schemas
-**Audit Result Schema**
-- Start with a base schema 
-    ```json
-    {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Audit Response",
-        "description": "Response for the audit workflow.",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-            "grants",
-            "errors"
-        ],
-        "properties": {
-            "completed": {
-                "type": "boolean",
-                "description": "The workflow completed."
-            },
-            "grants": {
-                "type": "array",
-                "items": {
-                    "$ref": "#/$defs/grant"
-                },
-                "description": "List of grants that are applicable to the request."
-            },
-            "errors": {}
-        },
-        "$defs": {
-            "grant": {}
         }
     }
-    ```
-- Copy the previously generated errors schema from earlier, remove the `$defs` field, then set the audit result schema `properties.errors` value to the copied error schema.
-- Set the audit result schema `$defs.grant` value to the grant schema generated earlier.
+}
+```
 
-After the first 7 steps are complete then the Audit step starts.
+### Batch Request Validation
 
-**Audit**: Evaluate the request against all grants and collect the applicable grants and errors as the result.
-- For each grant:
-    - Evaluate the grant against the request
-    - Capture any errors
-    - If a critical error is captured, then exit early.
-    - If a grant is applicable append it to the results `grant` field.
-- The result will be valid against the Audit result schema generated in step 3. The fields are determined by the logic in the descriptions.
+Batch Requests are valid if all of the following conditions are met:
+- The batch request is valid against the batch request schema
+- All root fields are valid as outlined in [Request Validation](#request-validation).
+- Each item in the batch is formatted into a standard request as outlined in [Batch Request Evaluation](#batch-request-evaluation), and then each request is valid as outlined in [Request Validation](#request-validation)
+
+If an error occurs when validating a batch request at the top level, a critical, `request` type [Error](#errors) should be returned/raised. Besides that, the individual requests within a batch request are returned within the result items.
 
 
-### Audit Workflow Result
+## Evaluations
 
+Evaluations are the primary unit of work in Authzee.  Authzee operations evaluate requests against grants to determine if a grant is applicable to a request. What is done with the applicable grants is dependent on the operation.  
+
+
+### Request Evaluation
+
+> **NOTE**: Use of "AND" stands for logical AND.  Use of "OR" stands for logical OR.
+
+Request evaluation requires that all inputs must be validated: identity definitions, resource definitions, context definitions, request/batch request, and grants.
+
+Request evaluation requires the request, a grant, and an execute function.  
+
+The execute function runs a JSON query on JSON data and returns the results. Here is an example in python where the `AnyJSON` type represents the python equivalent of all valid JSON types:
+
+```python
+def execute(expression: str, data: AnyJSON) -> AnyJSON:
+    pass
+```
+
+Expected return schema for JSON query execute functions. 
 
 ```json
 {
-    "completed": true,
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Result for a JSON query execute function",
+    "description": "Result from evaluating a JSON query against the given input data.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "result",
+        "has_failed",
+        "error_message"
+    ],
+    "properties": {
+        "result": {
+            "description": "Result from running the JSON query."
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the request has failed from a critical error or not."
+        },
+        "error_message": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Details of why the query failed. `null` if there are no errors."
+        }
+    }
+}
+```
+
+A grant is applicable to a request if all of the following are true:
+- The grant has 0 actions OR the request action is in the grant actions.
+- The JSON execute function is called with the grant's query as the `expression` parameter, along with the request and grant nested under an object as the `data` parameter like so: `execute(grant.query, {"request": <request body>, "grant": <grant_body>})` 
+- The JSON query execute function call produces no errors
+- The result of the JSON execute function is equal to the grant's equality property value
+
+If an error occurs during an evaluation (generally from the JSON query), an `evaluation` type [Error](#errors) should be returned/raised.
+This error is determined to be critical depending on the grant and request `evaluation_handler` setting. 
+
+The error will be critical if any of the following are true or else it is not critical:
+    - The request `evaluation_handler` is set to `grant` AND the grant `evaluation_handler` is set to `critical`
+    - The request `evaluation_handler` is set to `critical`
+
+
+### Batch Request Evaluation
+
+Each item in a batch request is first formatted into a standard request, then processed like a normal [Request Evaluation](#request-evaluation).
+
+Formatting a batch request into individual request:
+- Create a request for each batch item 
+- Each request starts with the fields from the batch item for the request.
+- Any request fields that are not present at this point will be taken from the root batch request. 
+
+
+### Evaluation Error Example
+
+Errors that happen during an evaluation or running a JSON query will result in an `evaluation` error.  
+
+```json
+{
+    "is_critical": true,
+    "message": "A JSON query error occurred "
+}
+```
+
+
+### Evaluation Error Schema
+
+```json
+{
+    "title": "Evaluation Error",
+    "description": "Error when an Authzee Evaluation fails.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "is_critical",
+        "message"
+    ],
+    "properties": {
+        "is_critical": {
+            "type": "boolean",
+            "description": "If this error is critical. Critical errors generally halt further operations."
+        },
+        "message": {
+            "type": "string",
+            "description": "Detailed message about what caused the error."
+        }
+    }
+}
+```
+
+## Operations
+
+Operations are the core functionality of Authzee. Before running an Authzee operation, all relevant inputs must be validated as per this specification:
+
+- Identity Definitions
+- Resource Definitions
+- Context Definitions
+- Grants
+- Request or Batch Request
+
+
+### Audit
+
+The Audit operation is used to collect grant evaluation results against a request. 
+
+Audit Steps for each grant:
+- The grants are added to the result.
+- Each grant is evaluated against the request and the result is appended to the results. 
+- If an error occurs and it is critical, `has_failed` is set to `true`, an error is added at the request level, and the operation exits.
+
+
+#### Audit Result Example
+
+```json
+{
     "grants": [
         {
             "effect": "allow",
             "actions": [
-                "read"
+                "inflate"
             ],
-            "query": "request.identities.User[0].department == request.resource.owner_department",
-            "query_validation": "error",
+            "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+            "evaluation_handler": "error",
             "equality": true,
-            "data": {
-                "rule_name": "department_access"
-            },
-            "context_schema": {
-                "type": "object"
-            },
-            "context_validation": "none"
+            "data": {}
         }
     ],
-    "errors": {
-        "context": [],
-        "definition": [],
-        "grant": [],
-        "jmespath": [],
-        "request": []
-    }
+    "results": [
+        {
+            "is_applicable": true,
+            "query_result": true,
+            "errors": {}
+        }
+    ],
+    "has_failed": false,
+    "errors": {}
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|:-:|---|
-| completed | boolean | ✅ | If the workflow completed. |
-| grants | array[object<[Grant](#grants)>] | ✅ | The grants that are applicable to the request. |
-| errors | object<[Workflow Errors](#workflow-errors)> | ✅ | The collected workflow errors. |
-
-
-## Authorize Workflow
-
-The Authorize Workflow is used to check if a request is authorized. 
-
-There are 8 steps.  The first 7 steps are same as in [Common Workflow Steps](#common-workflow-steps) except step 3. The Authorization Result schema is generated in addition to the others.
-**Authorization Result Schema**
-- Start with a base schema 
-    ```json
-    {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Authorize Response",
-        "description": "Response for the authorize workflow.",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-            "authorized",
-            "completed",
-            "grant",
-            "message",
-            "critical_errors"
-        ],
-        "properties": {
-            "authorized": {
-                "type": "boolean",
-                "description": "true if the request is authorized.  false if it is not authorized."
-            },
-            "completed": {
-                "type": "boolean",
-                "description": "The workflow completed."
-            },
-            "grant": {
-                "description": "Grant that was responsible for the authorization decision, if applicable.",
-                "anyOf": [
-                    {
-                        "$ref": "#/$defs/grant"
-                    },
-                    {"type": "null"}
-                ]
-            },
-            "message": {
-                "type": "string",
-                "description": "Details about why the request was authorized or not."
-            },
-            "critical_errors": {}
-        },
-        "$defs": {
-            "grant": {}
-        }
-    }
-    ```
-- Copy the previously generated errors schema from earlier, remove the `$defs` field, then set the authorize result schema `properties.errors` value to the copied error schema.
-- Set the audit result schema `$defs.grant` value to the grant schema generated earlier.
-
-After those are complete the **Authorize** step runs.
-Evaluate the request against until an authorization decision is determined.
-- For each grant:
-    - Evaluate the grant against the request
-    - Capture any errors
-    - If a critical error is captured, then exit early.  The request is not authorized.
-- For the workflow to complete it must reach one of these conditions:
-    - If a deny grant is applicable, the request is not authorized.
-    - If a allow grant is applicable, and no deny grants are applicable, the request is authorized.
-    - If no grants are applicable, the request is implicitly denied and it is not authorized.
-- The result will be valid against the Authorize result schema generated in step 3. The fields are determined by the logic in the descriptions.
-
-### Authorize Workflow Result
+#### Audit Result Schema
 
 ```json
 {
-    "authorized": true,
-    "completed": true,
-    "grant": {
-        "effect": "allow",
-        "actions": [
-            "inflate"
-        ],
-        "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-        "query_validation": "error",
-        "equality": true,
-        "data": {
-            "rule_name": "department_balloon_access",
-            "created_by": "party_team"
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Audit Result",
+    "description": "Result for the audit operation.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "grants",
+        "results",
+        "has_failed",
+        "errors"
+    ],
+    "properties": {
+        "grants": {
+            "type": "array",
+            "description": "List of grants that have been processed for the request.",
+            "items": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "Grant",
+                "description": "A grant is an object representing enacted authorization rules.",
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                    "effect",
+                    "actions",
+                    "data",
+                    "query",
+                    "evaluation_handler",
+                    "equality"
+                ],
+                "properties": {
+                    "effect": {
+                        "type": "string",
+                        "enum": [
+                            "allow",
+                            "deny"
+                        ],
+                        "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                    },
+                    "actions": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                            "title": "Resource Action",
+                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_.:-]*$",
+                            "minLength": 1,
+                            "maxLength": 512
+                        },
+                        "description": "List of actions this grant applies to or null to match any resource action."
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                    },
+                    "evaluation_handler": {
+                        "title": "Grant-Level Evaluation Handler Setting",
+                        "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                        "type": "string",
+                        "enum": [
+                            "evaluate",
+                            "error",
+                            "critical"
+                        ]
+                    },
+                    "equality": {
+                        "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                    }
+                }
+            }
         },
-        "context_schema": {
-            "type": "object"
+        "results": {
+            "type": "array",
+            "description": "List of grant evaluation results for each respective grant index.",
+            "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                    "is_applicable",
+                    "query_result",
+                    "errors"
+                ],
+                "properties": {
+                    "is_applicable": {
+                        "type": "boolean",
+                        "description": "If the grant is applicable to the request or not."
+                    },
+                    "query_result": {
+                        "description": "Result from running the JSON query."
+                    },
+                    "errors": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Operation Result Errors",
+                        "description": "Errors returned from Authzee Operations.",
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [],
+                        "properties": {
+                            "evaluate": {
+                                "type": "array",
+                                "items": {
+                                    "title": "Evaluate Error",
+                                    "description": "Error when an evaluation fails.",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "required": [
+                                        "is_critical",
+                                        "message"
+                                    ],
+                                    "properties": {
+                                        "is_critical": {
+                                            "type": "boolean",
+                                            "description": "If this error is critical. Critical errors generally halt further operations."
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Detailed message about what caused the error."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         },
-        "context_validation": "none"
-    },
-    "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-    "critical_errors": {
-        "context": [],
-        "definition": [],
-        "grant": [],
-        "jmespath": [],
-        "request": []
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the request has failed from a critical error or not."
+        },
+        "errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Operation Result Errors",
+            "description": "Errors returned from Authzee Operations.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [],
+            "properties": {
+                "evaluate": {
+                    "type": "array",
+                    "items": {
+                        "title": "Evaluate Error",
+                        "description": "Error when an evaluation fails.",
+                        "type": "object",
+                        "additionalProperties": true,
+                        "required": [
+                            "is_critical",
+                            "message"
+                        ],
+                        "properties": {
+                            "is_critical": {
+                                "type": "boolean",
+                                "description": "If this error is critical. Critical errors generally halt further operations."
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Detailed message about what caused the error."
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|:-:|---|
-| authorized | boolean | ✅ | If the request is authorized. |
-| completed | boolean | ✅ | If the workflow completed. |
-| grant | object<[Grant](#grants)> \| null | ✅ | The grant whose evaluation led to the authorization decision, if applicable. |
-| message | string | ✅ | The authorization message and reasoning. |
-| critical_errors | object<[Workflow Errors](#workflow-errors)> | ✅ | Critical errors that caused the workflow to exit early. |
+### Authorize
+
+The Authorize operation gives an authorization decision for a request. 
+
+By default, nothing is authorized in Authzee. 
+
+A request is authorized if **all** of the following are true:
+- A grant with an `allow` effect is applicable to the request
+- No grants with a `deny` effect are applicable to the request. 
+- No critical errors were encountered when processing the request.
+
+A request is not authorized if **any** of the following are true:
+- A grant with a `deny` effect is applicable to the request.
+- No grants are applicable to the request. 
+- A critical errors was encountered when processing the request.
+
+
+#### Authorize Result Example
+
+```json
+{
+    "is_authorized": true,
+    "grant": {
+        "effect": "allow",
+        "actions": [
+            "Balloon:Read",
+            "pop"
+        ],
+        "query": "contains(request.identities.User[0].role, 'admin')",
+        "evaluation_handler": "evaluate",
+        "equality": true,
+        "data": {}
+    },
+    "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+    "has_failed": false,
+    "critical_errors": {}
+}
+```
+
+#### Authorize Result Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Authorize Result",
+    "description": "Result for the authorize operation.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "is_authorized",
+        "grant",
+        "message",
+        "has_failed",
+        "critical_errors"
+    ],
+    "properties": {
+        "is_authorized": {
+            "type": "boolean",
+            "description": "true if the request is authorized.  false if it is not authorized."
+        },
+        "grant": {
+            "description": "Grant that was responsible for the authorization decision, if applicable.",
+            "anyOf": [
+                {
+                    "type": "null",
+                    "description": "No grant was involved in the authorization decision."
+                },
+                {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "title": "Grant",
+                    "description": "A grant is an object representing enacted authorization rules.",
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                        "effect",
+                        "actions",
+                        "data",
+                        "query",
+                        "evaluation_handler",
+                        "equality"
+                    ],
+                    "properties": {
+                        "effect": {
+                            "type": "string",
+                            "enum": [
+                                "allow",
+                                "deny"
+                            ],
+                            "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                        },
+                        "actions": {
+                            "type": "array",
+                            "uniqueItems": true,
+                            "items": {
+                                "title": "Resource Action",
+                                "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_.:-]*$",
+                                "minLength": 1,
+                                "maxLength": 512
+                            },
+                            "description": "List of actions this grant applies to or null to match any resource action."
+                        },
+                        "data": {
+                            "type": "object",
+                            "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                        },
+                        "evaluation_handler": {
+                            "title": "Grant-Level Evaluation Handler Setting",
+                            "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                            "type": "string",
+                            "enum": [
+                                "evaluate",
+                                "error",
+                                "critical"
+                            ]
+                        },
+                        "equality": {
+                            "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                        }
+                    }
+                }
+            ]
+        },
+        "message": {
+            "type": "string",
+            "description": "Details about why the request was authorized or not.",
+            "enum": [
+                "A critical error has occurred. Therefore, the request is not authorized.",
+                "A deny grant is applicable to the request. Therefore, the request is not authorized.",
+                "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+                "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
+            ]
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the request has failed from a critical error or not."
+        },
+        "critical_errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Operation Result Errors",
+            "description": "Errors returned from Authzee Operations.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [],
+            "properties": {
+                "evaluate": {
+                    "type": "array",
+                    "items": {
+                        "title": "Evaluate Error",
+                        "description": "Error when an evaluation fails.",
+                        "type": "object",
+                        "additionalProperties": true,
+                        "required": [
+                            "is_critical",
+                            "message"
+                        ],
+                        "properties": {
+                            "is_critical": {
+                                "type": "boolean",
+                                "description": "If this error is critical. Critical errors generally halt further operations."
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Detailed message about what caused the error."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+### Batch Audit
+
+The Batch Audit operation is used to run the Audit operation over a batch request with the same list of grants. 
+
+
+#### Batch Audit Result Example
+
+```json
+{
+    "grants": [
+        {
+            "effect": "allow",
+            "actions": [
+                "inflate"
+            ],
+            "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+            "evaluation_handler": "error",
+            "equality": true,
+            "data": {}
+        }
+    ],
+    "batch_results": [
+        {
+            "results": [
+                {
+                    "is_applicable": true,
+                    "query_result": true,
+                    "errors": {}
+                }
+            ],
+            "has_failed": false,
+            "errors": {}
+        }
+    ],
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+
+#### Batch Audit Result Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch Audit Result",
+    "description": "Result for the Batch Audit Operation.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "grants",
+        "batch_results",
+        "has_failed",
+        "errors"
+    ],
+    "properties": {
+        "grants": {
+            "type": "array",
+            "description": "List of grants that have been processed for the request.",
+            "items": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "Grant",
+                "description": "A grant is an object representing enacted authorization rules.",
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                    "effect",
+                    "actions",
+                    "data",
+                    "query",
+                    "evaluation_handler",
+                    "equality"
+                ],
+                "properties": {
+                    "effect": {
+                        "type": "string",
+                        "enum": [
+                            "allow",
+                            "deny"
+                        ],
+                        "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                    },
+                    "actions": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                            "title": "Resource Action",
+                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_.:-]*$",
+                            "minLength": 1,
+                            "maxLength": 512
+                        },
+                        "description": "List of actions this grant applies to or null to match any resource action."
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                    },
+                    "evaluation_handler": {
+                        "title": "Grant-Level Evaluation Handler Setting",
+                        "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                        "type": "string",
+                        "enum": [
+                            "evaluate",
+                            "error",
+                            "critical"
+                        ]
+                    },
+                    "equality": {
+                        "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                    }
+                }
+            }
+        },
+        "batch_results": {
+            "type": "array",
+            "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
+            "items": {
+                "type": "object",
+                "description": "Audit batch item result.",
+                "additionalProperties": true,
+                "required": [
+                    "results",
+                    "has_failed",
+                    "errors"
+                ],
+                "properties": {
+                    "results": {
+                        "type": "array",
+                        "description": "List of grant evaluation results for each respective grant index.",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "required": [
+                                "is_applicable",
+                                "query_result",
+                                "errors"
+                            ],
+                            "properties": {
+                                "is_applicable": {
+                                    "type": "boolean",
+                                    "description": "If the grant is applicable to the request or not."
+                                },
+                                "query_result": {
+                                    "description": "Result from running the JSON query."
+                                },
+                                "errors": {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "title": "Operation Result Errors",
+                                    "description": "Errors returned from Authzee Operations.",
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [],
+                                    "properties": {
+                                        "evaluate": {
+                                        "type": "array",
+                                        "items": {
+                                            "title": "Evaluate Error",
+                                            "description": "Error when an evaluation fails.",
+                                            "type": "object",
+                                            "additionalProperties": true,
+                                            "required": [
+                                                "is_critical",
+                                                "message"
+                                            ],
+                                            "properties": {
+                                                "is_critical": {
+                                                    "type": "boolean",
+                                                    "description": "If this error is critical. Critical errors generally halt further operations."
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "description": "Detailed message about what caused the error."
+                                                }
+                                            }
+                                        }
+                                    }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "has_failed": {
+                        "type": "boolean",
+                        "description": "If the request has failed from a critical error or not."
+                    },
+                    "errors": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Operation Result Errors",
+                        "description": "Errors returned from Authzee Operations.",
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [],
+                        "properties": {
+                            "evaluate": {
+                                "type": "array",
+                                "items": {
+                                    "title": "Evaluate Error",
+                                    "description": "Error when an evaluation fails.",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "required": [
+                                        "is_critical",
+                                        "message"
+                                    ],
+                                    "properties": {
+                                        "is_critical": {
+                                            "type": "boolean",
+                                            "description": "If this error is critical. Critical errors generally halt further operations."
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Detailed message about what caused the error."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the batch request could not be validated and failed or not. "
+        },
+        "errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Batch Result Errors",
+            "description": "Errors returned from Authzee Batch requests.",
+            "type": "object",
+            "additionalProperties": true,
+            "required": [],
+            "properties": {}
+        }
+    }
+}
+```
+
+### Batch Authorize
+
+The Batch Authorize operation is used to run the Authorize operation for a batch request.  
+
+#### Batch Authorize Result Example
+
+```json
+{
+    "batch_results": [
+        {
+            "is_authorized": true,
+            "grant": {
+                "effect": "allow",
+                "actions": [
+                    "Balloon:Read",
+                    "pop"
+                ],
+                "query": "contains(request.identities.User[0].role, 'admin')",
+                "evaluation_handler": "evaluate",
+                "equality": true,
+                "data": {}
+            },
+            "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+            "has_failed": false,
+            "critical_errors": {}
+        },
+        {
+            "is_authorized": false,
+            "grant": null,
+            "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
+            "has_failed": false,
+            "critical_errors": {}
+        },
+
+    ],
+    "has_failed": false,
+    "errors": {}
+}
+```
+
+
+#### Batch Authorize Result Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch Authorize Result",
+    "description": "Result for the Batch Authorize Operation.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "batch_results",
+        "has_failed",
+        "errors"
+    ],
+    "properties": {
+        "batch_results": {
+            "type": "array",
+            "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
+            "items": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "Authorize Result",
+                "description": "Result for the authorize operation.",
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                    "is_authorized",
+                    "grant",
+                    "message",
+                    "has_failed",
+                    "critical_errors"
+                ],
+                "properties": {
+                    "is_authorized": {
+                        "type": "boolean",
+                        "description": "true if the request is authorized.  false if it is not authorized."
+                    },
+                    "grant": {
+                        "description": "Grant that was responsible for the authorization decision, if applicable.",
+                        "anyOf": [
+                            {
+                                "type": "null",
+                                "description": "No grant was involved in the authorization decision."
+                            },
+                            {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "title": "Grant",
+                                "description": "A grant is an object representing enacted authorization rules.",
+                                "type": "object",
+                                "additionalProperties": true,
+                                "required": [
+                                    "effect",
+                                    "actions",
+                                    "data",
+                                    "query",
+                                    "evaluation_handler",
+                                    "equality"
+                                ],
+                                "properties": {
+                                    "effect": {
+                                        "type": "string",
+                                        "enum": [
+                                            "allow",
+                                            "deny"
+                                        ],
+                                        "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                                    },
+                                    "actions": {
+                                        "type": "array",
+                                        "uniqueItems": true,
+                                        "items": {
+                                            "title": "Resource Action",
+                                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                                            "type": "string",
+                                            "pattern": "^[A-Za-z0-9_.:-]*$",
+                                            "minLength": 1,
+                                            "maxLength": 512
+                                        },
+                                        "description": "List of actions this grant applies to or null to match any resource action."
+                                    },
+                                    "data": {
+                                        "type": "object",
+                                        "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                                    },
+                                    "query": {
+                                        "type": "string",
+                                        "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                                    },
+                                    "evaluation_handler": {
+                                        "title": "Grant-Level Evaluation Handler Setting",
+                                        "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
+                                        "type": "string",
+                                        "enum": [
+                                            "evaluate",
+                                            "error",
+                                            "critical"
+                                        ]
+                                    },
+                                    "equality": {
+                                        "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Details about why the request was authorized or not.",
+                        "enum": [
+                            "A critical error has occurred. Therefore, the request is not authorized.",
+                            "A deny grant is applicable to the request. Therefore, the request is not authorized.",
+                            "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+                            "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
+                        ]
+                    },
+                    "has_failed": {
+                        "type": "boolean",
+                        "description": "If the request has failed from a critical error or not."
+                    },
+                    "critical_errors": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Operation Result Errors",
+                        "description": "Errors returned from Authzee Operations.",
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [],
+                        "properties": {
+                            "evaluate": {
+                                "type": "array",
+                                "items": {
+                                    "title": "Evaluate Error",
+                                    "description": "Error when an evaluation fails.",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "required": [
+                                        "is_critical",
+                                        "message"
+                                    ],
+                                    "properties": {
+                                        "is_critical": {
+                                            "type": "boolean",
+                                            "description": "If this error is critical. Critical errors generally halt further operations."
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Detailed message about what caused the error."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "has_failed": {
+            "type": "boolean",
+            "description": "If the batch request could not be validated and failed or not. "
+        },
+        "errors": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Batch Result Errors",
+            "description": "Errors returned from Authzee Batch requests.",
+            "type": "object",
+            "additionalProperties": true,
+            "required": [],
+            "properties": {}
+        }
+    }
+}
+```
+
+
+## Errors
+
+Errors are included for all validations, evaluation, and operation calls. 
+
+In general errors take the same basic shape, although this can be built upon to include extra context if needed.  
+
+For validation calls, there is generally only one type of error returned for that specific validation.  
+
+Operation calls will return an object under `errors` or `critical_errors` where the fields are the error type, and the value is an array of errors for that type. 
+
+
+### Error Types
+
+- `definition` - An error occurred when validation a context, identity, or resource definition
+- `evaluation` - An error occurred during an evaluation. Usually triggered from a JSON query error.
+- `grant` - An error occurred when validating a grant.
+- `request` - An error occurred when validating a request or batch request.
+
+SDKs may add more errors as needed. 
+
+
+### Error Example
+
+```json
+{
+    "is_critical": false,
+    "message": "Some error has occurred"
+}
+```
+
+
+### Error Schema
+
+```json
+{
+    "title": "Error Item",
+    "description": "Error details.",
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+        "is_critical",
+        "message"
+    ],
+    "properties": {
+        "is_critical": {
+            "type": "boolean",
+            "description": "If this error is critical. Critical errors generally halt further steps and cause the validation or operation to exit early."
+        },
+        "message": {
+            "type": "string",
+            "description": "Detailed message about what caused the error."
+        }
+    }
+}
+```

@@ -1,14 +1,15 @@
 import json
+from typing import Any
 
 import jmespath
 
 from src.reference import authorize_workflow
 
-# 1. Define the identities the calling entity has
-identity_definitions = [
+# 1. Define the identities - Describe who needs to be authorized
+identity_defs = [
     {
         "identity_type": "User", # unique identity type
-        "schema": { # JSON Schema 
+        "schema": { # JSON Schema for Users
             "type": "object",
             "properties": {
                 "id": {
@@ -35,8 +36,8 @@ identity_definitions = [
     }
 ]
 
-# 2. Define resources that can be accessed
-resource_definitions = [
+# 2. Define resources 
+resource_defs = [
     {
         "resource_type": "Balloon", # Resource types must be unique
         "actions": [
@@ -48,6 +49,11 @@ resource_definitions = [
         ],
         "schema": { # JSON Schema
             "type": "object", 
+            "required": [
+                "id",
+                "color",
+                "size"
+            ],
             "properties": {
                 "id": {
                     "type": "string"
@@ -63,19 +69,44 @@ resource_definitions = [
                         "large"
                     ]
                 }
-            },
-            "required": [
-                "id",
-                "color",
-                "size"
-            ]
-        },
-        "parent_types": [], # parent resource types, if any
-        "child_types": [] # child resource types, if any
+            }
+        }
     }
 ]
 
-# 3. Define Grants - access rules 
+# 3. Define Contexts - Context is extra structured data that is passed to the request
+context_defs = [
+    { # no context
+        "context_type": "NULL",
+        "schema": {
+            "type": "object",
+            "additionalProperties": False
+        }
+    },
+    { # any context
+        "context_type": "ANY",
+        "schema": {
+            "type": "object"
+        }
+    },
+    {
+        "context_type": "MySpecialContext",
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "Team"
+            ],
+            "properties": {
+                "Team": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+]
+
+# 4. Define Grants - access rules 
 grants = [
     {
         "effect": "allow", # allow or deny
@@ -83,21 +114,18 @@ grants = [
             "Balloon:Read",
             "pop"
         ],
-        "query": "contains(request.identities.User[*].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} and will return `true` if any of the calling entities, User type identities have the admin role
-        "query_validation": "validate",
+        "query": "contains(request.identities.User[0].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
+        # In this case, the above query will return `true` if the calling entity's zeroth User type identity has the admin role
+        "evaluation_handler": "evaluate",
         "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
-        "data": {},
-        "context_schema": {
-            "type": "object"
-        },
-        "context_validation": "none"
+        "data": {}, # extra free from data to store with this grant
     }
 ]
 
-# 4. Create an authorization request
+# 5. Create an authorization request
 request = {
     "identities": { # create zero or more instances of any identity
-        "User": [
+        "User": [ # Identity type, with list of instances
             {
                 "id": "balloon_luvr",
                 "role": "admin",
@@ -113,55 +141,61 @@ request = {
         "color": "green",
         "size": "medium"
     },
-    "parents": {},
-    "children": {},
-    "query_validation": "grant", # optionally override grant level query validation
+    "evaluation_handler": "grant", # optionally override grant level evaluation
+    "context_type": "MySpecialContext", # include a specific context type and data
     "context": {
-        "TEAM": "ABC" # free from data 
-    },
-    "context_validation": "grant" # optionally override grant level context validation
+        "Team": "ABC"
+    }
 }
 
-# 5. Check authorization
+
+# 6. Define a function wrapping your preferred JSON query language to return the expected schema.
+def execute(expression: str, data: Any) -> Any:
+    result = {
+        "result": None,
+        "has_failed": False,
+        "error_message": None
+    }
+    try:
+        result['result'] = jmespath.search(expression, data)
+    except Exception as exc:
+        result['has_failed'] = True
+        result['error_message'] = f"A JMESPath Query error has occurred: {exc}"
+    
+    return result
+
+
+# 7. Given all of the previous defs and grants, check if the request is authorized.
 result = authorize_workflow(
-    identity_definitions,
-    resource_definitions,
+    context_defs,
+    identity_defs,
+    resource_defs,
     grants,
     request,
-    jmespath.search
+    execute
 )
 print(json.dumps(result, indent=4))
-if result["authorized"]:
+if result['is_authorized'] is True:
     print("✅ Access granted!")
 else:
     print("❌ Access denied!")
 
 # OUTPUT:
 # {
-#     "authorized": true,
-#     "completed": true,
+#     "is_authorized": true,
 #     "grant": {
 #         "effect": "allow",
 #         "actions": [
 #             "Balloon:Read",
 #             "pop"
 #         ],
-#         "query": "contains(request.identities.User[*].role, 'admin')",
-#         "query_validation": "validate",
+#         "query": "contains(request.identities.User[0].role, 'admin')",
+#         "evaluation_handler": "evaluate",
 #         "equality": true,
-#         "data": {},
-#         "context_schema": {
-#             "type": "object"
-#         },
-#         "context_validation": "none"
+#         "data": {}
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#     "errors": {
-#         "context": [],
-#         "definition": [],
-#         "grant": [],
-#         "jmespath": [],
-#         "request": []
-#     }
+#     "has_failed": false,
+#     "critical_errors": {}
 # }
 # ✅ Access granted!
