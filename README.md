@@ -1,7 +1,9 @@
 # Authzee 
 
 <!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
-<img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/authzee_balloon.svg" alt="Authzee Balloon" width="100"> 
+<img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/authzee_logo.svg" alt="Authzee Logo" width="100"> 
+
+<!-- <img src="./docs/authzee_logo.svg" alt="Authzee Logo" width="500">  -->
 
 Authzee is a highly expressive grant-based authorization engine. It's all about flattening authorization based on patterns within an organization or application. 
 
