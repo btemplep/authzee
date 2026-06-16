@@ -1,7 +1,6 @@
-# Authzee 
 
 <!-- ![authzee-logo](./docs/logo.svg) Documentation(Link TBD) -->
-<img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/authzee_logo.svg" alt="Authzee Logo" width="100"> 
+<img src="https://raw.githubusercontent.com/btemplep/authzee/main/docs/authzee_logo.svg" alt="Authzee Logo" width="500"> 
 
 <!-- <img src="./docs/authzee_logo.svg" alt="Authzee Logo" width="500">  -->
 
