@@ -299,7 +299,6 @@ grants = [
         ],
         "query": "contains(request.identities.User[].department, request.resource.owner_department)", 
         # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
-        "evaluation_handler": "error", # if the query has an error return it
         "equality": True,
         "data": {}
     },
@@ -309,7 +308,6 @@ grants = [
             "read"
         ],       # you can use the query to limit by context types
         "query": "request.context_type == 'MySpecialContext' && contains(request.identities.User[].department, request.context.Team)",
-        "evaluation_handler": "error", # if the query has an error return it
         "equality": True,
         "data": {}
     },
@@ -323,7 +321,6 @@ grants = [
             "tie"
         ],
         "query": "request.context_type == 'NULL' && contains(request.identities.Role[].level, 'admin')",
-        "evaluation_handler": "error",
         "equality": True,
         "data": {}
     },
@@ -333,7 +330,6 @@ grants = [
             "read"
         ], # because the read action is for multiple resources we can check the resource type first. 
         "query": "request.resource_type == 'BalloonStore' && contains(request.identities.Group[?type=='department'].department, request.resource.owner_department)",
-        "evaluation_handler": "error", 
         "equality": True,
         "data": {}
     },
@@ -343,7 +339,6 @@ grants = [
             "inflate"
         ],                                                                               # don't need to check resource type since only Balloon has the 'inflate' action
         "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-        "evaluation_handler": "error",
         "equality": True,
         "data": {}
     },
@@ -353,7 +348,6 @@ grants = [
             "pop"
         ],       # don't need to check resource type since only Balloon has the 'inflate' action
         "query": "request.context_type == 'NULL' && request.resource.size == 'large' && !contains(request.identities.Role[*].level, 'admin')",
-        "evaluation_handler": "error",
         "equality": True,
         "data": {}
     },
@@ -361,7 +355,6 @@ grants = [
         "effect": "deny",
         "actions": [],
         "query": "request.context_type == 'NULL' && length(request.identities.User) == `0`",
-        "evaluation_handler": "error",
         "equality": True,
         "data": {}
     }
@@ -412,7 +405,6 @@ request = {
         "owner_department": "party_planning",
         "inflated": False
     },
-    "evaluation_handler": "grant",  # Use grant-level validation settings
     "context_type": "MySpecialContext",  # specify the context type, this will only be evaluated against grants that accept this context
     "context": { # The context for the request
         "Team": "party_planning"
@@ -423,14 +415,15 @@ request = {
 def execute(expression: str, data: Any) -> Any:
     result = {
         "result": None,
-        "has_failed": False,
-        "error_message": None
+        "error": None
     }
     try:
         result['result'] = jmespath.search(expression, data)
     except Exception as exc:
-        result['has_failed'] = True
-        result['error_message'] = f"A JMESPath Query error has occurred: {exc}"
+        result['error'] = {
+            "error_type": "evaluation",
+            "message": f"A JMESPath Query error has occurred: {exc}"
+        }
     
     return result
 
@@ -445,14 +438,15 @@ options = jmespath.Options(custom_functions=CustomFunctions())
 def my_execute(expression: str, data: Any) -> Any:
     result = {
         "result": None,
-        "has_failed": False,
-        "error_message": None
+        "error": None
     }
     try:
         result['result'] = jmespath.search(expression, data, options)
     except Exception as exc:
-        result['has_failed'] = True
-        result['error_message'] = f"A JMESPath Query error has occurred: {exc}"
+        result['error'] = {
+            "error_type": "evaluation",
+            "message": f"A JMESPath Query error has occurred: {exc}"
+        }
     
     return result
 
@@ -469,20 +463,23 @@ audit_result = audit_workflow(
 print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 # Audit Result:
 # {
-#     "grants": [
+#     "results": [
 #         {
-#             "effect": "allow",
-#             "actions": [
-#                 "inflate"
-#             ],
-#             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#             "evaluation_handler": "error",
-#             "equality": true,
-#             "data": {}
+#             "grant": {
+#                 "effect": "allow",
+#                 "actions": [
+#                     "inflate"
+#                 ],
+#                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
+#                 "equality": true,
+#                 "data": {}
+#             },
+#             "is_applicable": true,
+#             "query_result": true,
+#             "error": null
 #         }
 #     ],
-#     "has_failed": false,
-#     "errors": {}
+#     "error": null
 # }
 
 
@@ -506,13 +503,11 @@ print(f"Authorization Result:\n{json.dumps(authorization_result, indent=4)}")
 #             "inflate"
 #         ],
 #         "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#         "evaluation_handler": "error",
 #         "equality": true,
 #         "data": {}
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#     "has_failed": false,
-#     "critical_errors": {}
+#     "error": null
 # }
 
 # 8. Create a batch request. 
@@ -566,7 +561,6 @@ batch_request = {
     "context": {
         "Team": "ABC"
     },
-    "evaluation_handler": "grant",
     "batch": [
         {
             "resource": { # A common use case is to simply specify different resources for the same request
@@ -604,8 +598,7 @@ batch_request = {
                 "location": "Somewhere"
             },
             "context_type": "NULL",  # specify the context type, this will only be evaluated against grants that accept this context
-            "context":  {},
-            "evaluation_handler": "error"
+            "context":  {}
         },
         {} # technically you don't have to override any
     ]  
@@ -624,82 +617,43 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 # Audit Result - An array of audit results that maps to the batch_request.resources array
 # Each one is processed as if it was a separate request
 # {
-#     "results": [
+#     "grants": [...],
+#     "batch_results": [
 #         {
-#             "grants": [
+#             "results": [
 #                 {
-#                     "effect": "allow",
-#                     "actions": [
-#                         "inflate"
-#                     ],
-#                     "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                     "evaluation_handler": "error",
-#                     "equality": true,
-#                     "data": {}
+#                     "is_applicable": true,
+#                     "query_result": true,
+#                     "error": null
 #                 }
 #             ],
-#             "has_failed": false,
-#             "errors": {}
+#             "error": null
 #         },
 #         {
-#             "grants": [],
-#             "has_failed": false,
-#             "errors": {
-#                 "jmespath": [
-#                     {
-#                         "is_critical": false,
-#                         "message": "A JMESPath error has occurred: In function contains(), invalid type for value: None, expected one of: ['array', 'string'], received: \"null\".",
-#                         "grant": {
-#                             "effect": "allow",
-#                             "actions": [
-#                                 "read",
-#                                 "inflate",
-#                                 "deflate",
-#                                 "pop",
-#                                 "tie"
-#                             ],
-#                             "query": "request.context_type == 'NULL' && contains(request.identities.Role[].level, 'admin')",
-#                             "evaluation_handler": "error",
-#                             "equality": true,
-#                             "data": {}
-#                         }
-#                     },
-#                     {
-#                         "is_critical": false,
-#                         "message": "A JMESPath error has occurred: In function contains(), invalid type for value: None, expected one of: ['array', 'string'], received: \"null\".",
-#                         "grant": {
-#                             "effect": "allow",
-#                             "actions": [
-#                                 "inflate"
-#                             ],
-#                             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                             "evaluation_handler": "error",
-#                             "equality": true,
-#                             "data": {}
-#                         }
+#             "results": [
+#                 {
+#                     "is_applicable": false,
+#                     "query_result": null,
+#                     "error": {
+#                         "error_type": "evaluation",
+#                         "message": "A JSON Query error has occurred: ..."
 #                     }
-#                 ]
-#             }
-#         },
-#         {
-#             "grants": [
-#                 {
-#                     "effect": "allow",
-#                     "actions": [
-#                         "inflate"
-#                     ],
-#                     "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                     "evaluation_handler": "error",
-#                     "equality": true,
-#                     "data": {}
 #                 }
 #             ],
-#             "has_failed": false,
-#             "errors": {}
+#             "error": null
+#         },
+#         {
+#             "results": [
+#                 {
+#                     "is_applicable": true,
+#                     "query_result": true,
+#                     "error": null
+#                 }
+#             ],
+#             "error": null
 #         }
 #     ],
-#     "has_failed": false,
-#     "errors": {}
+#     "error": null
 # }
 
 # 9.b. Check if several requests with the same action are authorized.
@@ -715,7 +669,7 @@ print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}"
 # Authorization Result - An array of authorization results that maps to the batch_request.resources array
 # Each one is processed as if it was a separate request
 # {
-#     "results": [
+#     "batch_results": [
 #         {
 #             "is_authorized": true,
 #             "grant": {
@@ -724,20 +678,17 @@ print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}"
 #                     "inflate"
 #                 ],
 #                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                 "evaluation_handler": "error",
 #                 "equality": true,
 #                 "data": {}
 #             },
 #             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#             "has_failed": false,
-#             "critical_errors": {}
+#             "error": null
 #         },
 #         {
 #             "is_authorized": false,
 #             "grant": null,
-#             "message": "No allow or deny grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
-#             "has_failed": false,
-#             "critical_errors": {}
+#             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
+#             "error": null
 #         },
 #         {
 #             "is_authorized": true,
@@ -747,15 +698,12 @@ print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}"
 #                     "inflate"
 #                 ],
 #                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-#                 "evaluation_handler": "error",
 #                 "equality": true,
 #                 "data": {}
 #             },
 #             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#             "has_failed": false,
-#             "critical_errors": {}
+#             "error": null
 #         }
 #     ],
-#     "has_failed": false,
-#     "errors": {}
+#     "error": null
 # }
