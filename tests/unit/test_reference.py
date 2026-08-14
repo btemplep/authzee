@@ -1,6 +1,8 @@
-import jmespath
-import pytest
+"""Tests for python reference"""
 
+import jmespath
+import jsonschema
+import pytest
 from src.reference import *
 
 
@@ -55,10 +57,14 @@ def identity_defs():
                     "role"
                 ],
                 "properties": {
-                    "id": {"type": "string"},
-                    "role": {"type": "string"}
-                },
-            },
+                    "id": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string"
+                    }
+                }
+            }
         }
     ]
 
@@ -74,9 +80,15 @@ def resource_defs():
             ],
             "schema": {
                 "type": "object",
-                "required": ["id"],
-                "properties": {"id": {"type": "string"}},
-            },
+                "required": [
+                    "id"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    }
+                }
+            }
         }
     ]
 
@@ -85,10 +97,12 @@ def resource_defs():
 def allow_grant():
     return {
         "effect": "allow",
-        "actions": ["Widget:Read"],
+        "actions": [
+            "Widget:Read"
+        ],
         "query": "request.identities.User[0].role == 'admin'",
         "equality": True,
-        "data": {},
+        "data": {}
     }
 
 
@@ -96,10 +110,12 @@ def allow_grant():
 def deny_grant():
     return {
         "effect": "deny",
-        "actions": ["Widget:Read"],
+        "actions": [
+            "Widget:Read"
+        ],
         "query": "request.identities.User[0].role == 'banned'",
         "equality": True,
-        "data": {},
+        "data": {}
     }
 
 
@@ -116,9 +132,11 @@ def admin_request():
         },
         "action": "Widget:Read",
         "resource_type": "Widget",
-        "resource": {"id": "w1"},
+        "resource": {
+            "id": "w1"
+        },
         "context_type": "NULL",
-        "context": {},
+        "context": {}
     }
 
 
@@ -165,15 +183,20 @@ def base_batch():
         },
         "action": "Widget:Read",
         "resource_type": "Widget",
-        "resource": {"id": "w1"},
+        "resource": {
+            "id": "w1"
+        },
         "context_type": "NULL",
         "context": {},
-        "batch": [{}],
+        "batch": [
+            {}
+        ]
     }
 
 
 def test_validate_context_defs_valid(context_defs):
     r = validate_context_defs(context_defs)
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is None
 
 
@@ -186,11 +209,13 @@ def test_validate_context_defs_invalid_schema():
             }
         ]
     )
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
 
 
 def test_validate_context_defs_duplicate_type(context_defs):
     r = validate_context_defs(context_defs + context_defs)
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
     assert "more than once" in r['error']['message']
 
@@ -200,10 +225,13 @@ def test_validate_context_defs_non_object_schema():
         [
             {
                 "context_type": "X",
-                "schema": {"type": "array"}
+                "schema": {
+                    "type": "array"
+                }
             }
         ]
     )
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
     assert "object" in r['error']['message']
 
@@ -217,15 +245,20 @@ def test_validate_context_defs_missing_type_in_schema():
             }
         ]
     )
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
 
 
 def test_validate_context_defs_empty():
-    assert validate_context_defs([])['error'] is None
+    r = validate_context_defs([])
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_identity_defs_valid(identity_defs):
-    assert validate_identity_defs(identity_defs)['error'] is None
+    r = validate_identity_defs(identity_defs)
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_identity_defs_invalid_schema():
@@ -237,11 +270,13 @@ def test_validate_identity_defs_invalid_schema():
             }
         ]
     )
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
 
 
 def test_validate_identity_defs_duplicate_type(identity_defs):
     r = validate_identity_defs(identity_defs + identity_defs)
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
     assert "more than once" in r['error']['message']
 
@@ -251,19 +286,26 @@ def test_validate_identity_defs_non_object_schema():
         [
             {
                 "identity_type": "X",
-                "schema": {"type": "string"}
+                "schema": {
+                    "type": "string"
+                }
             }
         ]
     )
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
 
 
 def test_validate_identity_defs_empty():
-    assert validate_identity_defs([])['error'] is None
+    r = validate_identity_defs([])
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_resource_defs_valid(resource_defs):
-    assert validate_resource_defs(resource_defs)['error'] is None
+    r = validate_resource_defs(resource_defs)
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_resource_defs_invalid_schema():
@@ -276,11 +318,13 @@ def test_validate_resource_defs_invalid_schema():
             }
         ]
     )
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
 
 
 def test_validate_resource_defs_duplicate_type(resource_defs):
     r = validate_resource_defs(resource_defs + resource_defs)
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
     assert "more than once" in r['error']['message']
 
@@ -291,30 +335,44 @@ def test_validate_resource_defs_non_object_schema():
             {
                 "resource_type": "X",
                 "actions": [],
-                "schema": {"type": "array"}
+                "schema": {
+                    "type": "array"
+                }
             }
         ]
     )
+    jsonschema.validate(r, general_result_schema)
     assert r['error'] is not None
 
 
 def test_validate_resource_defs_empty():
-    assert validate_resource_defs([])['error'] is None
+    r = validate_resource_defs([])
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_grants_valid(allow_grant, deny_grant):
-    assert validate_grants([
-        allow_grant,
-        deny_grant
-    ])['is_valid'] is True
+    r = validate_grants([allow_grant, deny_grant])
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_grants_invalid():
-    assert validate_grants([{"effect": "bad"}])['is_valid'] is False
+    r = validate_grants(
+        [
+            {
+                "effect": "bad"
+            }
+        ]
+    )
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is not None
 
 
 def test_validate_grants_empty():
-    assert validate_grants([])['is_valid'] is True
+    r = validate_grants([])
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_request_valid(
@@ -323,12 +381,14 @@ def test_validate_request_valid(
     identity_defs,
     resource_defs
 ):
-    assert validate_request(
+    r = validate_request(
         admin_request,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is True
+    )
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_request_invalid_schema(
@@ -336,12 +396,14 @@ def test_validate_request_invalid_schema(
     identity_defs,
     resource_defs
 ):
-    assert validate_request(
+    r = validate_request(
         {},
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is not None
 
 
 def test_validate_request_unknown_identity_type(
@@ -352,7 +414,13 @@ def test_validate_request_unknown_identity_type(
 ):
     req = {
         **admin_request,
-        "identities": {"Ghost": [{"id": "g1"}]}
+        "identities": {
+            "Ghost": [
+                {
+                    "id": "g1"
+                }
+            ]
+        }
     }
     r = validate_request(
         req,
@@ -360,7 +428,8 @@ def test_validate_request_unknown_identity_type(
         identity_defs,
         resource_defs
     )
-    assert r['is_valid'] is False
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is not None
     assert "Ghost" in r['error']['message']
 
 
@@ -372,14 +441,22 @@ def test_validate_request_invalid_identity_instance(
 ):
     req = {
         **admin_request,
-        "identities": {"User": [{"id": 123}]}
+        "identities": {
+            "User": [
+                {
+                    "id": 123
+                }
+            ]
+        }
     }
-    assert validate_request(
+    r = validate_request(
         req,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is not None
 
 
 def test_validate_request_unknown_resource_type(
@@ -398,7 +475,8 @@ def test_validate_request_unknown_resource_type(
         identity_defs,
         resource_defs
     )
-    assert r['is_valid'] is False
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is not None
     assert "Unknown" in r['error']['message']
 
 
@@ -410,14 +488,18 @@ def test_validate_request_invalid_resource_instance(
 ):
     req = {
         **admin_request,
-        "resource": {"id": 999}
+        "resource": {
+            "id": 999
+        }
     }
-    assert validate_request(
+    r = validate_request(
         req,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is not None
 
 
 def test_validate_request_invalid_action(
@@ -436,7 +518,8 @@ def test_validate_request_invalid_action(
         identity_defs,
         resource_defs
     )
-    assert r['is_valid'] is False
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is not None
     assert "Widget:Delete" in r['error']['message']
 
 
@@ -456,7 +539,8 @@ def test_validate_request_unknown_context_type(
         identity_defs,
         resource_defs
     )
-    assert r['is_valid'] is False
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is not None
     assert "Unknown" in r['error']['message']
 
 
@@ -468,14 +552,18 @@ def test_validate_request_invalid_context_instance(
 ):
     req = {
         **admin_request,
-        "context": {"extra": "not_allowed"}
+        "context": {
+            "extra": "not_allowed"
+        }
     }
-    assert validate_request(
+    r = validate_request(
         req,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, general_result_schema)
+    assert r['error'] is not None
 
 
 def test_validate_batch_request_valid(
@@ -484,12 +572,14 @@ def test_validate_batch_request_valid(
     identity_defs,
     resource_defs
 ):
-    assert validate_batch_request(
+    r = validate_batch_request(
         base_batch,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is True
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_batch_request_invalid_schema(
@@ -497,12 +587,14 @@ def test_validate_batch_request_invalid_schema(
     identity_defs,
     resource_defs
 ):
-    assert validate_batch_request(
+    r = validate_batch_request(
         {},
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is not None
 
 
 def test_validate_batch_request_item_overrides_identities(
@@ -526,12 +618,14 @@ def test_validate_batch_request_item_overrides_identities(
             }
         ]
     }
-    assert validate_batch_request(
+    r = validate_batch_request(
         batch,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is True
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_batch_request_item_invalid_identity(
@@ -542,7 +636,15 @@ def test_validate_batch_request_item_invalid_identity(
 ):
     batch = {
         **base_batch,
-        "batch": [{"identities": {"Ghost": [{}]}}]
+        "batch": [
+            {
+                "identities": {
+                    "Ghost": [
+                        {}
+                    ]
+                }
+            }
+        ]
     }
     r = validate_batch_request(
         batch,
@@ -550,6 +652,7 @@ def test_validate_batch_request_item_invalid_identity(
         identity_defs,
         resource_defs
     )
+    jsonschema.validate(r, validate_batch_request_result_schema)
     assert r['batch_errors'][0] is not None
 
 
@@ -561,14 +664,22 @@ def test_validate_batch_request_item_overrides_resource(
 ):
     batch = {
         **base_batch,
-        "batch": [{"resource": {"id": "w2"}}]
+        "batch": [
+            {
+                "resource": {
+                    "id": "w2"
+                }
+            }
+        ]
     }
-    assert validate_batch_request(
+    r = validate_batch_request(
         batch,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is True
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_batch_request_item_overrides_resource_type(
@@ -582,16 +693,20 @@ def test_validate_batch_request_item_overrides_resource_type(
         "batch": [
             {
                 "resource_type": "Widget",
-                "resource": {"id": "w2"}
+                "resource": {
+                    "id": "w2"
+                }
             }
         ]
     }
-    assert validate_batch_request(
+    r = validate_batch_request(
         batch,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is True
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_batch_request_item_overrides_context(
@@ -609,12 +724,14 @@ def test_validate_batch_request_item_overrides_context(
             }
         ]
     }
-    assert validate_batch_request(
+    r = validate_batch_request(
         batch,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is True
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_batch_request_item_context_only(
@@ -625,14 +742,20 @@ def test_validate_batch_request_item_context_only(
 ):
     batch = {
         **base_batch,
-        "batch": [{"context": {}}]
+        "batch": [
+            {
+                "context": {}
+            }
+        ]
     }
-    assert validate_batch_request(
+    r = validate_batch_request(
         batch,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is True
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is None
 
 
 def test_validate_batch_request_top_level_invalid_identity(
@@ -643,14 +766,20 @@ def test_validate_batch_request_top_level_invalid_identity(
 ):
     batch = {
         **base_batch,
-        "identities": {"Ghost": [{}]}
+        "identities": {
+            "Ghost": [
+                {}
+            ]
+        }
     }
-    assert validate_batch_request(
+    r = validate_batch_request(
         batch,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is not None
 
 
 def test_validate_batch_request_top_level_invalid_resource(
@@ -661,14 +790,18 @@ def test_validate_batch_request_top_level_invalid_resource(
 ):
     batch = {
         **base_batch,
-        "resource": {"id": 999}
+        "resource": {
+            "id": 999
+        }
     }
-    assert validate_batch_request(
+    r = validate_batch_request(
         batch,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is not None
 
 
 def test_validate_batch_request_top_level_invalid_context(
@@ -679,27 +812,29 @@ def test_validate_batch_request_top_level_invalid_context(
 ):
     batch = {
         **base_batch,
-        "context": {"not_allowed": True}
+        "context": {
+            "not_allowed": True
+        }
     }
-    assert validate_batch_request(
+    r = validate_batch_request(
         batch,
         context_defs,
         identity_defs,
         resource_defs
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, validate_batch_request_result_schema)
+    assert r['error'] is not None
 
 
 def test_evaluate_one_action_not_in_grant(admin_request, allow_grant):
     grant = {
         **allow_grant,
-        "actions": ["Widget:Write"]
+        "actions": [
+            "Widget:Write"
+        ]
     }
-    r = evaluate_one(
-        admin_request,
-        grant,
-        execute,
-        False
-    )
+    r = evaluate_one(admin_request, grant, execute, False)
+    jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is False
     assert r['query_result'] is None
 
@@ -711,21 +846,15 @@ def test_evaluate_one_empty_actions_matches_any(admin_request, allow_grant):
         "query": "`true`",
         "equality": True
     }
-    assert evaluate_one(
-        admin_request,
-        grant,
-        execute,
-        False
-    )['is_applicable'] is True
+    r = evaluate_one(admin_request, grant, execute, False)
+    jsonschema.validate(r, evaluate_one_result_schema)
+    assert r['is_applicable'] is True
 
 
 def test_evaluate_one_applicable(admin_request, allow_grant):
-    assert evaluate_one(
-        admin_request,
-        allow_grant,
-        execute,
-        False
-    )['is_applicable'] is True
+    r = evaluate_one(admin_request, allow_grant, execute, False)
+    jsonschema.validate(r, evaluate_one_result_schema)
+    assert r['is_applicable'] is True
 
 
 def test_evaluate_one_wrong_equality(admin_request, allow_grant):
@@ -733,21 +862,22 @@ def test_evaluate_one_wrong_equality(admin_request, allow_grant):
         **allow_grant,
         "equality": False
     }
-    assert evaluate_one(
-        admin_request,
-        grant,
-        execute,
-        False
-    )['is_applicable'] is False
+    r = evaluate_one(admin_request, grant, execute, False)
+    jsonschema.validate(r, evaluate_one_result_schema)
+    assert r['is_applicable'] is False
 
 
-def test_evaluate_one_query_failure_evaluate_no_error(admin_request, allow_grant):
+def test_evaluate_one_query_failure_evaluate_no_error(
+    admin_request,
+    allow_grant
+):
     r = evaluate_one(
         admin_request,
         allow_grant,
         failing_execute,
         True
     )
+    jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is False
     assert r['error'] is None
 
@@ -759,18 +889,23 @@ def test_evaluate_one_query_failure_error_handler(admin_request, allow_grant):
         failing_execute,
         False
     )
+    jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is False
     assert r['error'] is not None
     assert "message" in r['error']
 
 
-def test_evaluate_one_query_failure_only_crits_suppresses(admin_request, allow_grant):
+def test_evaluate_one_query_failure_only_crits_suppresses(
+    admin_request,
+    allow_grant
+):
     r = evaluate_one(
         admin_request,
         allow_grant,
         failing_execute,
         True
     )
+    jsonschema.validate(r, evaluate_one_result_schema)
     assert r['error'] is None
 
 
@@ -781,6 +916,7 @@ def test_evaluate_one_query_failure_not_suppressed(admin_request, allow_grant):
         failing_execute,
         False
     )
+    jsonschema.validate(r, evaluate_one_result_schema)
     assert r['error'] is not None
 
 
@@ -790,6 +926,7 @@ def test_audit_applicable_grant(admin_request, allow_grant):
         [allow_grant],
         execute
     )
+    jsonschema.validate(r, audit_result_schema)
     assert r['error'] is None
     assert r['results'][0]['is_applicable'] is True
     assert r['results'][0]['grant'] == allow_grant
@@ -801,6 +938,7 @@ def test_audit_no_applicable_grant(guest_request, allow_grant):
         [allow_grant],
         execute
     )
+    jsonschema.validate(r, audit_result_schema)
     assert r['results'][0]['is_applicable'] is False
     assert r['results'][0]['grant'] == allow_grant
 
@@ -811,17 +949,15 @@ def test_audit_evaluation_error(admin_request, allow_grant):
         [allow_grant],
         failing_execute
     )
+    jsonschema.validate(r, audit_result_schema)
     assert r['error'] is None
     assert len(r['results']) == 1
     assert r['results'][0]['error'] is not None
 
 
 def test_audit_empty_grants(admin_request):
-    r = audit(
-        admin_request,
-        [],
-        execute
-    )
+    r = audit(admin_request, [], execute)
+    jsonschema.validate(r, audit_result_schema)
     assert r['results'] == []
     assert r['error'] is None
 
@@ -832,23 +968,18 @@ def test_authorize_allow_grant(admin_request, allow_grant):
         [allow_grant],
         execute
     )
+    jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is True
     assert r['grant'] == allow_grant
 
 
-def test_authorize_deny_grant(
-    banned_request,
-    allow_grant,
-    deny_grant
-):
+def test_authorize_deny_grant(banned_request, allow_grant, deny_grant):
     r = authorize(
         banned_request,
-        [
-            allow_grant,
-            deny_grant
-        ],
+        [allow_grant, deny_grant],
         execute
     )
+    jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is False
     assert "deny" in r['message']
 
@@ -859,6 +990,7 @@ def test_authorize_no_applicable_grant(guest_request, allow_grant):
         [allow_grant],
         execute
     )
+    jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is False
     assert r['grant'] is None
     assert "implicitly denied" in r['message']
@@ -870,6 +1002,7 @@ def test_authorize_query_failure_in_deny(admin_request, deny_grant):
         [deny_grant],
         failing_execute
     )
+    jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is False
     assert r['error'] is None
     assert "implicitly denied" in r['message']
@@ -881,6 +1014,7 @@ def test_authorize_query_failure_in_allow(admin_request, allow_grant):
         [allow_grant],
         failing_execute
     )
+    jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is False
     assert r['error'] is None
     assert "implicitly denied" in r['message']
@@ -897,12 +1031,10 @@ def test_authorize_deny_checked_before_allow(
     }
     r = authorize(
         admin_request,
-        [
-            allow_grant,
-            deny
-        ],
+        [allow_grant, deny],
         execute
     )
+    jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is False
     assert r['grant']['effect'] == "deny"
 
@@ -913,8 +1045,9 @@ def test_batch_audit_basic(base_batch, allow_grant):
         [allow_grant],
         execute
     )
-    assert len(r['batch_results']) == 1
-    assert r['batch_results'][0]['results'][0]['is_applicable'] is True
+    jsonschema.validate(r, batch_audit_result_schema)
+    assert len(r['batch']) == 1
+    assert r['batch'][0]['results'][0]['is_applicable'] is True
 
 
 def test_batch_audit_item_overrides(base_batch, allow_grant):
@@ -933,11 +1066,13 @@ def test_batch_audit_item_overrides(base_batch, allow_grant):
             }
         ]
     }
-    assert batch_audit(
+    r = batch_audit(
         batch,
         [allow_grant],
         execute
-    )['batch_results'][0]['results'][0]['is_applicable'] is False
+    )
+    jsonschema.validate(r, batch_audit_result_schema)
+    assert r['batch'][0]['results'][0]['is_applicable'] is False
 
 
 def test_batch_audit_multiple_items(base_batch, allow_grant):
@@ -948,11 +1083,13 @@ def test_batch_audit_multiple_items(base_batch, allow_grant):
             {}
         ]
     }
-    assert len(batch_audit(
+    r = batch_audit(
         batch,
         [allow_grant],
         execute
-    )['batch_results']) == 2
+    )
+    jsonschema.validate(r, batch_audit_result_schema)
+    assert len(r['batch']) == 2
 
 
 def test_batch_authorize_basic(base_batch, allow_grant):
@@ -961,7 +1098,8 @@ def test_batch_authorize_basic(base_batch, allow_grant):
         [allow_grant],
         execute
     )
-    assert r['batch_results'][0]['is_authorized'] is True
+    jsonschema.validate(r, batch_authorize_result_schema)
+    assert r['batch'][0]['is_authorized'] is True
 
 
 def test_batch_authorize_item_overrides(base_batch, allow_grant):
@@ -980,11 +1118,13 @@ def test_batch_authorize_item_overrides(base_batch, allow_grant):
             }
         ]
     }
-    assert batch_authorize(
+    r = batch_authorize(
         batch,
         [allow_grant],
         execute
-    )['batch_results'][0]['is_authorized'] is False
+    )
+    jsonschema.validate(r, batch_authorize_result_schema)
+    assert r['batch'][0]['is_authorized'] is False
 
 
 def test_batch_authorize_multiple_items(base_batch, allow_grant):
@@ -995,11 +1135,13 @@ def test_batch_authorize_multiple_items(base_batch, allow_grant):
             {}
         ]
     }
-    assert len(batch_authorize(
+    r = batch_authorize(
         batch,
         [allow_grant],
         execute
-    )['batch_results']) == 2
+    )
+    jsonschema.validate(r, batch_authorize_result_schema)
+    assert len(r['batch']) == 2
 
 
 def test_audit_workflow_valid(
@@ -1009,7 +1151,7 @@ def test_audit_workflow_valid(
     allow_grant,
     admin_request
 ):
-    assert "results" in audit_workflow(
+    r = audit_workflow(
         context_defs,
         identity_defs,
         resource_defs,
@@ -1017,6 +1159,8 @@ def test_audit_workflow_valid(
         admin_request,
         execute
     )
+    jsonschema.validate(r, audit_result_schema)
+    assert "results" in r
 
 
 def test_audit_workflow_invalid_context_defs(
@@ -1028,17 +1172,21 @@ def test_audit_workflow_invalid_context_defs(
     bad_ctx = [
         {
             "context_type": "X",
-            "schema": {"type": "array"}
+            "schema": {
+                "type": "array"
+            }
         }
     ]
-    assert audit_workflow(
+    r = audit_workflow(
         bad_ctx,
         identity_defs,
         resource_defs,
         [allow_grant],
         admin_request,
         execute
-    )['error'] is not None
+    )
+    jsonschema.validate(r, audit_result_schema)
+    assert r['error'] is not None
 
 
 def test_audit_workflow_invalid_identity_defs(
@@ -1050,17 +1198,21 @@ def test_audit_workflow_invalid_identity_defs(
     bad_id = [
         {
             "identity_type": "X",
-            "schema": {"type": "string"}
+            "schema": {
+                "type": "string"
+            }
         }
     ]
-    assert audit_workflow(
+    r = audit_workflow(
         context_defs,
         bad_id,
         resource_defs,
         [allow_grant],
         admin_request,
         execute
-    )['error'] is not None
+    )
+    jsonschema.validate(r, audit_result_schema)
+    assert r['error'] is not None
 
 
 def test_audit_workflow_invalid_resource_defs(
@@ -1073,17 +1225,21 @@ def test_audit_workflow_invalid_resource_defs(
         {
             "resource_type": "X",
             "actions": [],
-            "schema": {"type": "array"}
+            "schema": {
+                "type": "array"
+            }
         }
     ]
-    assert audit_workflow(
+    r = audit_workflow(
         context_defs,
         identity_defs,
         bad_res,
         [allow_grant],
         admin_request,
         execute
-    )['error'] is not None
+    )
+    jsonschema.validate(r, audit_result_schema)
+    assert r['error'] is not None
 
 
 def test_audit_workflow_invalid_grants(
@@ -1092,14 +1248,20 @@ def test_audit_workflow_invalid_grants(
     resource_defs,
     admin_request
 ):
-    assert audit_workflow(
+    r = audit_workflow(
         context_defs,
         identity_defs,
         resource_defs,
-        [{"effect": "bad"}],
+        [
+            {
+                "effect": "bad"
+            }
+        ],
         admin_request,
         execute
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, audit_result_schema)
+    assert r['error'] is not None
 
 
 def test_audit_workflow_invalid_request(
@@ -1108,14 +1270,17 @@ def test_audit_workflow_invalid_request(
     resource_defs,
     allow_grant
 ):
-    assert audit_workflow(
+    r = audit_workflow(
         context_defs,
         identity_defs,
         resource_defs,
         [allow_grant],
         {},
         execute
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, audit_result_schema)
+    assert r['error'] is not None
+    assert r['results'] == []
 
 
 def test_authorize_workflow_authorized(
@@ -1125,14 +1290,16 @@ def test_authorize_workflow_authorized(
     allow_grant,
     admin_request
 ):
-    assert authorize_workflow(
+    r = authorize_workflow(
         context_defs,
         identity_defs,
         resource_defs,
         [allow_grant],
         admin_request,
         execute
-    )['is_authorized'] is True
+    )
+    jsonschema.validate(r, authorize_result_schema)
+    assert r['is_authorized'] is True
 
 
 def test_authorize_workflow_not_authorized(
@@ -1142,14 +1309,16 @@ def test_authorize_workflow_not_authorized(
     allow_grant,
     guest_request
 ):
-    assert authorize_workflow(
+    r = authorize_workflow(
         context_defs,
         identity_defs,
         resource_defs,
         [allow_grant],
         guest_request,
         execute
-    )['is_authorized'] is False
+    )
+    jsonschema.validate(r, authorize_result_schema)
+    assert r['is_authorized'] is False
 
 
 def test_authorize_workflow_invalid_request(
@@ -1158,14 +1327,17 @@ def test_authorize_workflow_invalid_request(
     resource_defs,
     allow_grant
 ):
-    assert authorize_workflow(
+    r = authorize_workflow(
         context_defs,
         identity_defs,
         resource_defs,
         [allow_grant],
         {},
         execute
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, authorize_result_schema)
+    assert r['is_authorized'] is False
+    assert r['error'] is not None
 
 
 def test_batch_audit_workflow_valid(
@@ -1175,7 +1347,7 @@ def test_batch_audit_workflow_valid(
     allow_grant,
     base_batch
 ):
-    assert "batch_results" in batch_audit_workflow(
+    r = batch_audit_workflow(
         context_defs,
         identity_defs,
         resource_defs,
@@ -1183,6 +1355,8 @@ def test_batch_audit_workflow_valid(
         base_batch,
         execute
     )
+    jsonschema.validate(r, batch_audit_result_schema)
+    assert "batch" in r
 
 
 def test_batch_audit_workflow_invalid_batch(
@@ -1191,14 +1365,18 @@ def test_batch_audit_workflow_invalid_batch(
     resource_defs,
     allow_grant
 ):
-    assert batch_audit_workflow(
+    r = batch_audit_workflow(
         context_defs,
         identity_defs,
         resource_defs,
         [allow_grant],
         {},
         execute
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, batch_audit_result_schema)
+    assert r['error'] is not None
+    assert r['grants'] == []
+    assert r['batch'] == []
 
 
 def test_batch_audit_workflow_invalid_context_defs(
@@ -1210,17 +1388,21 @@ def test_batch_audit_workflow_invalid_context_defs(
     bad_ctx = [
         {
             "context_type": "X",
-            "schema": {"type": "array"}
+            "schema": {
+                "type": "array"
+            }
         }
     ]
-    assert batch_audit_workflow(
+    r = batch_audit_workflow(
         bad_ctx,
         identity_defs,
         resource_defs,
         [allow_grant],
         base_batch,
         execute
-    )['error'] is not None
+    )
+    jsonschema.validate(r, batch_audit_result_schema)
+    assert r['error'] is not None
 
 
 def test_batch_authorize_workflow_valid(
@@ -1230,7 +1412,7 @@ def test_batch_authorize_workflow_valid(
     allow_grant,
     base_batch
 ):
-    assert "batch_results" in batch_authorize_workflow(
+    r = batch_authorize_workflow(
         context_defs,
         identity_defs,
         resource_defs,
@@ -1238,6 +1420,8 @@ def test_batch_authorize_workflow_valid(
         base_batch,
         execute
     )
+    jsonschema.validate(r, batch_authorize_result_schema)
+    assert "batch" in r
 
 
 def test_batch_authorize_workflow_invalid_batch(
@@ -1246,11 +1430,86 @@ def test_batch_authorize_workflow_invalid_batch(
     resource_defs,
     allow_grant
 ):
-    assert batch_authorize_workflow(
+    r = batch_authorize_workflow(
         context_defs,
         identity_defs,
         resource_defs,
         [allow_grant],
         {},
         execute
-    )['is_valid'] is False
+    )
+    jsonschema.validate(r, batch_authorize_result_schema)
+    assert r['error'] is not None
+    assert r['batch'] == []
+
+
+def test_batch_audit_workflow_item_with_error(
+    context_defs,
+    identity_defs,
+    resource_defs,
+    allow_grant,
+    base_batch
+):
+    batch = {
+        **base_batch,
+        "batch": [
+            {},
+            {
+                "identities": {
+                    "Ghost": [
+                        {}
+                    ]
+                }
+            }
+        ]
+    }
+    r = batch_audit_workflow(
+        context_defs,
+        identity_defs,
+        resource_defs,
+        [allow_grant],
+        batch,
+        execute
+    )
+    jsonschema.validate(r, batch_audit_result_schema)
+    assert r['error'] is None
+    assert len(r['batch']) == 2
+    assert r['batch'][0]['error'] is None
+    assert r['batch'][1]['error'] is not None
+    assert r['batch'][1]['results'] == []
+
+
+def test_batch_authorize_workflow_item_with_error(
+    context_defs,
+    identity_defs,
+    resource_defs,
+    allow_grant,
+    base_batch
+):
+    batch = {
+        **base_batch,
+        "batch": [
+            {},
+            {
+                "identities": {
+                    "Ghost": [
+                        {}
+                    ]
+                }
+            }
+        ]
+    }
+    r = batch_authorize_workflow(
+        context_defs,
+        identity_defs,
+        resource_defs,
+        [allow_grant],
+        batch,
+        execute
+    )
+    jsonschema.validate(r, batch_authorize_result_schema)
+    assert r['error'] is None
+    assert len(r['batch']) == 2
+    assert r['batch'][0]['is_authorized'] is True
+    assert r['batch'][1]['is_authorized'] is False
+    assert r['batch'][1]['error'] is not None

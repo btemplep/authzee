@@ -1,9 +1,11 @@
+"""Basic Authzee python example."""
+
 import json
 from typing import Any
 
 import jmespath
-
 from src.reference import authorize_workflow
+
 
 # 1. Define the identities - Describe who needs to be authorized
 identity_defs = [
@@ -36,7 +38,7 @@ identity_defs = [
     }
 ]
 
-# 2. Define resources 
+# 2. Define resources
 resource_defs = [
     {
         "resource_type": "Balloon", # Resource types must be unique
@@ -48,7 +50,7 @@ resource_defs = [
             "tie"
         ],
         "schema": { # JSON Schema
-            "type": "object", 
+            "type": "object",
             "required": [
                 "id",
                 "color",
@@ -106,7 +108,7 @@ context_defs = [
     }
 ]
 
-# 4. Define Grants - access rules 
+# 4. Define Grants - access rules
 grants = [
     {
         "effect": "allow", # allow or deny
@@ -114,10 +116,10 @@ grants = [
             "Balloon:Read",
             "pop"
         ],
-        "query": "contains(request.identities.User[0].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
+        "query": "contains(request.identities.User[0].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>}
         # In this case, the above query will return `true` if the calling entity's zeroth User type identity has the admin role
-        "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
-        "data": {}, # extra free from data to store with this grant
+        "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable".
+        "data": {} # extra free form data to store with this grant
     }
 ]
 
@@ -134,7 +136,7 @@ request = {
         ]
     },
     "resource_type": "Balloon", # Request access to a specific resource type
-    "action": "pop", # to perform a specific action,  
+    "action": "pop", # to perform a specific action,
     "resource": { # on a specific resource.
         "id": "b123",
         "color": "green",
@@ -160,7 +162,7 @@ def execute(expression: str, data: Any) -> Any:
             "error_type": "evaluation",
             "message": f"A JMESPath Query error has occurred: {exc}"
         }
-    
+
     return result
 
 

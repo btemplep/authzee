@@ -23,6 +23,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -->
 
 
+## [0.4.0] - 2026-08-xx
+
+### Added
+
+### Changed
+
+- General Error handling is updated. 
+    - Results now only return one error to match what would be exceptions.  Instead of using a dict of arrays for errors
+    - Errors only consist of an `error_type` and `message`. 
+    - Audit now has a single error per result to better represent where errors happen. 
+- reference "workflows" now return the operation response body.
+
+### Deprecated
+
+### Removed
+
+- `is_valid` and `has_failed` removed from responsed
+    - They now return a field called `error` that can be null or a general error.  More closely aligning with exceptions and program error
+- `evaluation_handler`field removed at all levels
+    - No errors are returned/propagated for for evaluation errors, except in audit and batch audit operations, where they are specifically recorded per result/grant.
+
+### Fixed
+
+### Security 
+
+
 ## [0.3.0] - 2026-06-15
 
 Release 0.3.0 includes many key changes to increase flexibility and scalability, while also balancing usability and maintenance.  It is a large rework to make Authzee language agnostic.
