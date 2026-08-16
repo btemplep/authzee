@@ -9,15 +9,12 @@ from src.reference import *
 def execute(expression, data):
     result = {
         "result": None,
-        "error": None
+        "failure": None
     }
     try:
         result['result'] = jmespath.search(expression, data)
     except Exception as exc:
-        result['error'] = {
-            "error_type": "evaluation",
-            "message": str(exc)
-        }
+        result['failure'] = str(exc)
 
     return result
 
@@ -25,10 +22,7 @@ def execute(expression, data):
 def failing_execute(expression, data):
     return {
         "result": None,
-        "error": {
-            "error_type": "evaluation",
-            "message": "forced failure"
-        }
+        "failure": "forced failure"
     }
 
 
@@ -102,6 +96,7 @@ def allow_grant():
         ],
         "query": "request.identities.User[0].role == 'admin'",
         "equality": True,
+        "applicable_on_failure": False,
         "data": {}
     }
 
@@ -115,6 +110,7 @@ def deny_grant():
         ],
         "query": "request.identities.User[0].role == 'banned'",
         "equality": True,
+        "applicable_on_failure": False,
         "data": {}
     }
 
@@ -833,7 +829,7 @@ def test_evaluate_one_action_not_in_grant(admin_request, allow_grant):
             "Widget:Write"
         ]
     }
-    r = evaluate_one(admin_request, grant, execute, False)
+    r = evaluate_one(admin_request, grant, execute)
     jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is False
     assert r['query_result'] is None
@@ -846,13 +842,13 @@ def test_evaluate_one_empty_actions_matches_any(admin_request, allow_grant):
         "query": "`true`",
         "equality": True
     }
-    r = evaluate_one(admin_request, grant, execute, False)
+    r = evaluate_one(admin_request, grant, execute)
     jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is True
 
 
 def test_evaluate_one_applicable(admin_request, allow_grant):
-    r = evaluate_one(admin_request, allow_grant, execute, False)
+    r = evaluate_one(admin_request, allow_grant, execute)
     jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is True
 
@@ -862,62 +858,50 @@ def test_evaluate_one_wrong_equality(admin_request, allow_grant):
         **allow_grant,
         "equality": False
     }
-    r = evaluate_one(admin_request, grant, execute, False)
+    r = evaluate_one(admin_request, grant, execute)
     jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is False
 
 
-def test_evaluate_one_query_failure_evaluate_no_error(
-    admin_request,
-    allow_grant
-):
+def test_evaluate_one_query_failure(admin_request, allow_grant):
     r = evaluate_one(
         admin_request,
         allow_grant,
-        failing_execute,
-        True
+        failing_execute
     )
     jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is False
-    assert r['error'] is None
+    assert r['failure'] is not None
 
 
-def test_evaluate_one_query_failure_error_handler(admin_request, allow_grant):
+def test_evaluate_one_applicable_on_failure_true(admin_request, allow_grant):
+    grant = {
+        **allow_grant,
+        "applicable_on_failure": True
+    }
     r = evaluate_one(
         admin_request,
-        allow_grant,
-        failing_execute,
-        False
+        grant,
+        failing_execute
+    )
+    jsonschema.validate(r, evaluate_one_result_schema)
+    assert r['is_applicable'] is True
+    assert r['failure'] is not None
+
+
+def test_evaluate_one_applicable_on_failure_false(admin_request, allow_grant):
+    grant = {
+        **allow_grant,
+        "applicable_on_failure": False
+    }
+    r = evaluate_one(
+        admin_request,
+        grant,
+        failing_execute
     )
     jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is False
-    assert r['error'] is not None
-    assert "message" in r['error']
-
-
-def test_evaluate_one_query_failure_only_crits_suppresses(
-    admin_request,
-    allow_grant
-):
-    r = evaluate_one(
-        admin_request,
-        allow_grant,
-        failing_execute,
-        True
-    )
-    jsonschema.validate(r, evaluate_one_result_schema)
-    assert r['error'] is None
-
-
-def test_evaluate_one_query_failure_not_suppressed(admin_request, allow_grant):
-    r = evaluate_one(
-        admin_request,
-        allow_grant,
-        failing_execute,
-        False
-    )
-    jsonschema.validate(r, evaluate_one_result_schema)
-    assert r['error'] is not None
+    assert r['failure'] is not None
 
 
 def test_audit_applicable_grant(admin_request, allow_grant):
@@ -952,7 +936,7 @@ def test_audit_evaluation_error(admin_request, allow_grant):
     jsonschema.validate(r, audit_result_schema)
     assert r['error'] is None
     assert len(r['results']) == 1
-    assert r['results'][0]['error'] is not None
+    assert r['results'][0]['failure'] is not None
 
 
 def test_audit_empty_grants(admin_request):

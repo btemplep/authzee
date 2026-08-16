@@ -25,14 +25,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2026-08-xx
 
+**BREAKING CHANGES**
+
 ### Added
+
+- `applicable_on_failure` field to grants
+    - If the query fails, the grant is considered applicable. 
+    - useful for security around deny grants that it is a fail-safe
 
 ### Changed
 
 - General Error handling is updated. 
     - Results now only return one error to match what would be exceptions.  Instead of using a dict of arrays for errors
     - Errors only consist of an `error_type` and `message`. 
-    - Audit now has a single error per result to better represent where errors happen. 
+    - Audit errors are renamed to `failure` and can never cause the operation to exit early. This clarifies what happens. 
 - reference "workflows" now return the operation response body.
 
 ### Deprecated

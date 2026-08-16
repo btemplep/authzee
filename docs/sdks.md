@@ -53,7 +53,7 @@ authz = Authzee(
     },
     config={
         "authzee": {
-            "raise_crits": True
+            "raise_errors": True
         }
     }
 )
@@ -173,7 +173,6 @@ grant = authz.enact(
             "Balloon:Inflate"
         ],
         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-        "evaluation_handler": "evaluate",
         "equality": True,
         "data": {
             "allowed_departments": [
@@ -214,8 +213,7 @@ request = {
     "context_type": "Team",
     "context": {
         "Team": "My Team"
-    },
-    "evaluation_handler": "grant"
+    }
 }
 authorize_result = authz.authorize(request)
 print(authorize_result)
@@ -230,8 +228,8 @@ print(authorize_result)
 #             "Balloon:Inflate"
 #         ],
 #         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#         "evaluation_handler": "evaluate",
 #         "equality": True,
+#         "applicable_on_failure": False,
 #         "data": {
 #             "allowed_departments": [
 #                 "Maintenance",
@@ -240,8 +238,7 @@ print(authorize_result)
 #         }
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#     "has_failed": False,
-#     "critical_errors": {}
+#     "error": None
 # }
 
 audit_result = authz.audit(
@@ -265,8 +262,8 @@ print(audit_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#                 "evaluation_handler": "evaluate",
 #                 "equality": True,
+#                 "applicable_on_failure": False,
 #                 "data": {
 #                     "allowed_departments": [
 #                         "Maintenance",
@@ -274,11 +271,10 @@ print(audit_result)
 #                     ]
 #                 }
 #             },
-#             "errors": {}
+#             "failure": None
 #         }
 #     ],
-#     "has_failed": False,
-#     "errors": {},
+#     "error": None,
 #     "next_page_ref": None
 # }
 
@@ -304,7 +300,6 @@ batch_request = {
     "context": {
         "Team": "My Team"
     },
-    "evaluation_handler": "grant",
     "batch": [
         {},
         {
@@ -323,7 +318,7 @@ batch_request = {
 batch_authorize_result = authz.batch_authorize(batch_request)
 print(batch_authorize_result)
 # {
-#     "batch_results": [
+#     "batch": [
 #         {
 #             "is_authorized": True,
 #             "grant": {
@@ -335,8 +330,8 @@ print(batch_authorize_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#                 "evaluation_handler": "evaluate",
 #                 "equality": True,
+#                 "applicable_on_failure": False,
 #                 "data": {
 #                     "allowed_departments": [
 #                         "Maintenance",
@@ -345,19 +340,16 @@ print(batch_authorize_result)
 #                 }
 #             },
 #             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#             "has_failed": False,
-#             "critical_errors": {}
+#             "error": None
 #         },
 #         {
 #             "is_authorized": False,
 #             "grant": None,
 #             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
-#             "has_failed": False,
-#             "critical_errors": {}
+#             "error": None
 #         }
 #     ],
-#     "has_failed": False,
-#     "errors": {}
+#     "error": None
 # }
 
 batch_audit_result = authz.batch_audit(
@@ -379,8 +371,8 @@ print(batch_audit_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#                 "evaluation_handler": "evaluate",
 #                 "equality": True,
+#                 "applicable_on_failure": False,
 #                 "data": {
 #                     "allowed_departments": [
 #                         "Maintenance",
@@ -388,22 +380,21 @@ print(batch_audit_result)
 #                     ]
 #                 }
 #             },
-#             "batch_results": [
+#             "batch": [
 #                 {
 #                     "is_applicable": True,
 #                     "query_result": True,
-#                     "errors": {}
+#                     "failure": None
 #                 },
 #                 {
 #                     "is_applicable": False,
 #                     "query_result": False,
-#                     "errors": {}
+#                     "failure": None
 #                 }
 #             ]
 #         }
 #     ],
-#     "has_failed": False,
-#     "errors": {},
+#     "error": None,
 #     "next_page_ref": None
 # }
 ```
@@ -481,14 +472,13 @@ It should include these variables to import:
 - `identity_definition_schema` - Identity Definition Schema
 - `resource_definition_schema` - Resource Definition Schema
 - `grant_schema` - Grant Schema
-- `generic_error_schema` - General Error Schema
-- `validate_defs_result_schema` - Return value schema for `validate_defs` function
-- `validate_grants_result_schema` - Return value schema for `validate_grants` function
+- `generic_error_schema` - Generic Error Schema
+- `general_result_schema` - General Result Schema
 - `request_schema` - Authzee Request Schema
-- `validate_request_result_schema` - Return value schema for `validate_request` function
+- `query_execute_result_schema` - Return value schema for the query execute function
 - `evaluate_one_result_schema` - Return value schema for the `evaluate_one` function
 - `audit_result_schema` - Return value schema for the `audit` operation/function
-- `authorize_result_schema` - Return value schema for the `authorization` operation/function
+- `authorize_result_schema` - Return value schema for the `authorize` operation/function
 - `batch_request_schema` - Authzee Batch Request Schema
 - `validate_batch_request_result_schema` - Return value schema for the `validate_batch_request` function
 - `batch_audit_result_schema` - Return value schema for the `batch_audit` operation/function
@@ -537,13 +527,11 @@ def validate_batch_request(
 def evaluate_one(
     request: Dict[str, AnyJSON], 
     grant: Dict[str, AnyJSON],
-    execute: Callable[[str, AnyJSON], AnyJSON],
-    only_crits: bool
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
 ```
 
 The `evaluate_one` function is for evaluating a request against one grant.
-`only_crits` is a flag to only return critical errors.
 
 ```python
 def audit(
@@ -659,18 +647,18 @@ Every method on the `Authzee` class (and `AuthzeeAsync`) accepts a config parame
 
 Configuration is resolved through 3 levels (least to most precedence):
 
-1. **Default config values** — The built-in defaults shown below.+
+1. **Default config values** — The built-in defaults shown below.
 2. **Instance-level config** — Passed via the `config` parameter at `Authzee` construction. Only provided keys override the defaults.
 3. **Method-call config override** — Passed via the `config` parameter on any method call. Only provided keys override the resolved instance config.
 
 Only the keys you provide at a higher-precedence level override the values from the lower level. Everything else keeps its resolved value.
 
-#### AuthzeeConfig Full Example (all defaults)
+#### AuthzeeConfig Full Example - All Defaults
 
 ```python
 {
     "authzee": {
-        "raise_crits": True
+        "raise_errors": True
     },
     "start": {
         "compute_start": {
@@ -1039,7 +1027,7 @@ class Authzee:
     ) -> ContextDefResult:
         """Get a context definition by type.
 
-        If the context_type does not match a stored context definition, the result will have `context_def` set to null and `has_failed` set to true.
+        If the context_type does not match a stored context definition, the result will have `context_def` set to null and `error` set to a non-null error object.
         """
         pass
 
@@ -1092,7 +1080,7 @@ class Authzee:
     ) -> IdentityDefResult:
         """Get an identity definition by type.
 
-        If the identity_type does not match a stored identity definition, the result will have `identity_def` set to null and `has_failed` set to true.
+        If the identity_type does not match a stored identity definition, the result will have `identity_def` set to null and `error` set to a non-null error object.
         """
         pass
 
@@ -1146,7 +1134,7 @@ class Authzee:
     ) -> ResourceDefResult:
         """Get a resource definition by type.
 
-        If the resource_type does not match a stored resource definition, the result will have `resource_def` set to null and `has_failed` set to true.
+        If the resource_type does not match a stored resource definition, the result will have `resource_def` set to null and `error` set to a non-null error object.
         """
         pass
 
@@ -1213,7 +1201,7 @@ class Authzee:
     ) -> GrantResult:
         """Get a grant by UUID.
 
-        If the grant_uuid does not match a stored grant, the result will have `grant` set to null and `has_failed` set to true.
+        If the grant_uuid does not match a stored grant, the result will have `grant` set to null and `error` set to a non-null error object.
         """
         pass
 
@@ -1368,7 +1356,7 @@ def paginator(page_method, **kwargs):
     """Iterate through all pages from a page-returning method.
 
     Yields each page result.
-    Terminates when next_page_ref is None or has_failed is True.
+    Terminates when next_page_ref is None or error is not None.
     """
     ...
 ```
@@ -1380,7 +1368,7 @@ async def paginator_async(page_method, **kwargs):
     """Async version of paginator for use with AuthzeeAsync.
 
     Yields each page result via an async generator.
-    Terminates when next_page_ref is None or has_failed is True.
+    Terminates when next_page_ref is None or error is not None.
     """
     ...
 ```
@@ -1884,7 +1872,7 @@ Authzee Localities are usually the same as the storage locality.
 
 The SDK should return normalized results for all operations that include any errors in the results. 
 
-If the Language supports exceptions, then the Authzee Class should support the ability to raise critical errors as exceptions. 
+If the Language supports exceptions, then the Authzee Class should support the ability to raise errors as exceptions. 
 
 Exceptions should provide a message and the full result of the function with all errors. 
 
@@ -1936,16 +1924,15 @@ Authzee relies on pagination to make its operations scalable.
 
 ### GenericResult and *Results
 
-`GenericResult` simply returns if the function has failed and any associated errors.  
+`GenericResult` simply returns if the function has encountered an error.  
 Types from Authzee that are prefixed with `Result` are simply that type nested in an object with fields in `GenericResult` as well.
 
 Example structure for Grant:
 
 ```json
 {
-    "grant": {}, // grant or null
-    "has_failed": false,
-    "errors": {}
+    "grant": null,
+    "error": null
 }
 ```
 
@@ -1960,8 +1947,7 @@ The results should use these field names:
 
 ```json
 {
-    "has_failed": false,
-    "errors": {}
+    "error": null
 }
 ```
 
@@ -1975,22 +1961,33 @@ The results should use these field names:
     "type": "object",
     "additionalProperties": true,
     "required": [
-        "has_failed",
-        "errors"
+        "error"
     ],
     "properties": {
-        "has_failed": {
-            "type": "boolean",
-            "description": "If the request has failed from a critical error or not."
-        },
-        "errors": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "generic results errors",
-            "description": "Errors returned running and Authzee function. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error.",
-            "type": "object",
-            "additionalProperties": true,
-            "required": [],
-            "properties": {}
+        "error": {
+            "description": "Error information if the operation failed, or null if successful.",
+            "anyOf": [
+                {
+                    "type": "null"
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "error_type",
+                        "message"
+                    ],
+                    "properties": {
+                        "error_type": {
+                            "type": "string",
+                            "description": "The type/category of the error."
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "Detailed message about what caused the error."
+                        }
+                    }
+                }
+            ]
         }
     }
 }
@@ -2006,10 +2003,9 @@ GrantsPage Example:
 
 ```json
 {
-    "grants": [], // list of grants" or null if error
-    "next_page_ref": "asdfds", // token or null
-    "has_failed": false,
-    "errors": {}
+    "grants": [],
+    "next_page_ref": "asdfds",
+    "error": null
 }
 ```
 
@@ -2045,8 +2041,8 @@ This is a purposeful limitation to enable better scaling of grants.
         "Balloon:Inflate"
     ],
     "query": "contains(request.identities.Group[? contains(grant.data.allowed_groups, cn)]",
-    "evaluation_handler": "evaluate",
     "equality": true,
+    "applicable_on_failure": false,
     "data": {
         "allowed_groups": "MyGroup"
     }
@@ -2074,8 +2070,8 @@ They should provide these additional fields over the [Grant Specification](./spe
         "actions",
         "data",
         "query",
-        "evaluation_handler",
-        "equality"
+        "equality",
+    "applicable_on_failure"
     ],
     "properties": {
         "grant_uuid": {
@@ -2128,18 +2124,12 @@ They should provide these additional fields over the [Grant Specification](./spe
             "type": "string",
             "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
         },
-        "evaluation_handler": {
-            "title": "Grant-Level Evaluation Handler Setting",
-            "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
-            "type": "string",
-            "enum": [
-                "evaluate",
-                "error",
-                "critical"
-            ]
-        },
         "equality": {
             "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+        },
+        "applicable_on_failure": {
+            "type": "boolean",
+            "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
         }
     }
 }
@@ -2205,44 +2195,45 @@ The standard "Request" object used to initiate an Authzee operation. Should matc
 
 ### AuditResultPage
 
-A page of Audit operation results.  Conforms to the [Audit Operation Results](./specification.md#audit). It will also have a `next_page_ref` field for pagination, and updated fields for grants. 
+A page of Audit operation results.  Conforms to the [Audit Operation Results](./specification.md#audit). Each result item includes the grant that was evaluated. It will also have a `next_page_ref` field for pagination.
+
 
 
 #### AuditResultPage Example
 
 ```json
 {
-    "grants": [
-        {
-            "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
-            "name": "My grant name",
-            "description": "Longer description here to explain what the grant is for.",
-            "tags": {
-                "some_key": "some_val"
-            },
-            "effect": "allow",
-            "actions": [
-                "Balloon:Pop",
-                "Balloon:Inflate"
-            ],
-            "query": "contains(request.identities.Group[? contains(grant.data.allowed_groups, cn)]",
-            "evaluation_handler": "evaluate",
-            "equality": true,
-            "data": {
-                "allowed_groups": "MyGroup"
-            }
-        }
-    ],
     "results": [
         {
+            "grant": {
+                "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
+                "name": "My grant name",
+                "description": "Longer description here to explain what the grant is for.",
+                "tags": {
+                    "some_key": "some_val"
+                },
+                "effect": "allow",
+                "actions": [
+                    "Balloon:Pop",
+                    "Balloon:Inflate"
+                ],
+                "query": "contains(request.identities.Group[? contains(grant.data.allowed_groups, cn)]",
+                "equality": true,
+                "applicable_on_failure": true,
+                "data": {
+                    "allowed_groups": "MyGroup"
+                }
+            },
             "is_applicable": true,
-            "query_result": true,
-            "errors": {}
+            "query_result": null,
+            "failure": "A JSON Query error has occurred: invalid expression."
         }
     ],
     "next_page_ref": "abc123",
-    "has_failed": false,
-    "errors": {}
+    "error": {
+        "error_type": "request",
+        "message": "Identity type 'Ghost' is not valid."
+    }
 }
 ```
 
@@ -2251,114 +2242,107 @@ A page of Audit operation results.  Conforms to the [Audit Operation Results](./
 ```json
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Audit Result",
-    "description": "Result for the audit operation.",
+    "title": "Audit Result Page",
+    "description": "Page of results for the audit operation.",
     "type": "object",
     "additionalProperties": true,
     "required": [
-        "grants",
         "results",
         "next_page_ref",
-        "has_failed",
-        "errors"
+        "error"
     ],
     "properties": {
-        "grants": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": [
-                    "grant_uuid",
-                    "name",
-                    "description",
-                    "tags",
-                    "effect",
-                    "actions",
-                    "data",
-                    "query",
-                    "evaluation_handler",
-                    "equality"
-                ],
-                "properties": {
-                    "grant_uuid": {
-                        "type": "string",
-                        "format": "uuid"
-                    },
-                    "name": {
-                        "type": "string",
-                        "description": "Short name for the grant"
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Longer description for the grant "
-                    },
-                    "tags": {
-                        "type": "object",
-                        "description": "General purpose Key/Value pairs for categorization.",
-                        "patternProperties": {
-                            "^[A-Za-z0-9_]*$": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "effect": {
-                        "type": "string",
-                        "enum": [
-                            "allow",
-                            "deny"
-                        ],
-                        "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
-                    },
-                    "actions": {
-                        "type": "array",
-                        "uniqueItems": true,
-                        "items": {
-                            "title": "Resource Action",
-                            "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9_.:-]*$",
-                            "minLength": 1,
-                            "maxLength": 512
-                        },
-                        "description": "List of actions this grant applies to or null to match any resource action."
-                    },
-                    "data": {
-                        "type": "object",
-                        "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
-                    },
-                    "query": {
-                        "type": "string",
-                        "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
-                    },
-                    "evaluation_handler": {
-                        "title": "Grant-Level Evaluation Handler Setting",
-                        "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
-                        "type": "string",
-                        "enum": [
-                            "evaluate",
-                            "error",
-                            "critical"
-                        ]
-                    },
-                    "equality": {
-                        "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
-                    }
-                }
-
-            }
-        },
         "results": {
             "type": "array",
-            "description": "List of grant evaluation results for each respective grant index.",
+            "description": "List of grant evaluation results with the grant included.",
             "items": {
                 "type": "object",
                 "additionalProperties": true,
                 "required": [
+                    "grant",
                     "is_applicable",
                     "query_result",
-                    "errors"
+                    "failure"
                 ],
                 "properties": {
+                    "grant": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "title": "Grant",
+                        "description": "A grant is an object representing enacted authorization rules.",
+                        "type": "object",
+                        "additionalProperties": true,
+                        "required": [
+                            "grant_uuid",
+                            "name",
+                            "description",
+                            "tags",
+                            "effect",
+                            "actions",
+                            "data",
+                            "query",
+                            "equality",
+                        "applicable_on_failure"
+                        ],
+                        "properties": {
+                            "grant_uuid": {
+                                "type": "string",
+                                "format": "uuid"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Short name for the grant"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Longer description for the grant"
+                            },
+                            "tags": {
+                                "type": "object",
+                                "description": "General purpose Key/Value pairs for categorization.",
+                                "patternProperties": {
+                                    "^[A-Za-z0-9_]*$": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "effect": {
+                                "type": "string",
+                                "enum": [
+                                    "allow",
+                                    "deny"
+                                ],
+                                "description": "Any applicable deny grant will always cause the request to be unauthorized. If there are no applicable deny grants, and there is an applicable allow grant, the request is authorized. If there no applicable allow or deny grants, requests are implicitly denied and is not authorized."
+                            },
+                            "actions": {
+                                "type": "array",
+                                "uniqueItems": true,
+                                "items": {
+                                    "title": "Resource Action",
+                                    "description": "Unique name for a resource action. The 'ResourceType:ResourceAction' pattern is common, or more general 'Namespace:Action' pattern.",
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z0-9_.:-]*$",
+                                    "minLength": 1,
+                                    "maxLength": 512
+                                },
+                                "description": "List of actions this grant applies to or null to match any resource action."
+                            },
+                            "data": {
+                                "type": "object",
+                                "description": "Data that is made available at query time for the grant evaluation. Easy place to store data so it doesn't have to be embedded in the query."
+                            },
+                            "query": {
+                                "type": "string",
+                                "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
+                            },
+                            "equality": {
+                                "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                            },
+                            "applicable_on_failure": {
+                                "type": "boolean",
+                                "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
+                            }
+                        }
+                    },
                     "is_applicable": {
                         "type": "boolean",
                         "description": "If the grant is applicable to the request or not."
@@ -2366,82 +2350,41 @@ A page of Audit operation results.  Conforms to the [Audit Operation Results](./
                     "query_result": {
                         "description": "Result from running the JSON query."
                     },
-                    "errors": {
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "title": "Operation Result Errors",
-                        "description": "Errors returned from Authzee Operations.",
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [],
-                        "properties": {
-                            "query": {
-                                "type": "array",
-                                "items": {
-                                    "title": "Query Error",
-                                    "description": "Error when a JSON query fails.",
-                                    "type": "object",
-                                    "additionalProperties": true,
-                                    "required": [
-                                        "is_critical",
-                                        "message"
-                                    ],
-                                    "properties": {
-                                        "is_critical": {
-                                            "type": "boolean",
-                                            "description": "If this error is critical. Critical errors generally halt further operations."
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "description": "Detailed message about what caused the error."
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    "failure": {
+                        "description": "A message describing why the evaluation failed, or null if no failure occurred. Evaluation failures do not cause the operation to fail.",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     }
                 }
             }
         },
         "next_page_ref": {
-            "type": "string", 
-            "description": "Used to retrieve the next page of audit results",
-            "contentEncoding": "base64"
-
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "Used to retrieve the next page of audit results."
         },
-        "has_failed": {
-            "type": "boolean",
-            "description": "If the request has failed from a critical error or not."
-        },
-        "errors": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Operation Result Errors",
-            "description": "Errors returned from Authzee Operations. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error",
-            "type": "object",
-            "additionalProperties": true,
-            "required": [],
+        "error": {
+            "description": "Error information if the operation failed, or null if successful.",
+            "type": [
+                "object",
+                "null"
+            ],
+            "required": [
+                "error_type",
+                "message"
+            ],
             "properties": {
-                "query": {
-                    "type": "array",
-                    "items": {
-                        "title": "Query Error",
-                        "description": "Error when a JSON query fails.",
-                        "type": "object",
-                        "additionalProperties": true,
-                        "required": [
-                            "is_critical",
-                            "message"
-                        ],
-                        "properties": {
-                            "is_critical": {
-                                "type": "boolean",
-                                "description": "If this error is critical. Critical errors generally halt further operations."
-                            },
-                            "message": {
-                                "type": "string",
-                                "description": "Detailed message about what caused the error."
-                            }
-                        }
-                    }
+                "error_type": {
+                    "type": "string",
+                    "description": "The type of error."
+                },
+                "message": {
+                    "type": "string",
+                    "description": "Message describing the error."
                 }
             }
         }
@@ -2454,54 +2397,48 @@ A page of Audit operation results.  Conforms to the [Audit Operation Results](./
 
 The standard [Authorize operation Results](./specification.md#authorize) are returned with updated fields for grants.
 
-The `has_failed` field is a required boolean on every AuthorizeResult. When `has_failed` is `true`, `is_authorized` is always `false` and `message` indicates a critical error has occurred. This can happen when a grant's `evaluation_handler` is set to `"critical"` and the query fails, or when an internal SDK error prevents the operation from completing.
+The `error` field is required on every AuthorizeResult. When `error` is not `null`, `is_authorized` is always `false` and `message` indicates an error has occurred. This can happen when a validation error occurs or when an internal SDK error prevents the operation from completing.
 
 
-#### AuthorizeResult Example (Successful Authorization)
+#### AuthorizeResult Example - Successful Authorization
 
 ```json
 {
-    "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
-    "name": "My grant name",
-    "description": "Longer description here to explain what the grant is for.",
-    "tags": {
-        "some_key": "some_val"
-    },
     "is_authorized": true,
     "grant": {
+        "grant_uuid": "6ce44005-8735-45ac-ae76-38e22e66f615",
+        "name": "My grant name",
+        "description": "Longer description here to explain what the grant is for.",
+        "tags": {
+            "some_key": "some_val"
+        },
         "effect": "allow",
         "actions": [
             "Balloon:Read",
             "pop"
         ],
         "query": "contains(request.identities.User[0].role, 'admin')",
-        "evaluation_handler": "evaluate",
         "equality": true,
+        "applicable_on_failure": false,
         "data": {}
     },
     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-    "has_failed": false,
-    "critical_errors": {}
+    "error": null
 }
 ```
 
-#### AuthorizeResult Example (Critical Error)
+#### AuthorizeResult Example - Error
 
-When a critical error occurs during authorization, `has_failed` is `true` and `is_authorized` is always `false`.
+When an error occurs during authorization, `error` is not `null` and `is_authorized` is always `false`.
 
 ```json
 {
     "is_authorized": false,
     "grant": null,
-    "message": "A critical error has occurred. Therefore, the request is not authorized.",
-    "has_failed": true,
-    "critical_errors": {
-        "query": [
-            {
-                "is_critical": true,
-                "message": "Query evaluation failed: invalid JMESPath expression in grant 6ce44005-8735-45ac-ae76-38e22e66f615"
-            }
-        ]
+    "message": "An error has occurred. Therefore, the request is not authorized.",
+    "error": {
+        "error_type": "request",
+        "message": "Identity type 'Ghost' is not valid."
     }
 }
 ```
@@ -2519,8 +2456,7 @@ When a critical error occurs during authorization, `has_failed` is `true` and `i
         "is_authorized",
         "grant",
         "message",
-        "has_failed",
-        "critical_errors"
+        "error"
     ],
     "properties": {
         "is_authorized": {
@@ -2549,8 +2485,8 @@ When a critical error occurs during authorization, `has_failed` is `true` and `i
                         "actions",
                         "data",
                         "query",
-                        "evaluation_handler",
-                        "equality"
+                        "equality",
+                    "applicable_on_failure"
                     ],
                     "properties": {
                         "grant_uuid": {
@@ -2603,18 +2539,12 @@ When a critical error occurs during authorization, `has_failed` is `true` and `i
                             "type": "string",
                             "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
                         },
-                        "evaluation_handler": {
-                            "title": "Grant-Level Evaluation Handler Setting",
-                            "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
-                            "type": "string",
-                            "enum": [
-                                "evaluate",
-                                "error",
-                                "critical"
-                            ]
-                        },
                         "equality": {
                             "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                        },
+                        "applicable_on_failure": {
+                            "type": "boolean",
+                            "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
                         }
                     }
                 }
@@ -2624,48 +2554,36 @@ When a critical error occurs during authorization, `has_failed` is `true` and `i
             "type": "string",
             "description": "Details about why the request was authorized or not.",
             "enum": [
-                "A critical error has occurred. Therefore, the request is not authorized.",
+                "An error has occurred. Therefore, the request is not authorized.",
                 "A deny grant is applicable to the request. Therefore, the request is not authorized.",
                 "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
                 "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
             ]
         },
-        "has_failed": {
-            "type": "boolean",
-            "description": "If the request has failed from a critical error or not."
-        },
-        "critical_errors": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Operation Result Errors",
-            "description": "Errors returned from Authzee Operations. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error",
-            "type": "object",
-            "additionalProperties": true,
-            "required": [],
-            "properties": {
-                "query": {
-                    "type": "array",
-                    "items": {
-                        "title": "Query Error",
-                        "description": "Error when a JSON query fails.",
-                        "type": "object",
-                        "additionalProperties": true,
-                        "required": [
-                            "is_critical",
-                            "message"
-                        ],
-                        "properties": {
-                            "is_critical": {
-                                "type": "boolean",
-                                "description": "If this error is critical. Critical errors generally halt further operations."
-                            },
-                            "message": {
-                                "type": "string",
-                                "description": "Detailed message about what caused the error."
-                            }
+        "error": {
+            "description": "Error information if the operation failed, or null if successful.",
+            "anyOf": [
+                {
+                    "type": "null"
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "error_type",
+                        "message"
+                    ],
+                    "properties": {
+                        "error_type": {
+                            "type": "string",
+                            "description": "The type/category of the error."
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "Detailed message about what caused the error."
                         }
                     }
                 }
-            }
+            ]
         }
     }
 }
@@ -2678,7 +2596,8 @@ The standard "Batch Request" object used to initiate an Authzee operation. Shoul
 
 ### BatchAuditResultPage
 
-A page of Audit operation results.  Conforms to the [Audit operation Results](./specification.md#audit-operation-result), where some fields are updated depending on the identity and resource defs. It will also have a `next_page_ref` field for pagination. 
+A page of Batch Audit operation results.  Conforms to the [Batch Audit Operation Results](./specification.md#batch-audit). The `grants` array at the top level lists the grants processed for this page. Each batch item's `results` array corresponds to the grants by index. It will also have a `next_page_ref` field for pagination. 
+
 
 #### BatchAuditResultPage Example
 
@@ -2698,27 +2617,31 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
                 "inflate"
             ],
             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
-            "evaluation_handler": "error",
             "equality": true,
+            "applicable_on_failure": true,
             "data": {}
         }
     ],
-    "batch_results": [
+    "batch": [
         {
             "results": [
                 {
                     "is_applicable": true,
-                    "query_result": true,
-                    "errors": {}
+                    "query_result": null,
+                    "failure": "A JSON Query error has occurred: unknown function 'bad_func'."
                 }
             ],
-            "has_failed": false,
-            "errors": {}
+            "error": {
+                "error_type": "request",
+                "message": "Identity type 'Ghost' is not valid."
+            }
         }
     ],
     "next_page_ref": "def456", 
-    "has_failed": false,
-    "errors": {}
+    "error": {
+        "error_type": "definition",
+        "message": "Context types must be unique. 'event' is present more than once."
+    }
 }
 ```
 
@@ -2733,10 +2656,9 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
     "additionalProperties": true,
     "required": [
         "grants",
-        "batch_results",
+        "batch",
         "next_page_ref",
-        "has_failed",
-        "errors"
+        "error"
     ],
     "properties": {
         "grants": {
@@ -2757,8 +2679,8 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
                     "actions",
                     "data",
                     "query",
-                    "evaluation_handler",
-                    "equality"
+                    "equality",
+                "applicable_on_failure"
                 ],
                 "properties": {
                     "grant_uuid": {
@@ -2811,23 +2733,17 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
                         "type": "string",
                         "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
                     },
-                    "evaluation_handler": {
-                        "title": "Grant-Level Evaluation Handler Setting",
-                        "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
-                        "type": "string",
-                        "enum": [
-                            "evaluate",
-                            "error",
-                            "critical"
-                        ]
-                    },
                     "equality": {
                         "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                    },
+                    "applicable_on_failure": {
+                        "type": "boolean",
+                        "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
                     }
                 }
             }
         },
-        "batch_results": {
+        "batch": {
             "type": "array",
             "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
             "items": {
@@ -2836,8 +2752,7 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
                 "additionalProperties": true,
                 "required": [
                     "results",
-                    "has_failed",
-                    "errors"
+                    "error"
                 ],
                 "properties": {
                     "results": {
@@ -2849,7 +2764,7 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
                             "required": [
                                 "is_applicable",
                                 "query_result",
-                                "errors"
+                                "failure"
                             ],
                             "properties": {
                                 "is_applicable": {
@@ -2859,94 +2774,68 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
                                 "query_result": {
                                     "description": "Result from running the JSON query."
                                 },
-                                "errors": {
-                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
-                                    "title": "Operation Result Errors",
-                                    "description": "Errors returned from Authzee Operations.",
-                                    "type": "object",
-                                    "additionalProperties": false,
-                                    "required": [],
-                                    "properties": {
-                                        "query": {
-                                            "type": "array",
-                                            "items": {
-                                                "title": "Query Error",
-                                                "description": "Error when a JSON query fails.",
-                                                "type": "object",
-                                                "additionalProperties": true,
-                                                "required": [
-                                                    "is_critical",
-                                                    "message"
-                                                ],
-                                                "properties": {
-                                                    "is_critical": {
-                                                        "type": "boolean",
-                                                        "description": "If this error is critical. Critical errors generally halt further operations."
-                                                    },
-                                                    "message": {
-                                                        "type": "string",
-                                                        "description": "Detailed message about what caused the error."
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                "failure": {
+                                    "description": "A message describing why the evaluation failed, or null if no failure occurred. Evaluation failures do not cause the operation to fail.",
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
                                 }
                             }
                         }
                     },
-                    "has_failed": {
-                        "type": "boolean",
-                        "description": "If the request has failed from a critical error or not."
-                    },
-                    "errors": {
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "title": "Operation Result Errors",
-                        "description": "Errors returned from Authzee Operations. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error",
-                        "type": "object",
-                        "additionalProperties": true,
-                        "required": [],
-                        "properties": {
-                            "query": {
-                                "type": "array",
-                                "items": {
-                                    "title": "Query Error",
-                                    "description": "Error when a JSON query fails.",
-                                    "type": "object",
-                                    "additionalProperties": true,
-                                    "required": [
-                                        "is_critical",
-                                        "message"
-                                    ],
-                                    "properties": {
-                                        "is_critical": {
-                                            "type": "boolean",
-                                            "description": "If this error is critical. Critical errors generally halt further operations."
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "description": "Detailed message about what caused the error."
-                                        }
+                    "error": {
+                        "description": "Error information if the batch item failed, or null if successful.",
+                        "anyOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "error_type",
+                                    "message"
+                                ],
+                                "properties": {
+                                    "error_type": {
+                                        "type": "string",
+                                        "description": "The type/category of the error."
+                                    },
+                                    "message": {
+                                        "type": "string",
+                                        "description": "Detailed message about what caused the error."
                                     }
                                 }
                             }
-                        }
+                        ]
                     }
                 }
             }
         },
-        "has_failed": {
-            "type": "boolean",
-            "description": "If the batch request could not be validated and failed or not. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error"
-        },
-        "errors": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Batch Result Errors",
-            "description": "Errors returned from Authzee Batch requests.",
-            "type": "object",
-            "additionalProperties": true,
-            "required": [],
-            "properties": {}
+        "error": {
+            "description": "Error information if the operation failed, or null if successful.",
+            "anyOf": [
+                {
+                    "type": "null"
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "error_type",
+                        "message"
+                    ],
+                    "properties": {
+                        "error_type": {
+                            "type": "string",
+                            "description": "The type/category of the error."
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "Detailed message about what caused the error."
+                        }
+                    }
+                }
+            ]
         }
     }
 }
@@ -2956,17 +2845,17 @@ A page of Audit operation results.  Conforms to the [Audit operation Results](./
 
 The [Authorize operation Results](./specification.md#authorize-operation-result), which conforms to the Authzee specification, where some fields are updated depending on the identity and resource defs.
 
-The `has_failed` field appears at two levels in a BatchAuthorizeResult:
+The `error` field appears at two levels in a BatchAuthorizeResult:
 
-- **Top-level `has_failed`**: Indicates the batch request itself failed validation (e.g., the batch request object was invalid). When `true`, the `batch_results` array may be empty or incomplete.
-- **Per-item `has_failed`**: Each AuthorizeResult within `batch_results` has its own `has_failed` field. When `true` on a per-item result, that individual authorization encountered a critical error, `is_authorized` is `false`, and `message` indicates the error.
+- **Top-level `error`**: Indicates the batch request itself failed validation (e.g., the batch request object was invalid). When not `null`, the `batch` array may be empty or incomplete.
+- **Per-item `error`**: Each AuthorizeResult within `batch` has its own `error` field. When not `null` on a per-item result, that individual authorization encountered an error, `is_authorized` is `false`, and `message` indicates the error.
 
-#### BatchAuthorizeResult Example (Successful Batch)
+#### BatchAuthorizeResult Example - Successful Batch
 
 
 ```json
 {
-    "batch_results": [
+    "batch": [
         {
             "is_authorized": true,
             "grant": {
@@ -2982,34 +2871,31 @@ The `has_failed` field appears at two levels in a BatchAuthorizeResult:
                     "pop"
                 ],
                 "query": "contains(request.identities.User[0].role, 'admin')",
-                "evaluation_handler": "evaluate",
                 "equality": true,
+                "applicable_on_failure": false,
                 "data": {}
             },
             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-            "has_failed": false,
-            "critical_errors": {}
+            "error": null
         },
         {
             "is_authorized": false,
             "grant": null,
             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
-            "has_failed": false,
-            "critical_errors": {}
+            "error": null
         }
     ],
-    "has_failed": false,
-    "errors": {}
+    "error": null
 }
 ```
 
-#### BatchAuthorizeResult Example (Per-Item Critical Error)
+#### BatchAuthorizeResult Example - Per-Item Error
 
-In this example, the batch itself succeeded but one item in the batch encountered a critical error.
+In this example, the batch itself succeeded but one item in the batch encountered an error.
 
 ```json
 {
-    "batch_results": [
+    "batch": [
         {
             "is_authorized": true,
             "grant": {
@@ -3025,49 +2911,37 @@ In this example, the batch itself succeeded but one item in the batch encountere
                     "pop"
                 ],
                 "query": "contains(request.identities.User[0].role, 'admin')",
-                "evaluation_handler": "evaluate",
                 "equality": true,
+                "applicable_on_failure": false,
                 "data": {}
             },
             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-            "has_failed": false,
-            "critical_errors": {}
+            "error": null
         },
         {
             "is_authorized": false,
             "grant": null,
-            "message": "A critical error has occurred. Therefore, the request is not authorized.",
-            "has_failed": true,
-            "critical_errors": {
-                "query": [
-                    {
-                        "is_critical": true,
-                        "message": "Query evaluation failed: invalid JMESPath expression in grant a1b2c3d4-5678-9012-abcd-ef0123456789"
-                    }
-                ]
+            "message": "An error has occurred. Therefore, the request is not authorized.",
+            "error": {
+                "error_type": "request",
+                "message": "Identity type 'Ghost' is not valid."
             }
         }
     ],
-    "has_failed": false,
-    "errors": {}
+    "error": null
 }
 ```
 
-#### BatchAuthorizeResult Example (Batch Validation Failure)
+#### BatchAuthorizeResult Example - Batch Validation Failure
 
-When the batch request itself fails validation, the top-level `has_failed` is `true`.
+When the batch request itself fails validation, the top-level `error` is not `null`.
 
 ```json
 {
-    "batch_results": [],
-    "has_failed": true,
-    "errors": {
-        "request": [
-            {
-                "is_critical": true,
-                "message": "Batch request validation failed: identity type 'InvalidUser' does not match any registered identity definition."
-            }
-        ]
+    "batch": [],
+    "error": {
+        "error_type": "request",
+        "message": "Batch request validation failed: identity type 'InvalidUser' does not match any registered identity definition."
     }
 }
 ```
@@ -3083,12 +2957,11 @@ When the batch request itself fails validation, the top-level `has_failed` is `t
     "type": "object",
     "additionalProperties": true,
     "required": [
-        "batch_results",
-        "has_failed",
-        "errors"
+        "batch",
+        "error"
     ],
     "properties": {
-        "batch_results": {
+        "batch": {
             "type": "array",
             "description": "Array of results from a batch request. Each result corresponds to the batch request item of the same index.",
             "items": {
@@ -3101,8 +2974,7 @@ When the batch request itself fails validation, the top-level `has_failed` is `t
                     "is_authorized",
                     "grant",
                     "message",
-                    "has_failed",
-                    "critical_errors"
+                    "error"
                 ],
                 "properties": {
                     "is_authorized": {
@@ -3124,8 +2996,8 @@ When the batch request itself fails validation, the top-level `has_failed` is `t
                             "actions",
                             "data",
                             "query",
-                            "evaluation_handler",
-                            "equality"
+                            "equality",
+                        "applicable_on_failure"
                         ],
                         "properties": {
                             "grant_uuid": {
@@ -3178,18 +3050,12 @@ When the batch request itself fails validation, the top-level `has_failed` is `t
                                 "type": "string",
                                 "description": "JSON query to run on the authorization data. {\"grant\": <grant>, \"request\": <request>}"
                             },
-                            "evaluation_handler": {
-                                "title": "Grant-Level Evaluation Handler Setting",
-                                "description": "Set how evaluation errors are handled.'evaluate' - Evaluation is run and any errors cause the grant to be inapplicable to the request, but are not included in the result.'error' - Includes the 'validate' setting checks, and also includes errors in the result. 'critical' - Includes the 'error' setting checks, and will flag the error as critical, thus exiting the Authzee Operation early.",
-                                "type": "string",
-                                "enum": [
-                                    "evaluate",
-                                    "error",
-                                    "critical"
-                                ]
-                            },
                             "equality": {
                                 "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                            },
+                            "applicable_on_failure": {
+                                "type": "boolean",
+                                "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
                             }
                         }
                     },
@@ -3197,64 +3063,64 @@ When the batch request itself fails validation, the top-level `has_failed` is `t
                         "type": "string",
                         "description": "Details about why the request was authorized or not.",
                         "enum": [
-                            "A critical error has occurred. Therefore, the request is not authorized.",
+                            "An error has occurred. Therefore, the request is not authorized.",
                             "A deny grant is applicable to the request. Therefore, the request is not authorized.",
                             "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
                             "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
                         ]
                     },
-                    "has_failed": {
-                        "type": "boolean",
-                        "description": "If the request has failed from a critical error or not. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error"
-                    },
-                    "critical_errors": {
-                        "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "title": "Operation Result Errors",
-                        "description": "Errors returned from Authzee Operations.",
-                        "type": "object",
-                        "additionalProperties": true,
-                        "required": [],
-                        "properties": {
-                            "query": {
-                                "type": "array",
-                                "items": {
-                                    "title": "Query Error",
-                                    "description": "Error when a JSON query fails.",
-                                    "type": "object",
-                                    "additionalProperties": true,
-                                    "required": [
-                                        "is_critical",
-                                        "message"
-                                    ],
-                                    "properties": {
-                                        "is_critical": {
-                                            "type": "boolean",
-                                            "description": "If this error is critical. Critical errors generally halt further operations."
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "description": "Detailed message about what caused the error."
-                                        }
+                    "error": {
+                        "description": "Error information if the operation failed, or null if successful.",
+                        "anyOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "error_type",
+                                    "message"
+                                ],
+                                "properties": {
+                                    "error_type": {
+                                        "type": "string",
+                                        "description": "The type/category of the error."
+                                    },
+                                    "message": {
+                                        "type": "string",
+                                        "description": "Detailed message about what caused the error."
                                     }
                                 }
                             }
-                        }
+                        ]
                     }
                 }
             }
         },
-        "has_failed": {
-            "type": "boolean",
-            "description": "If the batch request could not be validated and failed or not. "
-        },
-        "errors": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Batch Result Errors",
-            "description": "Errors returned from Authzee Batch requests. SDK errors should be prefixed with 'sdk_' and only have one field 'message' that is a string describing the error",
-            "type": "object",
-            "additionalProperties": true,
-            "required": [],
-            "properties": {}
+        "error": {
+            "description": "Error information if the batch operation failed, or null if successful.",
+            "anyOf": [
+                {
+                    "type": "null"
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "error_type",
+                        "message"
+                    ],
+                    "properties": {
+                        "error_type": {
+                            "type": "string",
+                            "description": "The type/category of the error."
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "Detailed message about what caused the error."
+                        }
+                    }
+                }
+            ]
         }
     }
 }
@@ -3281,7 +3147,7 @@ authz = Authzee(
     },
     config={
         "authzee": {
-            "raise_crits": True
+            "raise_errors": True
         },
         "list_grants": {
             "page_size": 50
@@ -3383,15 +3249,15 @@ authz.put_resource_def(resource_def)
 
 context_val_result = authz.validate_context_def(context_def)
 print(context_val_result)
-# {"has_failed": False, "errors": {}}
+# {"error": None}
 
 identity_val_result = authz.validate_identity_def(identity_def)
 print(identity_val_result)
-# {"has_failed": False, "errors": {}}
+# {"error": None}
 
 resource_val_result = authz.validate_resource_def(resource_def)
 print(resource_val_result)
-# {"has_failed": False, "errors": {}}
+# {"error": None}
 
 # --- Enact a grant ---
 
@@ -3407,7 +3273,6 @@ grant = authz.enact(
             "Balloon:Inflate"
         ],
         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-        "evaluation_handler": "evaluate",
         "equality": True,
         "data": {
             "allowed_departments": [
@@ -3422,7 +3287,7 @@ grant = authz.enact(
 
 grant_val_result = authz.validate_grant(grant)
 print(grant_val_result)
-# {"has_failed": False, "errors": {}}
+# {"error": None}
 
 # --- List definitions using paginator ---
 
@@ -3430,8 +3295,7 @@ for page in paginator(authz.list_context_defs):
     print(page)
     # {
     #     "context_defs": [...],
-    #     "has_failed": False,
-    #     "errors": {},
+    #     "error": None,
     #     "next_page_ref": None
     # }
 
@@ -3439,8 +3303,7 @@ for page in paginator(authz.list_identity_defs):
     print(page)
     # {
     #     "identity_defs": [...],
-    #     "has_failed": False,
-    #     "errors": {},
+    #     "error": None,
     #     "next_page_ref": None
     # }
 
@@ -3448,8 +3311,7 @@ for page in paginator(authz.list_resource_defs):
     print(page)
     # {
     #     "resource_defs": [...],
-    #     "has_failed": False,
-    #     "errors": {},
+    #     "error": None,
     #     "next_page_ref": None
     # }
 
@@ -3463,8 +3325,7 @@ for page in paginator(
     print(page)
     # {
     #     "grants": [...],
-    #     "has_failed": False,
-    #     "errors": {},
+    #     "error": None,
     #     "next_page_ref": None
     # }
 
@@ -3477,8 +3338,7 @@ print(context_def_result)
 #         "context_type": "Team",
 #         "schema": {...}
 #     },
-#     "has_failed": False,
-#     "errors": {}
+#     "error": None
 # }
 
 # --- Validate and authorize a request ---
@@ -3504,13 +3364,12 @@ request = {
     "context_type": "Team",
     "context": {
         "Team": "My Team"
-    },
-    "evaluation_handler": "grant"
+    }
 }
 
 validate_result = authz.validate_request(request)
 print(validate_result)
-# {"has_failed": False, "errors": {}}
+# {"error": None}
 
 authorize_result = authz.authorize(request)
 print(authorize_result)
@@ -3525,8 +3384,8 @@ print(authorize_result)
 #             "Balloon:Inflate"
 #         ],
 #         "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
-#         "evaluation_handler": "evaluate",
 #         "equality": True,
+#         "applicable_on_failure": False,
 #         "data": {
 #             "allowed_departments": [
 #                 "Maintenance",
@@ -3535,8 +3394,7 @@ print(authorize_result)
 #         }
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#     "has_failed": False,
-#     "critical_errors": {}
+#     "error": None
 # }
 
 # --- Audit with effect/action filters ---
@@ -3554,11 +3412,10 @@ for page in paginator(
     #             "is_applicable": True,
     #             "query_result": True,
     #             "grant": {...},
-    #             "errors": {}
+    #             "failure": None
     #         }
     #     ],
-    #     "has_failed": False,
-    #     "errors": {},
+    #     "error": None,
     #     "next_page_ref": None
     # }
 
@@ -3586,7 +3443,6 @@ batch_request = {
     "context": {
         "Team": "My Team"
     },
-    "evaluation_handler": "grant",
     "batch": [
         {},
         {
@@ -3606,7 +3462,7 @@ batch_request = {
 batch_authorize_result = authz.batch_authorize(batch_request)
 print(batch_authorize_result)
 # {
-#     "batch_results": [
+#     "batch": [
 #         {
 #             "is_authorized": True,
 #             "grant": {
@@ -3618,8 +3474,8 @@ print(batch_authorize_result)
 #                     "Balloon:Inflate"
 #                 ],
 #                 "query": "...",
-#                 "evaluation_handler": "evaluate",
 #                 "equality": True,
+#                 "applicable_on_failure": False,
 #                 "data": {
 #                     "allowed_departments": [
 #                         "Maintenance",
@@ -3628,19 +3484,16 @@ print(batch_authorize_result)
 #                 }
 #             },
 #             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#             "has_failed": False,
-#             "critical_errors": {}
+#             "error": None
 #         },
 #         {
 #             "is_authorized": False,
 #             "grant": None,
 #             "message": "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized.",
-#             "has_failed": False,
-#             "critical_errors": {}
+#             "error": None
 #         }
 #     ],
-#     "has_failed": False,
-#     "errors": {}
+#     "error": None
 # }
 
 # --- Batch audit with effect/action filters ---
@@ -3656,22 +3509,21 @@ for page in paginator(
     #     "results": [
     #         {
     #             "grant": {...},
-    #             "batch_results": [
+    #             "batch": [
     #                 {
     #                     "is_applicable": True,
     #                     "query_result": True,
-    #                     "errors": {}
+    #                     "failure": None
     #                 },
     #                 {
     #                     "is_applicable": False,
     #                     "query_result": False,
-    #                     "errors": {}
+    #                     "failure": None
     #                 }
     #             ]
     #         }
     #     ],
-    #     "has_failed": False,
-    #     "errors": {},
+    #     "error": None,
     #     "next_page_ref": None
     # }
 

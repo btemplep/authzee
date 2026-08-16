@@ -168,7 +168,8 @@ grant_schema = {
         "actions",
         "data",
         "query",
-        "equality"
+        "equality",
+        "applicable_on_failure"
     ],
     "properties": {
         "effect": {
@@ -199,6 +200,10 @@ grant_schema = {
         },
         "equality": {
             "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+        },
+        "applicable_on_failure": {
+            "type": "boolean",
+            "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
         }
     }
 }
@@ -293,11 +298,17 @@ query_execute_result_schema = {
     "additionalProperties": False,
     "required": [
         "result",
-        "error"
+        "failure"
     ],
     "properties": {
         "result": _query_result_schema,
-        "error": generic_error_schema
+        "failure": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "A message describing why the query execution failed, or null if no failure occurred."
+        }
     }
 }
 _is_applicable_schema = {
@@ -313,12 +324,18 @@ evaluate_one_result_schema = {
     "required": [
         "is_applicable",
         "query_result",
-        "error"
+        "failure"
     ],
     "properties": {
         "is_applicable": _is_applicable_schema,
         "query_result": _query_result_schema,
-        "error": generic_error_schema
+        "failure": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "description": "A message describing why the evaluation failed, or null if no failure occurred. Evaluation failures do not cause the operation to fail."
+        }
     }
 }
 audit_result_schema = {
@@ -342,13 +359,19 @@ audit_result_schema = {
                     "grant",
                     "is_applicable",
                     "query_result",
-                    "error"
+                    "failure"
                 ],
                 "properties": {
                     "grant": grant_schema,
                     "is_applicable": _is_applicable_schema,
                     "query_result": _query_result_schema,
-                    "error": generic_error_schema
+                    "failure": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A message describing why the evaluation failed, or null if no failure occurred."
+                    }
                 }
             }
         },
@@ -386,7 +409,7 @@ authorize_result_schema = {
             "type": "string",
             "description": "Details about why the request was authorized or not.",
             "enum": [
-                "A critical error has occurred. Therefore, the request is not authorized.",
+                "An error has occurred. Therefore, the request is not authorized.",
                 "A deny grant is applicable to the request. Therefore, the request is not authorized.",
                 "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
                 "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
@@ -530,12 +553,18 @@ batch_audit_result_schema = {
                             "required": [
                                 "is_applicable",
                                 "query_result",
-                                "error"
+                                "failure"
                             ],
                             "properties": {
                                 "is_applicable": _is_applicable_schema,
                                 "query_result": _query_result_schema,
-                                "error": generic_error_schema
+                                "failure": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "A message describing why the evaluation failed, or null if no failure occurred."
+                                }
                             }
                         }
                     },
@@ -922,7 +951,7 @@ def validate_batch_request(
         ):
             item_err = _validate_request_context(
                 context_type=item.get("context_type", batch_request['context_type']),
-                context=item.get("context", batch_request['context_type']),
+                context=item.get("context", batch_request['context']),
                 context_lut=context_lut
             )
 
@@ -945,13 +974,12 @@ def validate_batch_request(
 def evaluate_one(
     request: Dict[str, AnyJSON],
     grant: Dict[str, AnyJSON],
-    execute: Callable[[str, AnyJSON], AnyJSON],
-    only_crits: bool
+    execute: Callable[[str, AnyJSON], AnyJSON]
 ) -> Dict[str, AnyJSON]:
     result = {
         "is_applicable": False,
         "query_result": None,
-        "error": None
+        "failure": None
     }
     if (
         len(grant['actions']) > 0
@@ -966,17 +994,15 @@ def evaluate_one(
             "grant": grant
         }
     )
-    if query_result['error'] is None:
+    if query_result['failure'] is None:
         result['query_result'] = query_result['result']
         if query_result['result'] == grant['equality']:
             result['is_applicable'] = True
 
     else:
-        if only_crits is False:
-            result['error'] = {
-                "error_type": "evaluation",
-                "message": f"A JSON Query error has occurred: {query_result['error']['message']}."
-            }
+        result['failure'] = f"A JSON Query error has occurred: {query_result['failure']}."
+        if grant['applicable_on_failure'] is True:
+            result['is_applicable'] = True
 
     return result
 
@@ -991,13 +1017,13 @@ def audit(
         "error": None
     }
     for g in grants:
-        g_eval = evaluate_one(request, g, execute, False)
+        g_eval = evaluate_one(request, g, execute)
         result['results'].append(
             {
                 "grant": g,
                 "is_applicable": g_eval['is_applicable'],
                 "query_result": g_eval['query_result'],
-                "error": g_eval['error']
+                "failure": g_eval['failure']
             }
         )
 
@@ -1018,7 +1044,7 @@ def authorize(
             deny_grants.append(g)
 
     for g in deny_grants:
-        g_eval = evaluate_one(request, g, execute, True)
+        g_eval = evaluate_one(request, g, execute)
         if g_eval['is_applicable'] is True:
             return {
                 "is_authorized": False,
@@ -1028,7 +1054,7 @@ def authorize(
             }
 
     for g in allow_grants:
-        g_eval = evaluate_one(request, g, execute, True)
+        g_eval = evaluate_one(request, g, execute)
         if g_eval['is_applicable'] is True:
             return {
                 "is_authorized": True,
@@ -1143,7 +1169,7 @@ def authorize_workflow(
         return {
             "is_authorized": False,
             "grant": None,
-            "message": "A critical error has occurred. Therefore, the request is not authorized.",
+            "message": "An error has occurred. Therefore, the request is not authorized.",
             "error": val['error']
         }
 
@@ -1167,12 +1193,12 @@ def batch_audit(
         }
         results = []
         for g in grants:
-            g_eval = evaluate_one(request, g, execute, False)
+            g_eval = evaluate_one(request, g, execute)
             results.append(
                 {
                     "is_applicable": g_eval['is_applicable'],
                     "query_result": g_eval['query_result'],
-                    "error": g_eval['error']
+                    "failure": g_eval['failure']
                 }
             )
 
@@ -1256,8 +1282,8 @@ def batch_audit_workflow(
         else:
             batch_results.append(
                 {
-                        "results": [],
-                        "error": error
+                    "results": [],
+                    "error": error
                 }
             )
 
@@ -1309,7 +1335,7 @@ def batch_authorize_workflow(
                 {
                     "is_authorized": False,
                     "grant": None,
-                    "message": "A critical error has occurred. Therefore, the request is not authorized.",
+                    "message": "An error has occurred. Therefore, the request is not authorized.",
                     "error": error
                 }
             )

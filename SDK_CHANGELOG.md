@@ -32,6 +32,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -->
 
 
+## [0.4.0] - 2026-08-xx
+
+- This version of the SDK Standard supports up to at least the following version of the Authzee Specification: 
+    - 0.4.0
+- Where there changes in the Authzee Specification that were implemented in this version of the SDK Standard?
+    - **Yes**
+    - If yes, those changes are noted in the changelog notes prefixed by: **SPECIFICATION CHANGE**
+
+### Added
+
+### Changed
+
+- **SPECIFICATION CHANGE** - General Error handling is updated. 
+    - Results now only return one error to match what would be exceptions.  Instead of using a dict of arrays for errors
+    - Errors only consist of an `error_type` and `message`. 
+    - Audit now has a single error per result to better represent where errors happen. 
+- **SPECIFICATION CHANGE** - reference "workflows" now return the operation response body.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security 
+
+
 ## [0.3.0] - 2026-06-15
 
 - This version of the SDK Standard supports up to at least the following version of the Authzee Specification: 

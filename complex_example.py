@@ -301,6 +301,7 @@ grants = [
         "query": "contains(request.identities.User[].department, request.resource.owner_department)",
         # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>}
         "equality": True,
+        "applicable_on_failure": False,
         "data": {}
     },
     {
@@ -310,6 +311,7 @@ grants = [
         ], # you can use the query to limit by context types
         "query": "request.context_type == 'MySpecialContext' && contains(request.identities.User[].department, request.context.Team)",
         "equality": True,
+        "applicable_on_failure": False,
         "data": {}
     },
     {
@@ -323,6 +325,7 @@ grants = [
         ],
         "query": "request.context_type == 'NULL' && contains(request.identities.Role[].level, 'admin')",
         "equality": True,
+        "applicable_on_failure": False,
         "data": {}
     },
     {
@@ -332,6 +335,7 @@ grants = [
         ], # because the read action is for multiple resources we can check the resource type first.
         "query": "request.resource_type == 'BalloonStore' && contains(request.identities.Group[?type=='department'].department, request.resource.owner_department)",
         "equality": True,
+        "applicable_on_failure": False,
         "data": {}
     },
     {
@@ -341,6 +345,7 @@ grants = [
         ], # don't need to check resource type since only Balloon has the 'inflate' action
         "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
         "equality": True,
+        "applicable_on_failure": False,
         "data": {}
     },
     {
@@ -350,6 +355,7 @@ grants = [
         ], # don't need to check resource type since only Balloon has the 'inflate' action
         "query": "request.context_type == 'NULL' && request.resource.size == 'large' && !contains(request.identities.Role[*].level, 'admin')",
         "equality": True,
+        "applicable_on_failure": True,
         "data": {}
     },
     {
@@ -357,6 +363,7 @@ grants = [
         "actions": [],
         "query": "request.context_type == 'NULL' && length(request.identities.User) == `0`",
         "equality": True,
+        "applicable_on_failure": True,
         "data": {}
     }
 ]
@@ -416,15 +423,12 @@ request = {
 def execute(expression: str, data: Any) -> Any:
     result = {
         "result": None,
-        "error": None
+        "failure": None
     }
     try:
         result['result'] = jmespath.search(expression, data)
     except Exception as exc:
-        result['error'] = {
-            "error_type": "evaluation",
-            "message": f"A JMESPath Query error has occurred: {exc}"
-        }
+        result['failure'] = f"A JMESPath Query error has occurred: {exc}"
 
     return result
 
@@ -454,15 +458,12 @@ options = jmespath.Options(custom_functions=CustomFunctions())
 def custom_execute(expression: str, data: Any) -> Any:
     result = {
         "result": None,
-        "error": None
+        "failure": None
     }
     try:
         result['result'] = jmespath.search(expression, data, options)
     except Exception as exc:
-        result['error'] = {
-            "error_type": "evaluation",
-            "message": f"A JMESPath Query error has occurred: {exc}"
-        }
+        result['failure'] = f"A JMESPath Query error has occurred: {exc}"
 
     return result
 
@@ -489,11 +490,12 @@ print(f"Audit Result:\n{json.dumps(audit_result, indent=4)}")
 #                 ],
 #                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
 #                 "equality": true,
+#                 "applicable_on_failure": false,
 #                 "data": {}
 #             },
 #             "is_applicable": true,
 #             "query_result": true,
-#             "error": null
+#             "failure": null
 #         },
 #         ...
 #     ],
@@ -522,6 +524,7 @@ print(f"Authorization Result:\n{json.dumps(authorization_result, indent=4)}")
 #         ],
 #         "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
 #         "equality": true,
+#         "applicable_on_failure": false,
 #         "data": {}
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
@@ -643,6 +646,7 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #             ],
 #             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
 #             "equality": true,
+#             "applicable_on_failure": false,
 #             "data": {}
 #         },
 #         ...
@@ -653,7 +657,7 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #                 {
 #                     "is_applicable": true,
 #                     "query_result": true,
-#                     "error": null
+#                     "failure": null
 #                 },
 #                 ...
 #             ],
@@ -671,7 +675,7 @@ print(f"Batch Audit Result:\n{json.dumps(batch_audit_results, indent=4)}")
 #                 {
 #                     "is_applicable": false,
 #                     "query_result": null,
-#                     "error": null
+#                     "failure": null
 #                 },
 #                 ...
 #             ],
@@ -704,13 +708,16 @@ print(f"Authorize Batch Result:\n{json.dumps(batch_authorize_result, indent=4)}"
 #                 ],
 #                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
 #                 "equality": true,
+#                 "applicable_on_failure": false,
 #                 "data": {}
 #             },
 #             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
 #             "error": null
 #         },
 #         {
-#             "results": [],
+#             "is_authorized": false,
+#             "grant": null,
+#             "message": "An error has occurred. Therefore, the request is not authorized.",
 #             "error": {
 #                 "error_type": "request",
 #                 "message": "Identity 'User[0]' is not valid. Schema Error: ..."

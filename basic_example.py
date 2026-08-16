@@ -119,6 +119,7 @@ grants = [
         "query": "contains(request.identities.User[0].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>}
         # In this case, the above query will return `true` if the calling entity's zeroth User type identity has the admin role
         "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable".
+        "applicable_on_failure": False, # If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants.
         "data": {} # extra free form data to store with this grant
     }
 ]
@@ -153,15 +154,12 @@ request = {
 def execute(expression: str, data: Any) -> Any:
     result = {
         "result": None,
-        "error": None
+        "failure": None
     }
     try:
         result['result'] = jmespath.search(expression, data)
     except Exception as exc:
-        result['error'] = {
-            "error_type": "evaluation",
-            "message": f"A JMESPath Query error has occurred: {exc}"
-        }
+        result['failure'] = f"A JMESPath Query error has occurred: {exc}"
 
     return result
 
@@ -192,6 +190,7 @@ else:
 #         ],
 #         "query": "contains(request.identities.User[0].role, 'admin')",
 #         "equality": true,
+#         "applicable_on_failure": false,
 #         "data": {}
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",

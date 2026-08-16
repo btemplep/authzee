@@ -18,9 +18,9 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
 - Not all of the functionality described here is meant to be part of an implementation's "public" API.  It is just to establish standards for Authzee. 
 - Case conventions can be changed to align with language conventions.
 - Input and output data structures can have additional properties where allowed in their respective schemas.  Implementations are expected to build upon the base schemas. 
-- Errors and especially critical errors are left up to implementations to decide the method of presenting the error. Whether it is directly returned from a function, raised via an exception, or by other means. 
+- Errors are left up to implementations to decide the method of presenting the error. Whether it is directly returned from a function, raised via an exception, or by other means. 
     - Errors and results are still expected to follow the schemas laid out here. 
-    - For example, an "Authorize" operation that encounters a critical error should always include the result matching the Authorize Result Schema when the error is presented. 
+    - For example, an "Authorize" operation that encounters an error should always include the result matching the Authorize Result Schema when the error is presented. 
     - For something like a validation error on an identity, the return value or exception should include a data structure that matches the [Error Schema](#error-schema).
 - Titles and descriptions included in the schema fields are considered part of the spec.  Check the schemas first for detailed information on the fields. 
 
@@ -55,14 +55,13 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
 - [Evaluations](#evaluations)
     - [Request Evaluation](#request-evaluation)
     - [Batch Request Evaluation](#batch-request-evaluation)
-    - [Evaluation Error Example](#evaluation-error-example)
-    - [Evaluation Error Schema](#evaluation-error-schema)
 - [Operations](#operations)
     - [Audit](#audit)
         - [Audit Result Example](#audit-result-example)
         - [Audit Result Schema](#audit-result-schema) 
     - [Authorize](#authorize)
         - [Authorize Result Example](#authorize-result-example)
+        - [Authorize Result Error Example](#authorize-result-error-example)
         - [Authorize Result Schema](#authorize-result-schema) 
     - [Batch Audit](#batch-audit)
         - [Batch Audit Result Example](#batch-audit-result-example)
@@ -233,7 +232,7 @@ Context definitions are valid if all of the following conditions are met:
 - The definition's `context_type` is unique among context definitions
 - The definition schema's base type is "object"
 
-If an error occurs when validating an context definition, a critical, `definition` type [Error](#errors) should be returned/raised.
+If an error occurs when validating an context definition, a `definition` type [Error](#errors) should be returned/raised.
 
 
 ## Identity Definitions
@@ -399,7 +398,7 @@ Identity definitions are valid if all of the following conditions are met:
 - The definition's `identity_type` is unique among identity definitions
 - The definition schema's base type is "object"
 
-If an error occurs when validating an identity definition, a critical, `definition` type [Error](#errors) should be returned/raised.
+If an error occurs when validating an identity definition, a `definition` type [Error](#errors) should be returned/raised.
 
 
 ## Resource Definitions 
@@ -567,7 +566,7 @@ Resource definitions are valid if all of the following conditions are met:
 - The definition's `resource_type` is unique among resource definitions
 - The definition schema's base type is "object"
 
-If an error occurs when validating an resource definition, a critical, `definition` type [Error](#errors) should be returned/raised.
+If an error occurs when validating an resource definition, a `definition` type [Error](#errors) should be returned/raised.
 
 
 ## Grants
@@ -585,6 +584,7 @@ Grants are the Authzee authorization rules. They query the request and grant dat
     ],
     "query": "contains(request.identities, 'User') && length(request.identities.User) > `0` && contains(grant.data.allowed_departments, request.identities.User[0].department)",
     "equality": true,
+    "applicable_on_failure": false,
     "data": {
         "allowed_departments": [
             "balloon",
@@ -609,7 +609,8 @@ Grants are the Authzee authorization rules. They query the request and grant dat
         "actions",
         "data",
         "query",
-        "equality"
+        "equality",
+        "applicable_on_failure"
     ],
     "properties": {
         "effect": {
@@ -643,6 +644,10 @@ Grants are the Authzee authorization rules. They query the request and grant dat
         },
         "equality": {
             "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+        },
+        "applicable_on_failure": {
+            "type": "boolean",
+            "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
         }
     }
 }
@@ -656,7 +661,7 @@ Grant are valid if all of the following conditions are met:
 
 > **NOTE** - Grant actions are not validated so that grants can be created for future resource actions, and for performance purposes in the SDKs. 
 
-If an error occurs when validating a grant, a critical, `grant` type [Error](#errors) should be returned/raised.
+If an error occurs when validating a grant, a `grant` type [Error](#errors) should be returned/raised.
 
 
 ## Requests
@@ -796,7 +801,7 @@ Requests are valid if all of the following conditions are met:
 - The resource action is equal to one of the actions in the matching resource definition.
 
 
-If an error occurs when validating a request, a critical, `request` type [Error](#errors) should be returned/raised.
+If an error occurs when validating a request, a `request` type [Error](#errors) should be returned/raised.
 
 
 ## Batch Requests
@@ -1040,7 +1045,7 @@ Batch Requests are valid if all of the following conditions are met:
 - All root fields are valid as outlined in [Request Validation](#request-validation).
 - Each item in the batch is formatted into a standard request as outlined in [Batch Request Evaluation](#batch-request-evaluation), and then each request is valid as outlined in [Request Validation](#request-validation)
 
-If an error occurs when validating a batch request at the top level, a critical, `request` type [Error](#errors) should be returned/raised. Individual batch item validation errors should also be reported as `request` type errors for the specific item that failed.
+If an error occurs when validating a batch request at the top level, a `request` type [Error](#errors) should be returned/raised. Individual batch item validation errors should also be reported as `request` type errors for the specific item that failed.
 
 
 ## Evaluations
@@ -1074,33 +1079,18 @@ Expected return schema for JSON query execute functions.
     "additionalProperties": false,
     "required": [
         "result",
-        "error"
+        "failure"
     ],
     "properties": {
         "result": {
             "description": "Result from running the JSON query."
         },
-        "error": {
-            "title": "Operation Error",
-            "description": "Error from an Authzee operation, or null if no error.",
+        "failure": {
             "type": [
-                "object",
+                "string",
                 "null"
             ],
-            "required": [
-                "error_type",
-                "message"
-            ],
-            "properties": {
-                "error_type": {
-                    "type": "string",
-                    "description": "The type of error."
-                },
-                "message": {
-                    "type": "string",
-                    "description": "Message describing the error."
-                }
-            }
+            "description": "A message describing why the query execution failed, or null if no failure occurred."
         }
     }
 }
@@ -1109,10 +1099,15 @@ Expected return schema for JSON query execute functions.
 A grant is applicable to a request if all of the following are true:
 - The grant has 0 actions OR the request action is in the grant actions.
 - The JSON execute function is called with the grant's query as the `expression` parameter, along with the request and grant nested under an object as the `data` parameter like so: `execute(grant.query, {"request": <request body>, "grant": <grant_body>})` 
-- The JSON query execute function call produces no errors
-- The result of the JSON execute function is equal to the grant's equality property value
+- One of the following scenarios:
+    - The following are all true:
+        - The JSON query execute function does not produce a failure.
+        - The result of the JSON execute function is equal to the grant's equality property value.
+    - The following are all true:
+        - The JSON query execute function produces a failure.
+        - The grant's `applicable_on_failure` is `true`.
 
-If an error occurs during an evaluation (generally from the JSON query), an `evaluation` type [Error](#errors) should be returned/raised.
+If an error occurs during an evaluation, the evaluation is considered a failure. The failure message is recorded in the `failure` field of the result. The grant is not applicable to the request when an evaluation failure occurs, unless `applicable_on_failure` is `true`. The operation continues processing remaining grants regardless of failures.
 
 
 ### Batch Request Evaluation
@@ -1124,45 +1119,6 @@ Formatting a batch request into individual request:
 - Each request starts with the fields from the batch item for the request.
 - Any request fields that are not present at this point will be taken from the root batch request. 
 
-
-### Evaluation Error Example
-
-Errors that happen during an evaluation or running a JSON query will result in an `evaluation` error.  
-
-```json
-{
-    "error_type": "evaluation",
-    "message": "A JSON Query error has occurred: ..."
-}
-```
-
-
-### Evaluation Error Schema
-
-```json
-{
-    "title": "Operation Error",
-    "description": "Error from an Authzee operation, or null if no error.",
-    "type": [
-        "object",
-        "null"
-    ],
-    "required": [
-        "error_type",
-        "message"
-    ],
-    "properties": {
-        "error_type": {
-            "type": "string",
-            "description": "The type of error."
-        },
-        "message": {
-            "type": "string",
-            "description": "Message describing the error."
-        }
-    }
-}
-```
 
 ## Operations
 
@@ -1180,10 +1136,9 @@ Operations are the core functionality of Authzee. Before running an Authzee oper
 The Audit operation is used to collect grant evaluation results against a request. 
 
 Audit Steps for each grant:
-- Each grant is evaluated against the request and the result is appended to the results.
-- Each result item includes the grant, whether it is applicable, the query result, and any error.
-- If an error occurs, it is recorded in the `error` field for that result and evaluation of that grant stops. It is not considered applicable.
-- if no error, then the `error` field is set to `null`.
+- Each grant is evaluated against the request as described in [Request Evaluation](#request-evaluation).
+- The evaluation produces `is_applicable`, `query_result`, and `failure`.
+- Each result item copies these fields and includes the `grant` itself.
 
 
 #### Audit Result Example
@@ -1199,6 +1154,7 @@ Audit Steps for each grant:
                 ],
                 "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
                 "equality": true,
+                "applicable_on_failure": false,
                 "data": {
                     "allowed_departments": [
                         "balloon",
@@ -1208,10 +1164,7 @@ Audit Steps for each grant:
             },
             "is_applicable": false,
             "query_result": null,
-            "error": {
-                "error_type": "evaluation",
-                "message": "A JSON Query error has occurred: invalid expression."
-            }
+            "failure": "A JSON Query error has occurred: invalid expression."
         }
     ],
     "error": {
@@ -1245,7 +1198,7 @@ Audit Steps for each grant:
                     "grant",
                     "is_applicable",
                     "query_result",
-                    "error"
+                    "failure"
                 ],
                 "properties": {
                     "grant": {
@@ -1259,7 +1212,8 @@ Audit Steps for each grant:
                             "actions",
                             "data",
                             "query",
-                            "equality"
+                            "equality",
+                            "applicable_on_failure"
                         ],
                         "properties": {
                             "effect": {
@@ -1293,6 +1247,10 @@ Audit Steps for each grant:
                             },
                             "equality": {
                                 "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                            },
+                            "applicable_on_failure": {
+                                "type": "boolean",
+                                "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
                             }
                         }
                     },
@@ -1303,27 +1261,12 @@ Audit Steps for each grant:
                     "query_result": {
                         "description": "Result from running the JSON query."
                     },
-                    "error": {
-                        "title": "Operation Error",
-                        "description": "Error from an Authzee operation, or null if no error.",
+                    "failure": {
                         "type": [
-                            "object",
+                            "string",
                             "null"
                         ],
-                        "required": [
-                            "error_type",
-                            "message"
-                        ],
-                        "properties": {
-                            "error_type": {
-                                "type": "string",
-                                "description": "The type of error."
-                            },
-                            "message": {
-                                "type": "string",
-                                "description": "Message describing the error."
-                            }
-                        }
+                        "description": "A message describing why the evaluation failed, or null if no failure occurred. Evaluation failures do not cause the operation to fail."
                     }
                 }
             }
@@ -1367,27 +1310,37 @@ A request is authorized if **all** of the following are true:
 A request is not authorized if **any** of the following are true:
 - A grant with a `deny` effect is applicable to the request.
 - No grants are applicable to the request.
-- A critical error was encountered (e.g., a validation error in the workflow).
+- An error was encountered (e.g., a validation error in the workflow).
 
 
 #### Authorize Result Example
 
 ```json
 {
-    "is_authorized": false,
+    "is_authorized": true,
     "grant": {
-        "effect": "deny",
+        "effect": "allow",
         "actions": [
             "Balloon:Read",
             "pop"
         ],
-        "query": "contains(request.identities.User[0].role, 'intern')",
+        "query": "contains(request.identities.User[0].role, 'admin')",
         "equality": true,
-        "data": {
-            "reason": "Interns cannot pop balloons"
-        }
+        "applicable_on_failure": false,
+        "data": {}
     },
-    "message": "A deny grant is applicable to the request. Therefore, the request is not authorized.",
+    "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
+    "error": null
+}
+```
+
+#### Authorize Result Error Example
+
+```json
+{
+    "is_authorized": false,
+    "grant": null,
+    "message": "An error has occurred. Therefore, the request is not authorized.",
     "error": {
         "error_type": "request",
         "message": "Identity Type 'Ghost' is not valid."
@@ -1433,7 +1386,8 @@ A request is not authorized if **any** of the following are true:
                         "actions",
                         "data",
                         "query",
-                        "equality"
+                        "equality",
+                        "applicable_on_failure"
                     ],
                     "properties": {
                         "effect": {
@@ -1467,6 +1421,10 @@ A request is not authorized if **any** of the following are true:
                         },
                         "equality": {
                             "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                        },
+                        "applicable_on_failure": {
+                            "type": "boolean",
+                            "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
                         }
                     }
                 }
@@ -1476,7 +1434,7 @@ A request is not authorized if **any** of the following are true:
             "type": "string",
             "description": "Details about why the request was authorized or not.",
             "enum": [
-                "A critical error has occurred. Therefore, the request is not authorized.",
+                "An error has occurred. Therefore, the request is not authorized.",
                 "A deny grant is applicable to the request. Therefore, the request is not authorized.",
                 "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
                 "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
@@ -1525,6 +1483,7 @@ The Batch Audit operation is used to run the Audit operation over a batch reques
             ],
             "query": "contains(request.identities.Role[*].permissions[], 'balloon:inflate') && request.identities.User[0].department == request.resource.owner_department",
             "equality": true,
+            "applicable_on_failure": true,
             "data": {
                 "allowed_departments": [
                     "balloon",
@@ -1538,11 +1497,8 @@ The Batch Audit operation is used to run the Audit operation over a batch reques
             "results": [
                 {
                     "is_applicable": true,
-                    "query_result": true,
-                    "error": {
-                        "error_type": "evaluation",
-                        "message": "A JSON Query error has occurred: unknown function 'bad_func'."
-                    }
+                    "query_result": null,
+                    "failure": "A JSON Query error has occurred: unknown function 'bad_func'."
                 }
             ],
             "error": {
@@ -1588,7 +1544,8 @@ The Batch Audit operation is used to run the Audit operation over a batch reques
                     "actions",
                     "data",
                     "query",
-                    "equality"
+                    "equality",
+                    "applicable_on_failure"
                 ],
                 "properties": {
                     "effect": {
@@ -1622,6 +1579,10 @@ The Batch Audit operation is used to run the Audit operation over a batch reques
                     },
                     "equality": {
                         "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                    },
+                    "applicable_on_failure": {
+                        "type": "boolean",
+                        "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
                     }
                 }
             }
@@ -1647,7 +1608,7 @@ The Batch Audit operation is used to run the Audit operation over a batch reques
                             "required": [
                                 "is_applicable",
                                 "query_result",
-                                "error"
+                                "failure"
                             ],
                             "properties": {
                                 "is_applicable": {
@@ -1657,27 +1618,12 @@ The Batch Audit operation is used to run the Audit operation over a batch reques
                                 "query_result": {
                                     "description": "Result from running the JSON query."
                                 },
-                                "error": {
-                                    "title": "Operation Error",
-                                    "description": "Error from an Authzee operation, or null if no error.",
+                                "failure": {
                                     "type": [
-                                        "object",
+                                        "string",
                                         "null"
                                     ],
-                                    "required": [
-                                        "error_type",
-                                        "message"
-                                    ],
-                                    "properties": {
-                                        "error_type": {
-                                            "type": "string",
-                                            "description": "The type of error."
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "description": "Message describing the error."
-                                        }
-                                    }
+                                    "description": "A message describing why the evaluation failed, or null if no failure occurred. Evaluation failures do not cause the operation to fail."
                                 }
                             }
                         }
@@ -1752,30 +1698,18 @@ The Batch Authorize operation is used to run the Authorize operation for a batch
                 ],
                 "query": "contains(request.identities.User[0].role, 'admin')",
                 "equality": true,
+                "applicable_on_failure": false,
                 "data": {
                     "role_required": "admin"
                 }
             },
             "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-            "error": {
-                "error_type": "evaluation",
-                "message": "A JSON Query error has occurred: syntax error in expression."
-            }
+            "error": null
         },
         {
             "is_authorized": false,
-            "grant": {
-                "effect": "deny",
-                "actions": [
-                    "pop"
-                ],
-                "query": "request.identities.User[0].department == 'disposal'",
-                "equality": true,
-                "data": {
-                    "reason": "Disposal department cannot pop balloons"
-                }
-            },
-            "message": "A deny grant is applicable to the request. Therefore, the request is not authorized.",
+            "grant": null,
+            "message": "An error has occurred. Therefore, the request is not authorized.",
             "error": {
                 "error_type": "request",
                 "message": "Resource type 'Kite' is not valid."
@@ -1842,7 +1776,8 @@ The Batch Authorize operation is used to run the Authorize operation for a batch
                                     "actions",
                                     "data",
                                     "query",
-                                    "equality"
+                                    "equality",
+                                    "applicable_on_failure"
                                 ],
                                 "properties": {
                                     "effect": {
@@ -1876,6 +1811,10 @@ The Batch Authorize operation is used to run the Authorize operation for a batch
                                     },
                                     "equality": {
                                         "description": "Expected value for the query to return.  If the query result matches this value the grant is a considered applicable to the request."
+                                    },
+                                    "applicable_on_failure": {
+                                        "type": "boolean",
+                                        "description": "If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants."
                                     }
                                 }
                             }
@@ -1885,7 +1824,7 @@ The Batch Authorize operation is used to run the Authorize operation for a batch
                         "type": "string",
                         "description": "Details about why the request was authorized or not.",
                         "enum": [
-                            "A critical error has occurred. Therefore, the request is not authorized.",
+                            "An error has occurred. Therefore, the request is not authorized.",
                             "A deny grant is applicable to the request. Therefore, the request is not authorized.",
                             "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
                             "No grants are applicable to the request. Therefore, the request is implicitly denied and is not authorized."
@@ -1945,7 +1884,7 @@ The Batch Authorize operation is used to run the Authorize operation for a batch
 
 ## Errors
 
-Errors are included for all validations, evaluations, and operation calls. 
+Errors are included for all validations and operation calls. 
 
 In general errors take the same basic shape, although this can be built upon to include extra context if needed.  
 
@@ -1955,7 +1894,6 @@ The `error` field is present in all result schemas.  It is either `null` (no err
 ### Error Types
 
 - `definition` - An error occurred when validating a context, identity, or resource definition.
-- `evaluation` - An error occurred during an evaluation. Usually triggered from a JSON query error.
 - `grant` - An error occurred when validating a grant.
 - `request` - An error occurred when validating a request or batch request.
 
