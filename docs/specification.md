@@ -80,9 +80,9 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
 
 Definitions specific to Authzee and used throughout the specification:
 
-- **Identity** - An object representing a specific type of identity to consider when authorizing.
-- **Resource** - An object representing a specific type of resource to authorize for.
-- **Resource Action (Action)** - A name for a specific action taken on a resource.
+- **Identity** - An object representing a unique type of identity to consider when authorizing.
+- **Resource** - An object representing a unique type of resource to authorize for.
+- **Resource Action (Action)** - A name for a unique action taken on a resource.
 - **Grant** - Defines rules for authorization. 
 - **Operation (Op)** - Distinct, named authorization functionality for a request. Audit, Authorize, Batch Audit, and Batch Authorize.
 - **Authorization Request (Request)** - The object used to specify identities, resources, actions, and other configurations that are passed to functions.
@@ -232,7 +232,7 @@ Context definitions are valid if all of the following conditions are met:
 - The definition's `context_type` is unique among context definitions
 - The definition schema's base type is "object"
 
-If an error occurs when validating an context definition, a `definition` type [Error](#errors) should be returned/raised.
+If an error occurs when validating a context definition, a `definition` type [Error](#errors) should be returned/raised.
 
 
 ## Identity Definitions
@@ -666,7 +666,7 @@ If an error occurs when validating a grant, a `grant` type [Error](#errors) shou
 
 ## Requests
 
-Requests represent a calling entity's request for perform an operation on identities, an action, a resource type, a resource instance, a context type, and a context instance. 
+Requests represent a calling entity's request to perform an operation on identities, an action, a resource type, a resource instance, a context type, and a context instance. 
 
 
 ### Request Example
@@ -799,7 +799,6 @@ Requests are valid if all of the following conditions are met:
 - The resource type is equal to one of the passed in/registered resource definition's resource type.
 - The resource instance is valid against the schema of the matching resource definition.
 - The resource action is equal to one of the actions in the matching resource definition.
-
 
 If an error occurs when validating a request, a `request` type [Error](#errors) should be returned/raised.
 
@@ -974,7 +973,7 @@ Grants are naturally partitioned on actions. Batch requests try to take advantag
         },
         "batch": {
             "type": "array",
-            "description": "Batch of resources and contexts to process with shared identities, action, resource type, and context type.",
+            "description": "Batch of items to process with shared resource types. When evaluated, each item is merged with the root request, where the batch item fields take precedence.",
             "minItems": 1,
             "items": {
                 "type": "object",
@@ -1011,7 +1010,7 @@ Grants are naturally partitioned on actions. Batch requests try to take advantag
                     },
                     "resource": {
                         "type": "object",
-                        "description": "Resource for this batch item, that is an instance of the given resource_type"
+                        "description": "Resource for this batch item, that is an instance of the given resource_type. Overrides the batch request level if the field exists and is not null."
                     },
                     "context_type": {
                         "title": "Authzee Context Type",
@@ -1050,7 +1049,7 @@ If an error occurs when validating a batch request at the top level, a `request`
 
 ## Evaluations
 
-Evaluations are the primary unit of work in Authzee.  Authzee operations evaluate requests against grants to determine if a grant is applicable to a request. What is done with the applicable grants is dependent on the operation.  
+Evaluations are the primary unit of work in Authzee.  Authzee operations evaluate requests against grants to determine if a grant is applicable to a request. What is done with the applicable grants is dependent upon the operation.  
 
 
 ### Request Evaluation
@@ -1102,12 +1101,12 @@ A grant is applicable to a request if all of the following are true:
 - One of the following scenarios:
     - The following are all true:
         - The JSON query execute function does not produce a failure.
-        - The result of the JSON execute function is equal to the grant's equality property value.
+        - The result of the JSON execute function is equal to the grant's `equality` property value.
     - The following are all true:
         - The JSON query execute function produces a failure.
         - The grant's `applicable_on_failure` is `true`.
 
-If an error occurs during an evaluation, the evaluation is considered a failure. The failure message is recorded in the `failure` field of the result. The grant is not applicable to the request when an evaluation failure occurs, unless `applicable_on_failure` is `true`. The operation continues processing remaining grants regardless of failures.
+If an error occurs during an evaluation, the evaluation is considered a failure. The failure message is recorded in the `failure` field of the result. The grant is not applicable to the request when an evaluation failure occurs, unless `applicable_on_failure` is `true`. The operation continues processing remaining grants regardless of evaluation failures.
 
 
 ### Batch Request Evaluation
@@ -1190,7 +1189,7 @@ Audit Steps for each grant:
     "properties": {
         "results": {
             "type": "array",
-            "description": "List of grant evaluation results with the grant included.",
+            "description": "List of grant evaluation results.",
             "items": {
                 "type": "object",
                 "additionalProperties": true,
@@ -1259,7 +1258,7 @@ Audit Steps for each grant:
                         "description": "If the grant is applicable to the request or not."
                     },
                     "query_result": {
-                        "description": "Result from running the JSON query."
+                        "description": "Result from running the JSON query in the grant."
                     },
                     "failure": {
                         "type": [
@@ -1884,14 +1883,22 @@ The Batch Authorize operation is used to run the Authorize operation for a batch
 
 ## Errors
 
-Errors are included for all validations and operation calls. 
+Errors are events that cause an Authzee operation, or batch item to fail. The `error` field is present in all operation result schemas.  It is either `null` (no error) or an object with `error_type` and `message` fields.
 
-In general errors take the same basic shape, although this can be built upon to include extra context if needed.  
-
-The `error` field is present in all result schemas.  It is either `null` (no error) or an object with `error_type` and `message` fields.
+Errors can have slightly different effects depending on the operation:
+- Audit - Causes the operation to halt.  May not have any, or a complete result set.
+- Authorize - Causes the operation to halt. `is_applicable` is marked as `false`.
+- Batch Audit 
+    - At the root level, causes the whole batch operation to halt. May not have any, or a complete set of batch results.
+    - At the batch item level - Same as Audit.
+- Batch Authorize
+    - At the root level, causes the whole batch operation to halt. May not have any, or a complete set of batch results. 
+    - At the batch item level - Same as Authorize.
 
 
 ### Error Types
+
+These error types are required by the specification:
 
 - `definition` - An error occurred when validating a context, identity, or resource definition.
 - `grant` - An error occurred when validating a grant.

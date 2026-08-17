@@ -864,11 +864,7 @@ def test_evaluate_one_wrong_equality(admin_request, allow_grant):
 
 
 def test_evaluate_one_query_failure(admin_request, allow_grant):
-    r = evaluate_one(
-        admin_request,
-        allow_grant,
-        failing_execute
-    )
+    r = evaluate_one(admin_request, allow_grant, failing_execute)
     jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is False
     assert r['failure'] is not None
@@ -879,11 +875,7 @@ def test_evaluate_one_applicable_on_failure_true(admin_request, allow_grant):
         **allow_grant,
         "applicable_on_failure": True
     }
-    r = evaluate_one(
-        admin_request,
-        grant,
-        failing_execute
-    )
+    r = evaluate_one(admin_request, grant, failing_execute)
     jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is True
     assert r['failure'] is not None
@@ -894,11 +886,7 @@ def test_evaluate_one_applicable_on_failure_false(admin_request, allow_grant):
         **allow_grant,
         "applicable_on_failure": False
     }
-    r = evaluate_one(
-        admin_request,
-        grant,
-        failing_execute
-    )
+    r = evaluate_one(admin_request, grant, failing_execute)
     jsonschema.validate(r, evaluate_one_result_schema)
     assert r['is_applicable'] is False
     assert r['failure'] is not None

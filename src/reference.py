@@ -47,7 +47,6 @@ __all__ = [
     "validate_request",
     "validate_resource_defs"
 ]
-
 from typing import Callable, Dict, List, Union
 
 import jsonschema
@@ -288,7 +287,7 @@ request_schema = {
     }
 }
 _query_result_schema = {
-    "description": "Result from running the JSON query."
+    "description": "Result from running the JSON query in the grant."
 }
 query_execute_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -351,7 +350,7 @@ audit_result_schema = {
     "properties": {
         "results": {
             "type": "array",
-            "description": "List of grant evaluation results with the grant included.",
+            "description": "List of grant evaluation results.",
             "items": {
                 "type": "object",
                 "additionalProperties": True,
@@ -452,7 +451,7 @@ batch_request_schema = {
         },
         "batch": {
             "type": "array",
-            "description": "Batch of resources and contexts to process with shared identities, action, resource type, and context type.",
+            "description": "Batch of items to process with shared resource types. When evaluated, each item is merged with the root request, where the batch item fields take precedence.",
             "minItems": 1,
             "items": {
                 "type": "object",
@@ -474,7 +473,7 @@ batch_request_schema = {
                         "description": _resource_type_schema['description'] + _batch_item_level_description
                     },
                     "resource": _request_resource_schema | {
-                        "description": "Resource for this batch item, that is an instance of the given resource_type"
+                        "description": "Resource for this batch item, that is an instance of the given resource_type. Overrides the batch request level if the field exists and is not null."
                     },
                     "context_type": _context_type_schema | {
                         "type": [
