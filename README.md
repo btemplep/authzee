@@ -256,6 +256,7 @@ It utilizes all these elements to create a more complex request for the audit, a
 
 Run [complex_example.py](./complex_example.py) from the root of the project after installing the dependencies from the `requirements.txt` file.
 
+
 ## Tests
 
 Run the tests and generate a coverage report from the root of the project after installing the dependencies from the `requirements.txt` file.

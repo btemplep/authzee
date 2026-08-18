@@ -999,7 +999,7 @@ def evaluate_one(
             result['is_applicable'] = True
 
     else:
-        result['failure'] = f"A JSON Query error has occurred: {query_result['failure']}."
+        result['failure'] = query_result['failure']
         if grant['applicable_on_failure'] is True:
             result['is_applicable'] = True
 
