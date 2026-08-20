@@ -23,6 +23,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -->
 
 
+## [0.4.0] - 2026-08-19
+
+**BREAKING CHANGES**
+
+### Added
+
+- `applicable_on_failure` field to grants
+    - If the query fails, the grant is considered applicable. 
+    - useful for security around deny grants that it is a fail-safe
+
+### Changed
+
+- General Error handling is updated. 
+    - Results now only return one error to match what would be exceptions.  Instead of using a dict of arrays for errors
+    - Errors only consist of an `error_type` and `message`. 
+    - Audit errors are renamed to `failure` and can never cause the operation to exit early. This clarifies what happens. 
+- reference "workflows" now return the operation response body.
+
+### Removed
+
+- `is_valid` and `has_failed` removed from responsed
+    - They now return a field called `error` that can be null or a general error.  More closely aligning with exceptions and program error
+- `evaluation_handler`field removed at all levels
+    - No errors are returned/propagated for for evaluation errors, except in audit and batch audit operations, where they are specifically recorded per result/grant.
+
+
 ## [0.3.0] - 2026-06-15
 
 Release 0.3.0 includes many key changes to increase flexibility and scalability, while also balancing usability and maintenance.  It is a large rework to make Authzee language agnostic.

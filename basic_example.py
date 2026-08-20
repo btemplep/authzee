@@ -1,9 +1,11 @@
+"""Basic Authzee python example."""
+
 import json
 from typing import Any
 
 import jmespath
-
 from src.reference import authorize_workflow
+
 
 # 1. Define the identities - Describe who needs to be authorized
 identity_defs = [
@@ -36,7 +38,7 @@ identity_defs = [
     }
 ]
 
-# 2. Define resources 
+# 2. Define resources
 resource_defs = [
     {
         "resource_type": "Balloon", # Resource types must be unique
@@ -48,7 +50,7 @@ resource_defs = [
             "tie"
         ],
         "schema": { # JSON Schema
-            "type": "object", 
+            "type": "object",
             "required": [
                 "id",
                 "color",
@@ -106,7 +108,7 @@ context_defs = [
     }
 ]
 
-# 4. Define Grants - access rules 
+# 4. Define Grants - access rules
 grants = [
     {
         "effect": "allow", # allow or deny
@@ -114,11 +116,11 @@ grants = [
             "Balloon:Read",
             "pop"
         ],
-        "query": "contains(request.identities.User[0].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>} 
+        "query": "contains(request.identities.User[0].role, 'admin')", # JMESPath query - Runs on {"request": <request obj>, "grant": <current grant>}
         # In this case, the above query will return `true` if the calling entity's zeroth User type identity has the admin role
-        "evaluation_handler": "evaluate",
-        "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable". 
-        "data": {}, # extra free from data to store with this grant
+        "equality": True, # If the request action is in the grants actions and the query result matches this, then the grant is "applicable".
+        "applicable_on_failure": False, # If true, the grant is considered applicable when the query evaluation fails. Useful as a fail-safe for deny grants.
+        "data": {} # extra free form data to store with this grant
     }
 ]
 
@@ -135,13 +137,12 @@ request = {
         ]
     },
     "resource_type": "Balloon", # Request access to a specific resource type
-    "action": "pop", # to perform a specific action,  
+    "action": "pop", # to perform a specific action,
     "resource": { # on a specific resource.
         "id": "b123",
         "color": "green",
         "size": "medium"
     },
-    "evaluation_handler": "grant", # optionally override grant level evaluation
     "context_type": "MySpecialContext", # include a specific context type and data
     "context": {
         "Team": "ABC"
@@ -153,15 +154,13 @@ request = {
 def execute(expression: str, data: Any) -> Any:
     result = {
         "result": None,
-        "has_failed": False,
-        "error_message": None
+        "failure": None
     }
     try:
         result['result'] = jmespath.search(expression, data)
     except Exception as exc:
-        result['has_failed'] = True
-        result['error_message'] = f"A JMESPath Query error has occurred: {exc}"
-    
+        result['failure'] = f"A JMESPath Query error has occurred: {exc}"
+
     return result
 
 
@@ -190,12 +189,11 @@ else:
 #             "pop"
 #         ],
 #         "query": "contains(request.identities.User[0].role, 'admin')",
-#         "evaluation_handler": "evaluate",
 #         "equality": true,
+#         "applicable_on_failure": false,
 #         "data": {}
 #     },
 #     "message": "An allow grant is applicable to the request, and there are no deny grants that are applicable to the request. Therefore, the request is authorized.",
-#     "has_failed": false,
-#     "critical_errors": {}
+#     "error": null
 # }
 # ✅ Access granted!

@@ -9,3 +9,4 @@ build/
 docs/_build/
 *.sqlite
 tester.py
+TODO.md
