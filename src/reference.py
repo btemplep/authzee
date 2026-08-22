@@ -48,6 +48,7 @@ __all__ = [
     "validate_request_result_schema",
     "validate_resource_defs"
 ]
+
 from typing import Callable, Dict, List, Union
 
 import jsonschema
@@ -946,9 +947,12 @@ def validate_batch_request(
                 identity_lut=identity_lut
             )
 
-        if item_err is None and (
-            item.get("resource_type", None) is not None
-            or item.get("resource", None) is not None
+        if (
+            item_err is None
+            and (
+                item.get("resource_type", None) is not None
+                or item.get("resource", None) is not None
+            )
         ):
             item_err = _validate_request_resource(
                 resource_type=item.get("resource_type", batch_request['resource_type']),
@@ -957,9 +961,12 @@ def validate_batch_request(
                 resource_lut=resource_lut
             )
 
-        if item_err is None and (
-            item.get("context_type", None) is not None
-            or item.get("context", None) is not None
+        if (
+            item_err is None
+            and (
+                item.get("context_type", None) is not None
+                or item.get("context", None) is not None
+            )
         ):
             item_err = _validate_request_context(
                 context_type=item.get("context_type", batch_request['context_type']),
@@ -1023,7 +1030,10 @@ def audit(
     request: Dict[str, AnyJSON],
     grants: List[Dict[str, AnyJSON]],
     execute: Callable[[str, AnyJSON], AnyJSON]
-) -> Dict[str, List[Dict[str, AnyJSON]]]:
+) -> Dict[
+    str,
+    List[Dict[str, AnyJSON]]
+]:
     result = {
         "results": [],
         "error": None
@@ -1192,7 +1202,10 @@ def batch_audit(
     batch_request: Dict[str, AnyJSON],
     grants: List[Dict[str, AnyJSON]],
     execute: Callable[[str, AnyJSON], AnyJSON]
-) -> Dict[str, List[Dict[str, AnyJSON]]]:
+) -> Dict[
+    str,
+    List[Dict[str, AnyJSON]]
+]:
     batch_results = []
     for item in batch_request['batch']:
         request = {
@@ -1232,7 +1245,10 @@ def batch_authorize(
     batch_request: Dict[str, AnyJSON],
     grants: List[Dict[str, AnyJSON]],
     execute: Callable[[str, AnyJSON], AnyJSON]
-) -> Dict[str, List[Dict[str, AnyJSON]]]:
+) -> Dict[
+    str,
+    List[Dict[str, AnyJSON]]
+]:
     results = []
     for item in batch_request['batch']:
         results.append(
