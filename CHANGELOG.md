@@ -23,6 +23,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -->
 
 
+## [0.5.0] - 2026-08-22
+
+### Added
+
+- `validate_request_result_schema` - Return value schema for the `validate_request` function
+- Validation result schemas documented in specification (Request Validation Result Schema, Batch Request Validation Result Schema)
+
+### Changed
+
+- `validate_batch_request_result_schema` - Renamed `batch_errors` field to `batch`
+- `validate_batch_request` function - Returns `batch` instead of `batch_errors`
+
+
 ## [0.4.0] - 2026-08-19
 
 **BREAKING CHANGES**
