@@ -958,7 +958,6 @@ class Authzee:
         compute_kwargs: Dict[str, Any],
         storage_type: Type[StorageModule],
         storage_kwargs: Dict[str, Any],
-        compute_storage_kwargs: Dict[str, Any] | None = None,
         config: AuthzeeConfigOverride | None = None
     ):
         pass
