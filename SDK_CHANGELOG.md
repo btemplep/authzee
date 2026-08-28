@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SPECIFICATION CHANGE** - `validate_batch_request_result_schema` - Renamed `batch_errors` field to `batch`
 - **SPECIFICATION CHANGE** - `validate_batch_request` return type changed from `GenericResult` to `ValidateBatchRequestResult`
 
+### Removed
+
+- `compute_storage_kwargs` - Removed from the Authzee class constructor. The storage backend is configured via `storage_type` and `storage_kwargs` only.
+
 
 ## [0.4.0] - 2026-08-xx
 
