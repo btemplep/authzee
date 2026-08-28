@@ -649,7 +649,7 @@ def test_validate_batch_request_item_invalid_identity(
         resource_defs
     )
     jsonschema.validate(r, validate_batch_request_result_schema)
-    assert r['batch_errors'][0] is not None
+    assert r['batch'][0] is not None
 
 
 def test_validate_batch_request_item_overrides_resource(
@@ -893,11 +893,7 @@ def test_evaluate_one_applicable_on_failure_false(admin_request, allow_grant):
 
 
 def test_audit_applicable_grant(admin_request, allow_grant):
-    r = audit(
-        admin_request,
-        [allow_grant],
-        execute
-    )
+    r = audit(admin_request, [allow_grant], execute)
     jsonschema.validate(r, audit_result_schema)
     assert r['error'] is None
     assert r['results'][0]['is_applicable'] is True
@@ -905,22 +901,14 @@ def test_audit_applicable_grant(admin_request, allow_grant):
 
 
 def test_audit_no_applicable_grant(guest_request, allow_grant):
-    r = audit(
-        guest_request,
-        [allow_grant],
-        execute
-    )
+    r = audit(guest_request, [allow_grant], execute)
     jsonschema.validate(r, audit_result_schema)
     assert r['results'][0]['is_applicable'] is False
     assert r['results'][0]['grant'] == allow_grant
 
 
 def test_audit_evaluation_error(admin_request, allow_grant):
-    r = audit(
-        admin_request,
-        [allow_grant],
-        failing_execute
-    )
+    r = audit(admin_request, [allow_grant], failing_execute)
     jsonschema.validate(r, audit_result_schema)
     assert r['error'] is None
     assert len(r['results']) == 1
@@ -935,11 +923,7 @@ def test_audit_empty_grants(admin_request):
 
 
 def test_authorize_allow_grant(admin_request, allow_grant):
-    r = authorize(
-        admin_request,
-        [allow_grant],
-        execute
-    )
+    r = authorize(admin_request, [allow_grant], execute)
     jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is True
     assert r['grant'] == allow_grant
@@ -957,11 +941,7 @@ def test_authorize_deny_grant(banned_request, allow_grant, deny_grant):
 
 
 def test_authorize_no_applicable_grant(guest_request, allow_grant):
-    r = authorize(
-        guest_request,
-        [allow_grant],
-        execute
-    )
+    r = authorize(guest_request, [allow_grant], execute)
     jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is False
     assert r['grant'] is None
@@ -969,11 +949,7 @@ def test_authorize_no_applicable_grant(guest_request, allow_grant):
 
 
 def test_authorize_query_failure_in_deny(admin_request, deny_grant):
-    r = authorize(
-        admin_request,
-        [deny_grant],
-        failing_execute
-    )
+    r = authorize(admin_request, [deny_grant], failing_execute)
     jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is False
     assert r['error'] is None
@@ -981,11 +957,7 @@ def test_authorize_query_failure_in_deny(admin_request, deny_grant):
 
 
 def test_authorize_query_failure_in_allow(admin_request, allow_grant):
-    r = authorize(
-        admin_request,
-        [allow_grant],
-        failing_execute
-    )
+    r = authorize(admin_request, [allow_grant], failing_execute)
     jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is False
     assert r['error'] is None
@@ -1001,22 +973,14 @@ def test_authorize_deny_checked_before_allow(
         **deny_grant,
         "query": "request.identities.User[0].role == 'admin'"
     }
-    r = authorize(
-        admin_request,
-        [allow_grant, deny],
-        execute
-    )
+    r = authorize(admin_request, [allow_grant, deny], execute)
     jsonschema.validate(r, authorize_result_schema)
     assert r['is_authorized'] is False
     assert r['grant']['effect'] == "deny"
 
 
 def test_batch_audit_basic(base_batch, allow_grant):
-    r = batch_audit(
-        base_batch,
-        [allow_grant],
-        execute
-    )
+    r = batch_audit(base_batch, [allow_grant], execute)
     jsonschema.validate(r, batch_audit_result_schema)
     assert len(r['batch']) == 1
     assert r['batch'][0]['results'][0]['is_applicable'] is True
@@ -1038,11 +1002,7 @@ def test_batch_audit_item_overrides(base_batch, allow_grant):
             }
         ]
     }
-    r = batch_audit(
-        batch,
-        [allow_grant],
-        execute
-    )
+    r = batch_audit(batch, [allow_grant], execute)
     jsonschema.validate(r, batch_audit_result_schema)
     assert r['batch'][0]['results'][0]['is_applicable'] is False
 
@@ -1055,21 +1015,13 @@ def test_batch_audit_multiple_items(base_batch, allow_grant):
             {}
         ]
     }
-    r = batch_audit(
-        batch,
-        [allow_grant],
-        execute
-    )
+    r = batch_audit(batch, [allow_grant], execute)
     jsonschema.validate(r, batch_audit_result_schema)
     assert len(r['batch']) == 2
 
 
 def test_batch_authorize_basic(base_batch, allow_grant):
-    r = batch_authorize(
-        base_batch,
-        [allow_grant],
-        execute
-    )
+    r = batch_authorize(base_batch, [allow_grant], execute)
     jsonschema.validate(r, batch_authorize_result_schema)
     assert r['batch'][0]['is_authorized'] is True
 
@@ -1090,11 +1042,7 @@ def test_batch_authorize_item_overrides(base_batch, allow_grant):
             }
         ]
     }
-    r = batch_authorize(
-        batch,
-        [allow_grant],
-        execute
-    )
+    r = batch_authorize(batch, [allow_grant], execute)
     jsonschema.validate(r, batch_authorize_result_schema)
     assert r['batch'][0]['is_authorized'] is False
 
@@ -1107,11 +1055,7 @@ def test_batch_authorize_multiple_items(base_batch, allow_grant):
             {}
         ]
     }
-    r = batch_authorize(
-        batch,
-        [allow_grant],
-        execute
-    )
+    r = batch_authorize(batch, [allow_grant], execute)
     jsonschema.validate(r, batch_authorize_result_schema)
     assert len(r['batch']) == 2
 

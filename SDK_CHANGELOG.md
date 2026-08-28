@@ -32,6 +32,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -->
 
 
+## [0.5.0] - 2026-08-22
+
+- This version of the SDK Standard supports up to at least the following version of the Authzee Specification: 
+    - **0.5.0**
+- Where there changes in the Authzee Specification that were implemented in this version of the SDK Standard?
+    - **Yes**
+    - If yes, those changes are noted in the changelog notes prefixed by: **SPECIFICATION CHANGE**
+
+### Added
+
+- **SPECIFICATION CHANGE** - `validate_request_result_schema` - Return value schema for the `validate_request` function
+- `validate_request` and `validate_batch_request` docstrings now note which result schema they match
+
+### Changed
+
+- **SPECIFICATION CHANGE** - `validate_batch_request_result_schema` - Renamed `batch_errors` field to `batch`
+- **SPECIFICATION CHANGE** - `validate_batch_request` return type changed from `GenericResult` to `ValidateBatchRequestResult`
+
+### Removed
+
+- `compute_storage_kwargs` - Removed from the Authzee class constructor. The storage backend is configured via `storage_type` and `storage_kwargs` only.
+
+
 ## [0.4.0] - 2026-08-xx
 
 - This version of the SDK Standard supports up to at least the following version of the Authzee Specification: 

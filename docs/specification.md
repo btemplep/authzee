@@ -1,5 +1,5 @@
 # Authzee Specification 
-## Version 0.4.0
+## Version 0.5.0
 
 This document describes the specification for **Authzee**.
 
@@ -48,10 +48,14 @@ Authzee offers several standard *operations*.  A common use case is the "Authori
     - [Request Example](#request-example)
     - [Request Schema](#request-schema)
     - [Request Validation](#request-validation)
+    - [Request Validation Result Example](#request-validation-result-example)
+    - [Request Validation Result Schema](#request-validation-result-schema)
 - [Batch Requests](#batch-requests)
     - [Batch Request Example](#batch-request-example)
     - [Batch Request Schema](#batch-request-schema)
     - [Batch Request Validation](#batch-request-validation)
+    - [Batch Request Validation Result Example](#batch-request-validation-result-example)
+    - [Batch Request Validation Result Schema](#batch-request-validation-result-schema)
 - [Evaluations](#evaluations)
     - [Request Evaluation](#request-evaluation)
     - [Batch Request Evaluation](#batch-request-evaluation)
@@ -802,6 +806,57 @@ Requests are valid if all of the following conditions are met:
 
 If an error occurs when validating a request, a `request` type [Error](#errors) should be returned/raised.
 
+### Request Validation Result Example
+
+```json
+{
+    "error": {
+        "error_type": "request",
+        "message": "The resource type 'Confetti' is not a registered resource type."
+    }
+}
+```
+
+### Request Validation Result Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Request Validation Result",
+    "description": "Request Validation Result schema.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "error"
+    ],
+    "properties": {
+        "error": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "error_type",
+                        "message"
+                    ],
+                    "properties": {
+                        "error_type": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    }
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        }
+    }
+}
+```
+
 
 ## Batch Requests
 
@@ -1045,6 +1100,92 @@ Batch Requests are valid if all of the following conditions are met:
 - Each item in the batch is formatted into a standard request as outlined in [Batch Request Evaluation](#batch-request-evaluation), and then each request is valid as outlined in [Request Validation](#request-validation)
 
 If an error occurs when validating a batch request at the top level, a `request` type [Error](#errors) should be returned/raised. Individual batch item validation errors should also be reported as `request` type errors for the specific item that failed.
+
+### Batch Request Validation Result Example
+
+```json
+{
+    "error": {
+        "error_type": "request",
+        "message": "The resource type 'Confetti' is not a registered resource type."
+    },
+    "batch": [
+        null,
+        {
+            "error_type": "request",
+            "message": "The resource instance is not valid against the 'Balloon' resource definition schema."
+        }
+    ]
+}
+```
+
+### Batch Request Validation Result Schema
+
+```json
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch request Validation Result",
+    "description": "Batch request Validation Result schema.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "error",
+        "batch"
+    ],
+    "properties": {
+        "error": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "error_type",
+                        "message"
+                    ],
+                    "properties": {
+                        "error_type": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    }
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "batch": {
+            "type": "array",
+            "description": "Each result corresponds to the batch request item of the same index.",
+            "items": {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                            "error_type",
+                            "message"
+                        ],
+                        "properties": {
+                            "error_type": {
+                                "type": "string"
+                            },
+                            "message": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            }
+        }
+    }
+}
+```
 
 
 ## Evaluations

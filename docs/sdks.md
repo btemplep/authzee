@@ -480,6 +480,7 @@ It should include these variables to import:
 - `audit_result_schema` - Return value schema for the `audit` operation/function
 - `authorize_result_schema` - Return value schema for the `authorize` operation/function
 - `batch_request_schema` - Authzee Batch Request Schema
+- `validate_request_result_schema` - Return value schema for the `validate_request` function
 - `validate_batch_request_result_schema` - Return value schema for the `validate_batch_request` function
 - `batch_audit_result_schema` - Return value schema for the `batch_audit` operation/function
 - `batch_authorize_result_schema` - Return value schema for the `batch_authorize` operation/function
@@ -957,7 +958,6 @@ class Authzee:
         compute_kwargs: Dict[str, Any],
         storage_type: Type[StorageModule],
         storage_kwargs: Dict[str, Any],
-        compute_storage_kwargs: Dict[str, Any] | None = None,
         config: AuthzeeConfigOverride | None = None
     ):
         pass
@@ -1268,6 +1268,8 @@ class Authzee:
         config: AuthzeeConfigOverride | None = None
     ) -> GenericResult:
         """Validate a request.
+
+        Return value matches `validate_request_result_schema`.
         """
         pass
 
@@ -1308,8 +1310,10 @@ class Authzee:
         self,
         batch_request: AuthzeeBatchRequest, 
         config: AuthzeeConfigOverride | None = None
-    ) -> GenericResult:
+    ) -> ValidateBatchRequestResult:
         """Validate a batch request.
+
+        Return value matches `validate_batch_request_result_schema`.
         """
         pass
 
@@ -1488,6 +1492,8 @@ class ComputeModule:
         config: ValidateRequestConfig
     ) -> GenericResult:
         """Validate a request.
+
+        Return value matches `validate_request_result_schema`.
         """
         pass
 
@@ -1496,8 +1502,10 @@ class ComputeModule:
         self,
         batch_request: AuthzeeBatchRequest,
         config: ValidateBatchRequestConfig
-    ) -> GenericResult:
+    ) -> ValidateBatchRequestResult:
         """Validate a batch request.
+
+        Return value matches `validate_batch_request_result_schema`.
         """
         pass
 

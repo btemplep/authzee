@@ -45,8 +45,10 @@ __all__ = [
     "validate_grants",
     "validate_identity_defs",
     "validate_request",
+    "validate_request_result_schema",
     "validate_resource_defs"
 ]
+
 from typing import Callable, Dict, List, Union
 
 import jsonschema
@@ -494,26 +496,38 @@ batch_request_schema = {
         }
     }
 }
-validate_batch_request_result_schema = {
+validate_request_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Request Validation Result",
     "description": "Request Validation Result schema.",
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "error"
+    ],
+    "properties": {
+        "error": generic_error_schema
+    }
+}
+validate_batch_request_result_schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batch request Validation Result",
+    "description": "Batch request Validation Result schema.",
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
         "error",
-        "batch_errors"
+        "batch"
     ],
     "properties": {
         "error": generic_error_schema,
-        "batch_errors": {
+        "batch": {
             "type": "array",
             "description": "Each result corresponds to the batch request item of the same index.",
             "items": generic_error_schema
         }
     }
 }
-
 batch_audit_result_schema = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Batch Audit Result",
@@ -872,7 +886,7 @@ def validate_batch_request(
                 "error_type": "request",
                 "message": f"The batch request is not valid. Schema Error: {exc}"
             },
-            "batch_errors": []
+            "batch": []
         }
 
     identity_lut = {i['identity_type']: i for i in identity_defs}
@@ -889,7 +903,7 @@ def validate_batch_request(
                 "error_type": "request",
                 "message": err
             },
-            "batch_errors": []
+            "batch": []
         }
 
     err = _validate_request_resource(
@@ -904,7 +918,7 @@ def validate_batch_request(
                 "error_type": "request",
                 "message": err
             },
-            "batch_errors": []
+            "batch": []
         }
 
     err = _validate_request_context(
@@ -918,10 +932,10 @@ def validate_batch_request(
                 "error_type": "request",
                 "message": err
             },
-            "batch_errors": []
+            "batch": []
         }
 
-    batch_errors = []
+    batch = []
     for item in batch_request['batch']:
         item_err = None
         if (
@@ -933,9 +947,12 @@ def validate_batch_request(
                 identity_lut=identity_lut
             )
 
-        if item_err is None and (
-            item.get("resource_type", None) is not None
-            or item.get("resource", None) is not None
+        if (
+            item_err is None
+            and (
+                item.get("resource_type", None) is not None
+                or item.get("resource", None) is not None
+            )
         ):
             item_err = _validate_request_resource(
                 resource_type=item.get("resource_type", batch_request['resource_type']),
@@ -944,9 +961,12 @@ def validate_batch_request(
                 resource_lut=resource_lut
             )
 
-        if item_err is None and (
-            item.get("context_type", None) is not None
-            or item.get("context", None) is not None
+        if (
+            item_err is None
+            and (
+                item.get("context_type", None) is not None
+                or item.get("context", None) is not None
+            )
         ):
             item_err = _validate_request_context(
                 context_type=item.get("context_type", batch_request['context_type']),
@@ -955,18 +975,18 @@ def validate_batch_request(
             )
 
         if item_err is not None:
-            batch_errors.append(
+            batch.append(
                 {
                     "error_type": "request",
                     "message": item_err
                 }
             )
         else:
-            batch_errors.append(None)
+            batch.append(None)
 
     return {
         "error": None,
-        "batch_errors": batch_errors
+        "batch": batch
     }
 
 
@@ -1010,7 +1030,10 @@ def audit(
     request: Dict[str, AnyJSON],
     grants: List[Dict[str, AnyJSON]],
     execute: Callable[[str, AnyJSON], AnyJSON]
-) -> Dict[str, List[Dict[str, AnyJSON]]]:
+) -> Dict[
+    str,
+    List[Dict[str, AnyJSON]]
+]:
     result = {
         "results": [],
         "error": None
@@ -1106,7 +1129,7 @@ def _validate(
 
         return {
             "error": None,
-            "batch_errors": req_val['batch_errors']
+            "batch": req_val['batch']
         }
 
     req_val = validate_request(
@@ -1179,7 +1202,10 @@ def batch_audit(
     batch_request: Dict[str, AnyJSON],
     grants: List[Dict[str, AnyJSON]],
     execute: Callable[[str, AnyJSON], AnyJSON]
-) -> Dict[str, List[Dict[str, AnyJSON]]]:
+) -> Dict[
+    str,
+    List[Dict[str, AnyJSON]]
+]:
     batch_results = []
     for item in batch_request['batch']:
         request = {
@@ -1219,7 +1245,10 @@ def batch_authorize(
     batch_request: Dict[str, AnyJSON],
     grants: List[Dict[str, AnyJSON]],
     execute: Callable[[str, AnyJSON], AnyJSON]
-) -> Dict[str, List[Dict[str, AnyJSON]]]:
+) -> Dict[
+    str,
+    List[Dict[str, AnyJSON]]
+]:
     results = []
     for item in batch_request['batch']:
         results.append(
@@ -1270,9 +1299,9 @@ def batch_audit_workflow(
     batch = []
     batch_results_indexes = []
     for error, request, i in zip(
-        val['batch_errors'],
+        val['batch'],
         batch_request['batch'],
-        range(len(val['batch_errors']))
+        range(len(val['batch']))
     ):
         if error is None:
             batch_results.append(None)
@@ -1321,9 +1350,9 @@ def batch_authorize_workflow(
     batch = []
     batch_results_indexes = []
     for error, request, i in zip(
-        val['batch_errors'],
+        val['batch'],
         batch_request['batch'],
-        range(len(val['batch_errors']))
+        range(len(val['batch']))
     ):
         if error is None:
             batch_results.append(None)
