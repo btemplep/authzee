@@ -10,3 +10,4 @@ docs/_build/
 *.sqlite
 tester.py
 TODO.md
+node_modules/

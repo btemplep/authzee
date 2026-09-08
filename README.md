@@ -30,6 +30,7 @@ Authzee is a highly expressive grant-based authorization engine. It's all about 
 - [Basic Example](#basic-example)
 - [Complex Example](#complex-example)
 - [Tests](#tests)
+- [Website Development](#website-development)
 
 ### Other Docs
 
@@ -264,3 +265,29 @@ Run the tests and generate a coverage report from the root of the project after 
 ```console
 pytest -vvv --cov=./src --cov-report=term --cov-report=html tests/unit
 ```
+
+
+## Website Development
+
+The [authzee.org](https://authzee.org) website lives in the [`website/`](./website) directory.
+It is a static site: a home page plus a documentation site that is generated from this repo's
+markdown files ([`README.md`](./README.md), [`docs/specification.md`](./docs/specification.md),
+and [`docs/sdks.md`](./docs/sdks.md)). Everything the browser runs is plain HTML, CSS, and JS —
+the only build tooling is a small Node script that renders the markdown into styled HTML pages.
+
+Requires [Node.js](https://nodejs.org/) 18+. From the root of the project:
+
+```console
+cd website
+npm install
+npm run build
+npm run serve
+```
+
+- `npm install` - install the build dependencies (first time only).
+- `npm run build` - render the markdown into the static site under `website/dist`.
+- `npm run serve` - serve `website/dist` at [http://localhost:8080](http://localhost:8080).
+
+Edit the markdown files or the assets under `website/src`, then re-run `npm run build` to refresh.
+Deployment to GitHub Pages is automated on pushes to `main`. See [website/README.md](./website/README.md)
+for more detail.
