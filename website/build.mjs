@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import * as esbuild from "esbuild";
 import GithubSlugger from "github-slugger";
 import hljs from "highlight.js";
 import { marked } from "marked";
@@ -114,6 +115,37 @@ function escapeHtml(str) {
 }
 
 /**
+ * Extract the Authzee spec version from docs/specification.md. The file starts
+ * with a `## Version X.Y.Z` heading; this keeps the playground's displayed
+ * version in sync with the spec without duplicating it.
+ */
+function extractSpecVersion() {
+  const spec = read(path.join(REPO_ROOT, "docs", "specification.md"));
+  const match = spec.match(/^##\s*Version\s+([0-9][^\s]*)\s*$/m);
+  return match ? match[1] : "unknown";
+}
+
+/**
+ * Bundle the JS reference engine (src/reference.js + Ajv) and a JMESPath-backed
+ * execute adapter into a single browser ESM module at dist/playground/engine.js.
+ * esbuild resolves the npm deps (ajv, jmespath) and emits browser-ready code so
+ * the playground can `import` the engine directly with no runtime bundler.
+ */
+async function buildPlaygroundEngine(playgroundOut) {
+  const entry = path.join(SRC, "playground", "engine.entry.js");
+  await esbuild.build({
+    entryPoints: [entry],
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    target: "es2020",
+    minify: true,
+    outfile: path.join(playgroundOut, "engine.js"),
+    logLevel: "silent"
+  });
+}
+
+/**
  * Rewrite a markdown link href so it resolves on the built site.
  *
  * - `#anchor` stays as-is (same-page).
@@ -169,9 +201,12 @@ function renderMarkdown(md, fromSource) {
 
   const renderer = new marked.Renderer();
 
-  const defaultLink = renderer.link.bind(renderer);
   renderer.link = (href, title, text) => {
-    return defaultLink(rewriteHref(href, fromSource), title, text);
+    const finalHref = rewriteHref(href, fromSource);
+    const isGithub = /^https?:\/\/(www\.)?github\.com\//.test(finalHref);
+    const titleAttr = title ? ` title="${title}"` : "";
+    const targetAttr = isGithub ? ' target="_blank" rel="noopener noreferrer"' : "";
+    return `<a href="${finalHref}"${titleAttr}${targetAttr}>${text}</a>`;
   };
 
   renderer.heading = (text, level, raw) => {
@@ -235,7 +270,8 @@ function topBar() {
     </a>
     <nav class="topnav">
       <a href="/docs/">Docs</a>
-      <a href="${GITHUB_URL}">GitHub</a>
+      <a href="/playground/">Playground</a>
+      <a href="${GITHUB_URL}" target="_blank" rel="noopener noreferrer">GitHub</a>
     </nav>
   </header>`;
 }
@@ -271,12 +307,15 @@ ${contentHtml}
 `;
 }
 
-function build() {
+async function build() {
   fs.rmSync(DIST, { recursive: true, force: true });
   ensureDir(DIST);
 
-  // Static assets (home page, css, js, logo) copied verbatim.
+  // Static assets (home page, css, js, logo, playground sources) copied verbatim.
   copyRecursive(SRC, DIST);
+
+  // The playground engine entry is a build input, not a shipped asset.
+  fs.rmSync(path.join(DIST, "playground", "engine.entry.js"), { force: true });
 
   // SVG assets from the repo docs/ folder (logo, balloon, etc.). Copying all of
   // them means any `/assets/<name>.svg` reference rewritten from a raw GitHub
@@ -300,6 +339,21 @@ function build() {
     const full = docsPage(page, html, toc);
     fs.writeFileSync(path.join(docsOut, page.out), full);
     console.log(`  docs/${page.out}  (${toc.length} sections)`);
+  }
+
+  // Playground: bundle the engine and inject the spec version into its page.
+  const playgroundOut = path.join(DIST, "playground");
+  ensureDir(playgroundOut);
+  await buildPlaygroundEngine(playgroundOut);
+  const specVersion = extractSpecVersion();
+  const buildId = Date.now().toString(36);
+  const playgroundHtmlPath = path.join(playgroundOut, "index.html");
+  if (fs.existsSync(playgroundHtmlPath)) {
+    const html = read(playgroundHtmlPath)
+      .split("{{SPEC_VERSION}}").join(specVersion)
+      .split("{{BUILD_ID}}").join(buildId);
+    fs.writeFileSync(playgroundHtmlPath, html);
+    console.log(`  playground/  (spec version ${specVersion}, engine bundled)`);
   }
 
   console.log(`Build complete -> ${path.relative(process.cwd(), DIST)}`);

@@ -16,6 +16,12 @@
   --hl-attr: #0550ae;
   --hl-type: #953800;
   --hl-meta: #116329;
+  --json-key: #d1b7ff;
+  --json-string: #e4d0aa;
+  --json-number: #21c65a;
+  --json-bool: #b496e9;
+  --json-null: #b496e9;
+  --json-punct: #d0d7de;
   --sidebar-width: 300px;
   --topbar-height: 60px;
   --code-min-width: 600px;
@@ -42,6 +48,12 @@
     --hl-attr: #79c0ff;
     --hl-type: #ffa657;
     --hl-meta: #7ee787;
+    --json-key: #d1b7ff;
+    --json-string: #e4d0aa;
+    --json-number: #21c65a;
+    --json-bool: #b496e9;
+    --json-null: #b496e9;
+    --json-punct: #d0d7de;
   }
 }
 
@@ -91,7 +103,7 @@ a:hover {
 }
 
 .topbar .brand img {
-  height: 34px;
+  height: 46px;
   width: auto;
   display: block;
 }
@@ -172,6 +184,17 @@ a:hover {
 .btn.primary:hover {
   background: var(--brand-strong);
   border-color: var(--brand-strong);
+}
+
+.btn.success {
+  background: #1f9d4d;
+  border-color: #1f9d4d;
+  color: #ffffff;
+}
+
+.btn.success:hover {
+  background: #197f3f;
+  border-color: #197f3f;
 }
 
 .site-footer {
