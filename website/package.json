@@ -10,6 +10,7 @@
     "serve": "node -e \"import('node:http').then(async http => { const fs=await import('node:fs'); const path=await import('node:path'); const root='dist'; const types={'.html':'text/html','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'}; http.createServer((req,res)=>{ let p=decodeURIComponent(req.url.split('?')[0]); if(p.endsWith('/')) p+='index.html'; let fp=path.join(root,p); if(!fs.existsSync(fp)&&fs.existsSync(fp+'.html')) fp=fp+'.html'; if(!fs.existsSync(fp)||fs.statSync(fp).isDirectory()){res.statusCode=404;return res.end('Not found');} res.setHeader('Content-Type', types[path.extname(fp)]||'application/octet-stream'); fs.createReadStream(fp).pipe(res); }).listen(8080, ()=>console.log('Serving dist/ at http://localhost:8080')); })\""
   },
   "dependencies": {
+    "ajv": "8.17.1",
     "esbuild": "0.23.1",
     "github-slugger": "2.0.0",
     "highlight.js": "11.9.0",

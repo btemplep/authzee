@@ -283,7 +283,7 @@ function docsPage(page, contentHtml, toc) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(page.title)} — Authzee Docs</title>
+  <title>Authzee - ${escapeHtml(page.title)}</title>
   <link rel="icon" href="/assets/authzee_balloon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
