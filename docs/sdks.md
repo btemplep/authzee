@@ -9,10 +9,31 @@ If this doesn't fit your use case you are free to create your own! Try to stay c
 > **NOTE** - This document is not a specification but a list of recommendations.  It may change and will not effect the specification or specification version of Authzee.
 
 
+## Available SDKs
+
+SDKs are considered:
+- **Authzee Compliant** - Follows the Authzee specification.
+- **Maintained** - Actively maintained.
+- **SDK Standard** - Follows the Authzee SDK standard.  It's not a bad thing if the library does not follow the standard.  You can expect a different interface than the official SDKs. 
+- **Official** - Branded as the official Authzee SDK for a language. Again, not a bad thing if the library isn't official.
+
+| Language | Code Repo | Package Repo | Authzee Compliant | Maintained | SDK Standard | Official | Notes |
+|---|---|---|:---:|:---:|:---:|:---:|:---:|
+| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ✅ | ✅ | ✅ | ✅ | |
+
+<!-- 
+Green checks for all that are compliant
+Red X for if not compliant for "Authzee Complaint" and "Maintained"
+Grey Check box if not compliant for "SDK Standard" and "Official"
+
+| python | [authzee-py-bad](https://github.com/btemplep/authzee-py) | [authzee-bad](https://pypi.org/project/authzee/) - pypi.org | ❌ | ❌ | ☑️ | ☑️ |
+| python | [authzee-py-compliant](https://github.com/btemplep/authzee-py) | [authzee-comliant](https://pypi.org/project/authzee/) - pypi.org | ✅  | ✅ | ✅ | ✅ |
+-->
+
+
 ### Table of Contents
 
 - [Example](#example)
-- [Available SDKs](#available-sdks)
 - [SDK Standards](#sdk-standards)
     - [Language Translations](#language-translations)
     - [Low Level API](#low-level-api)
@@ -398,28 +419,6 @@ print(batch_audit_result)
 #     "next_page_ref": None
 # }
 ```
-
-
-## Available SDKs
-
-SDKs are considered:
-- **Authzee Compliant** - Follows the Authzee specification.
-- **Maintained** - Actively maintained.
-- **SDK Standard** - Follows the Authzee SDK standard.  It's not a bad thing if the library does not follow the standard.  You can expect a different interface than the official SDKs. 
-- **Official** - Branded as the official Authzee SDK for a language. Again, not a bad thing if the library isn't official.
-
-| Language | Code Repo | Package Repo | Authzee Compliant | Maintained | SDK Standard | Official | Notes |
-|---|---|---|:---:|:---:|:---:|:---:|:---:|
-| python | [btemplep/authzee-py](https://github.com/btemplep/authzee-py) | [authzee](https://pypi.org/project/authzee/) - pypi.org | ✅ | ✅ | ✅ | ✅ | None |
-
-<!-- 
-Green checks for all that are compliant
-Red X for if not compliant for "Authzee Complaint" and "Maintained"
-Grey Check box if not compliant for "SDK Standard" and "Official"
-
-| python | [authzee-py-bad](https://github.com/btemplep/authzee-py) | [authzee-bad](https://pypi.org/project/authzee/) - pypi.org | ❌ | ❌ | ☑️ | ☑️ |
-| python | [authzee-py-compliant](https://github.com/btemplep/authzee-py) | [authzee-comliant](https://pypi.org/project/authzee/) - pypi.org | ✅  | ✅ | ✅ | ✅ |
--->
 
 
 ## SDK Standards

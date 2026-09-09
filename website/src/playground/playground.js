@@ -568,19 +568,19 @@ const DEF_MAP = {
     list: "context_defs",
     label: "Context Definitions",
     validate: validateContextDefs,
-    hint: "Context is extra structured data passed with a request. Schemas must be objects. NULL/ANY are common conventions."
+    hint: "Context is extra structured data passed with a request."
   },
   identity: {
     list: "identity_defs",
     label: "Identity Definitions",
     validate: validateIdentityDefs,
-    hint: "Identities describe the calling entity (users, groups, roles, etc.). Each type is validated per instance."
+    hint: "Identities describe the calling entity (users, groups, roles, etc.)."
   },
   resource: {
     list: "resource_defs",
     label: "Resource Definitions",
     validate: validateResourceDefs,
-    hint: "Resources are what actions are performed on. Each resource type declares its allowed actions and a schema."
+    hint: "Resources are things that actions are performed on. "
   }
 };
 let activeDef = "context";
@@ -907,7 +907,7 @@ function validateBatchRequestEditor() {
       out.className = "pg-validate-result ok";
     } else {
       out.textContent = "⚠ Root valid, but " + itemErrors + " batch item(s) have errors (see item results on Run).";
-      out.className = "pg-validate-result bad";
+      out.className = "pg-validate-result warn";
     }
   } else {
     out.textContent = "✗ " + result.error.error_type + ": " + result.error.message;

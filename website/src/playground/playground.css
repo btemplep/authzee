@@ -630,6 +630,10 @@
   color: #cf222e;
 }
 
+.pg-validate-result.warn {
+  color: #bf8700;
+}
+
 @media (max-width: 900px) {
   .playground {
     height: auto;

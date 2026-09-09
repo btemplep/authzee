@@ -4,9 +4,9 @@
 
 <!-- <img src="./docs/authzee_logo.svg" alt="Authzee Logo" width="500">  -->
 
-Authzee is a highly expressive grant-based authorization engine. It's all about flattening authorization based on patterns within an organization or application. 
+A highly expressive grant-based authorization engine. Flatten authorization based on organizational patterns. 
 
-**Less authorization rules, granular control, and support for all forms of authorization and identity.**
+**Less authorization rules | More granular control | Identity agnostic | All Access Control types supported**
 
 - **Scalable** - Handle complex authorization scenarios across large systems.
 - **Separation** - Keep authorization rules separate from business code.

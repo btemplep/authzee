@@ -131,10 +131,10 @@
           </div>
           <div class="pg-editor-wrap">
             <p class="pg-desc">
-              Grants are the authorization rules. Each has an <code>effect</code> (allow/deny), the
+              Grants are authorization rules. By default nothing is allowed in Authzee unless granted. Deny grants take precedence. Each has an <code>effect</code> (allow/deny), the
               <code>actions</code> it applies to (empty matches all), a <code>query</code> evaluated against
               <code>{request, grant}</code>, the expected <code>equality</code> result, and
-              <code>applicable_on_failure</code>. Any applicable deny wins; otherwise an applicable allow authorizes.
+              <code>applicable_on_failure</code>.  
               <a href="/docs/specification.html#grants" target="_blank" rel="noopener">Docs</a>
             </p>
             <div class="pg-editor-head">

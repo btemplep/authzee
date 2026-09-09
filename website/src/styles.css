@@ -146,6 +146,25 @@ a:hover {
   margin: 0 0 12px;
 }
 
+.hero-features {
+  font-size: 20px;
+  font-weight: 700;
+  color: #e4d0aa;
+  margin: 0 0 16px;
+  white-space: nowrap;
+  text-align: center;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.hero-features .sep {
+  color: var(--brand);
+  font-weight: 700;
+  margin: 0 6px;
+}
+
 .subtagline {
   font-size: 17px;
   color: var(--text-muted);
