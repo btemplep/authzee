@@ -141,6 +141,7 @@ async function buildPlaygroundEngine(playgroundOut) {
     target: "es2020",
     minify: true,
     outfile: path.join(playgroundOut, "engine.js"),
+    nodePaths: [path.join(__dirname, "node_modules")],
     logLevel: "silent"
   });
 }
