@@ -8,6 +8,8 @@ A highly expressive grant-based authorization engine. Flatten authorization base
 
 **Less authorization rules | More granular control | Identity agnostic | All Access Control types supported**
 
+**Visit the <a href="https://authzee.org" target="_blank" rel="noopener">Authzee Website</a> for full docs and playground.**
+
 - **Scalable** - Handle complex authorization scenarios across large systems.
 - **Separation** - Keep authorization rules separate from business code.
 - **Dependable** - Built on top of existing specifications that are widely used. JSON Schema (Draft 2020-12) and JMESPath standards (or other JSON query language).  Authzee has a specification and reference implementation as well.
@@ -42,7 +44,7 @@ A highly expressive grant-based authorization engine. Flatten authorization base
 
 This example shows all of the basic ideas behind Authzee using the python reference implementation [reference.py](./src/reference.py).
 
-Run [basic_example.py](./basic_example.py) from the root of the project after installing the dependencies from the `requirements.txt` file.
+Run [basic_example.py](./basic_example.py) from the root of the project after installing the dependencies from the `src/requirements.txt` file.
 
 ```python
 import json
@@ -255,12 +257,12 @@ This basic example shows:
 This is a more complex example that shows how to handle multiple identities, resources, and grants. 
 It utilizes all these elements to create a more complex request for the audit, authorize, batch audit, and batch authorize workflows.
 
-Run [complex_example.py](./complex_example.py) from the root of the project after installing the dependencies from the `requirements.txt` file.
+Run [complex_example.py](./complex_example.py) from the root of the project after installing the dependencies from the `src/requirements.txt` file.
 
 
 ## Tests
 
-Run the tests and generate a coverage report from the root of the project after installing the dependencies from the `requirements.txt` file.
+Run the tests and generate a coverage report from the root of the project after installing the dependencies from the `src/requirements.txt` file.
 
 ```console
 pytest -vvv --cov=./src --cov-report=term --cov-report=html tests/unit
