@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Playground — Authzee</title>
+  <link rel="icon" href="/assets/authzee_balloon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css?v={{BUILD_ID}}" />
+  <link rel="stylesheet" href="/playground/playground.css?v={{BUILD_ID}}" />
+</head>
+<body class="playground">
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img src="/assets/authzee_logo.svg" alt="Authzee" />
+    </a>
+    <nav class="topnav">
+      <a href="/docs/">Docs</a>
+      <a href="/playground/">Playground</a>
+      <a href="https://github.com/btemplep/authzee" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="pg-layout">
+    <button id="pg-sidebar-expand" type="button" class="pg-sidebar-expand" title="Show sidebar" aria-label="Show sidebar">›</button>
+    <aside class="pg-sidebar">
+      <div class="pg-sidebar-head">
+        <div class="pg-spec">
+          <span class="pg-spec-label">Authzee Spec</span>
+          <span class="pg-spec-version">v{{SPEC_VERSION}}</span>
+        </div>
+        <button id="pg-sidebar-collapse" type="button" class="pg-sidebar-collapse" title="Hide sidebar" aria-label="Hide sidebar">‹</button>
+      </div>
+
+      <section class="pg-overview">
+        <p class="pg-overview-title">Overview</p>
+
+        <div class="pg-ov-group">
+          <p class="pg-ov-heading">Context Defs <span id="ov-context-count" class="pg-count">0</span></p>
+          <ul id="ov-context-list" class="pg-ov-list"></ul>
+        </div>
+
+        <div class="pg-ov-group">
+          <p class="pg-ov-heading">Identity Defs <span id="ov-identity-count" class="pg-count">0</span></p>
+          <ul id="ov-identity-list" class="pg-ov-list"></ul>
+        </div>
+
+        <div class="pg-ov-group">
+          <p class="pg-ov-heading">Resource Defs <span id="ov-resource-count" class="pg-count">0</span></p>
+          <ul id="ov-resource-list" class="pg-ov-list"></ul>
+        </div>
+
+        <div class="pg-ov-group">
+          <p class="pg-ov-heading">Grants <span id="ov-grant-count" class="pg-count">0</span></p>
+          <ul class="pg-ov-list">
+            <li>allow <span id="ov-allow-count" class="pg-count-inline">0</span></li>
+            <li>deny <span id="ov-deny-count" class="pg-count-inline">0</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <button id="pg-reset" type="button" class="pg-btn pg-reset">Reset to example</button>
+    </aside>
+
+    <main class="pg-main">
+      <nav class="pg-tabs" role="tablist">
+        <button class="pg-tab active" data-tab="definitions" role="tab">Definitions</button>
+        <button class="pg-tab" data-tab="grants" role="tab">Grants</button>
+        <button class="pg-tab" data-tab="operations" role="tab">Operations</button>
+        <button class="pg-tab" data-tab="batch" role="tab">Batch Operations</button>
+      </nav>
+
+      <!-- Definitions tab -->
+      <section class="pg-panel active" data-panel="definitions">
+        <div class="pg-panel-body pg-with-side">
+          <div class="pg-side">
+            <p class="pg-side-title">Definition Type</p>
+            <div class="pg-side-select" id="def-type-select">
+              <button class="pg-side-item active" data-def="context">Context</button>
+              <button class="pg-side-item" data-def="identity">Identity</button>
+              <button class="pg-side-item" data-def="resource">Resource</button>
+            </div>
+            <p class="pg-hint" id="def-hint"></p>
+          </div>
+          <div class="pg-editor-wrap">
+            <p class="pg-desc">
+              Definitions describe and constrain the inputs to Authzee using JSON Schema (Draft 2020-12).
+              Each list is an array of definitions for the selected type. Types must be unique and every
+              schema's root <code>type</code> must be <code>object</code>.
+              <a href="/docs/specification.html#context-definitions" target="_blank" rel="noopener">Docs</a>
+            </p>
+            <div class="pg-editor-head">
+              <span id="def-editor-label">Context Definitions</span>
+              <span class="pg-status" id="def-status"></span>
+            </div>
+            <pre id="def-validate-result" class="pg-validate-result"></pre>
+            <textarea id="def-editor" class="pg-editor" spellcheck="false" autocomplete="off"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- Grants tab -->
+      <section class="pg-panel" data-panel="grants">
+        <div class="pg-panel-body pg-with-side">
+          <div class="pg-side">
+            <p class="pg-side-title">Query Backend</p>
+            <select id="query-backend" class="pg-select">
+              <option value="jmespath" selected>JMESPath</option>
+            </select>
+            <p class="pg-hint">
+              The query backend runs each grant's <code>query</code>. Only JMESPath is available for now.
+            </p>
+
+            <p class="pg-side-title">Grant Breakdown</p>
+            <div class="pg-breakdown">
+              <div class="pg-bd-row">
+                <span class="pg-bd-label">Total</span>
+                <span id="bd-total" class="pg-count">0</span>
+              </div>
+              <div class="pg-bd-row">
+                <span class="pg-bd-label pg-bd-allow">allow</span>
+                <span id="bd-allow" class="pg-count-inline">0</span>
+              </div>
+              <div class="pg-bd-row">
+                <span class="pg-bd-label pg-bd-deny">deny</span>
+                <span id="bd-deny" class="pg-count-inline">0</span>
+              </div>
+            </div>
+
+            <p class="pg-side-title">By Action</p>
+            <ul id="bd-actions" class="pg-bd-actions"></ul>
+          </div>
+          <div class="pg-editor-wrap">
+            <p class="pg-desc">
+              Grants are authorization rules. By default nothing is allowed in Authzee unless granted. Deny grants take precedence. Each has an <code>effect</code> (allow/deny), the
+              <code>actions</code> it applies to (empty matches all), a <code>query</code> evaluated against
+              <code>{request, grant}</code>, the expected <code>equality</code> result, and
+              <code>applicable_on_failure</code>.  
+              <a href="/docs/specification.html#grants" target="_blank" rel="noopener">Docs</a>
+            </p>
+            <div class="pg-editor-head">
+              <span>Grants <span id="grant-count-label" class="pg-count"></span></span>
+              <span class="pg-status" id="grant-status"></span>
+            </div>
+            <pre id="grant-validate-result" class="pg-validate-result"></pre>
+            <textarea id="grant-editor" class="pg-editor" spellcheck="false" autocomplete="off"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- Operations tab -->
+      <section class="pg-panel" data-panel="operations">
+        <div class="pg-panel-body pg-with-side">
+          <div class="pg-side">
+            <p class="pg-side-title">Operation</p>
+            <div class="pg-side-select" id="op-select">
+              <button class="pg-side-item active" data-op="authorize">authorize</button>
+              <button class="pg-side-item" data-op="audit">audit</button>
+            </div>
+            <button id="run-op" type="button" class="pg-btn pg-run">Run</button>
+          </div>
+          <div class="pg-split">
+            <div class="pg-editor-wrap">
+              <p class="pg-desc">
+                An operation runs the shared request against the current defs and grants.
+                <code>authorize</code> returns a single decision; <code>audit</code> lists every grant's evaluation.
+                The same request is used for both.
+                <a href="/docs/specification.html#operations" target="_blank" rel="noopener">Docs</a>
+              </p>
+              <div class="pg-editor-head">
+                <span>Request (shared)</span>
+                <span class="pg-status" id="req-status"></span>
+              </div>
+              <pre id="req-validate-result" class="pg-validate-result"></pre>
+              <textarea id="req-editor" class="pg-editor" spellcheck="false" autocomplete="off"></textarea>
+            </div>
+            <div class="pg-editor-wrap">
+              <div class="pg-editor-head">
+                <span id="op-response-label">Response</span>
+              </div>
+              <pre id="op-response" class="pg-response"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Batch Operations tab -->
+      <section class="pg-panel" data-panel="batch">
+        <div class="pg-panel-body pg-with-side">
+          <div class="pg-side">
+            <p class="pg-side-title">Operation</p>
+            <div class="pg-side-select" id="batch-op-select">
+              <button class="pg-side-item active" data-op="batchAuthorize">batchAuthorize</button>
+              <button class="pg-side-item" data-op="batchAudit">batchAudit</button>
+            </div>
+            <button id="run-batch" type="button" class="pg-btn pg-run">Run</button>
+          </div>
+          <div class="pg-split">
+            <div class="pg-editor-wrap">
+              <p class="pg-desc">
+                A batch request shares one root request across many <code>batch</code> items for the same action.
+                Each item may override root fields (except <code>action</code>); unset fields fall back to the root.
+                <code>batchAuthorize</code> returns a decision per item; <code>batchAudit</code> lists grant evaluations per item.
+                <a href="/docs/specification.html#batch-audit" target="_blank" rel="noopener">Docs</a>
+              </p>
+              <div class="pg-editor-head">
+                <span>Batch Request (shared)</span>
+                <span class="pg-status" id="batch-req-status"></span>
+              </div>
+              <pre id="batch-req-validate-result" class="pg-validate-result"></pre>
+              <textarea id="batch-req-editor" class="pg-editor" spellcheck="false" autocomplete="off"></textarea>
+            </div>
+            <div class="pg-editor-wrap">
+              <div class="pg-editor-head">
+                <span id="batch-response-label">Response</span>
+              </div>
+              <pre id="batch-response" class="pg-response"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/playground/playground.js?v={{BUILD_ID}}"></script>
+</body>
+</html>

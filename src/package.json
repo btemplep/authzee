@@ -1,0 +1,14 @@
+{
+  "name": "authzee-reference",
+  "version": "0.5.0",
+  "description": "JavaScript reference implementation for the Authzee specification.",
+  "type": "module",
+  "main": "reference.js",
+  "exports": {
+    ".": "./reference.js"
+  },
+  "private": true,
+  "dependencies": {
+    "ajv": "8.17.1"
+  }
+}

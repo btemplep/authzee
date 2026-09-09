@@ -4,9 +4,11 @@
 
 <!-- <img src="./docs/authzee_logo.svg" alt="Authzee Logo" width="500">  -->
 
-Authzee is a highly expressive grant-based authorization engine. It's all about flattening authorization based on patterns within an organization or application. 
+A highly expressive grant-based authorization engine. Flatten authorization based on organizational patterns. 
 
-**Less authorization rules, granular control, and support for all forms of authorization and identity.**
+**Less authorization rules | More granular control | Identity agnostic | All Access Control types supported**
+
+**Visit the <a href="https://authzee.org" target="_blank" rel="noopener">Authzee Website</a> for full docs and playground.**
 
 - **Scalable** - Handle complex authorization scenarios across large systems.
 - **Separation** - Keep authorization rules separate from business code.
@@ -30,6 +32,7 @@ Authzee is a highly expressive grant-based authorization engine. It's all about 
 - [Basic Example](#basic-example)
 - [Complex Example](#complex-example)
 - [Tests](#tests)
+- [Website Development](#website-development)
 
 ### Other Docs
 
@@ -41,7 +44,7 @@ Authzee is a highly expressive grant-based authorization engine. It's all about 
 
 This example shows all of the basic ideas behind Authzee using the python reference implementation [reference.py](./src/reference.py).
 
-Run [basic_example.py](./basic_example.py) from the root of the project after installing the dependencies from the `requirements.txt` file.
+Run [basic_example.py](./basic_example.py) from the root of the project after installing the dependencies from the `src/requirements.txt` file.
 
 ```python
 import json
@@ -254,13 +257,39 @@ This basic example shows:
 This is a more complex example that shows how to handle multiple identities, resources, and grants. 
 It utilizes all these elements to create a more complex request for the audit, authorize, batch audit, and batch authorize workflows.
 
-Run [complex_example.py](./complex_example.py) from the root of the project after installing the dependencies from the `requirements.txt` file.
+Run [complex_example.py](./complex_example.py) from the root of the project after installing the dependencies from the `src/requirements.txt` file.
 
 
 ## Tests
 
-Run the tests and generate a coverage report from the root of the project after installing the dependencies from the `requirements.txt` file.
+Run the tests and generate a coverage report from the root of the project after installing the dependencies from the `src/requirements.txt` file.
 
 ```console
 pytest -vvv --cov=./src --cov-report=term --cov-report=html tests/unit
 ```
+
+
+## Website Development
+
+The [authzee.org](https://authzee.org) website lives in the [`website/`](./website) directory.
+It is a static site: a home page plus a documentation site that is generated from this repo's
+markdown files ([`README.md`](./README.md), [`docs/specification.md`](./docs/specification.md),
+and [`docs/sdks.md`](./docs/sdks.md)). Everything the browser runs is plain HTML, CSS, and JS —
+the only build tooling is a small Node script that renders the markdown into styled HTML pages.
+
+Requires [Node.js](https://nodejs.org/) 18+. From the root of the project:
+
+```console
+cd website
+npm install
+npm run build
+npm run serve
+```
+
+- `npm install` - install the build dependencies (first time only).
+- `npm run build` - render the markdown into the static site under `website/dist`.
+- `npm run serve` - serve `website/dist` at [http://localhost:8080](http://localhost:8080).
+
+Edit the markdown files or the assets under `website/src`, then re-run `npm run build` to refresh.
+Deployment to GitHub Pages is automated on pushes to `main`. See [website/README.md](./website/README.md)
+for more detail.
